@@ -27,6 +27,7 @@
 
 #include "libavutil/avassert.h"
 #include "libavutil/imgutils.h"
+#include "libavutil/film_grain_params.h"
 #include "internal.h"
 #include "cabac.h"
 #include "cabac_functions.h"
@@ -212,6 +213,8 @@ void ff_h264_set_erpic(ERPicture *dst, H264Picture *src)
 int ff_h264_field_end(H264Context *h, H264SliceContext *sl, int in_setup)
 {
     AVCodecContext *const avctx = h->avctx;
+    H264Picture *cur = h->cur_pic_ptr;
+    AVFrameSideData *sd;
     int err = 0;
     h->mb_y = 0;
 
@@ -225,6 +228,9 @@ int ff_h264_field_end(H264Context *h, H264SliceContext *sl, int in_setup)
         h->poc.prev_frame_num        = h->poc.frame_num;
     }
 
+    if (!h->picture_idr && h->picture_intra_only)
+        h->poc_offset = 0;
+
     if (avctx->hwaccel) {
         err = avctx->hwaccel->end_frame(avctx);
         if (err < 0)
@@ -232,8 +238,13 @@ int ff_h264_field_end(H264Context *h, H264SliceContext *sl, int in_setup)
                    "hardware accelerator failed to decode picture\n");
     }
 
+    if ((sd = av_frame_get_side_data(cur->f, AV_FRAME_DATA_FILM_GRAIN_PARAMS))) {
+        AVFilmGrainParams *fgp = (AVFilmGrainParams *) sd->data;
+        fgp->seed = cur->poc + (h->poc_offset << 5);
+    }
+
     if (!in_setup && !h->droppable)
-        ff_thread_report_progress(&h->cur_pic_ptr->tf, INT_MAX,
+        ff_thread_report_progress(&cur->tf, INT_MAX,
                                   h->picture_structure == PICT_BOTTOM_FIELD);
     emms_c();
 

@@ -406,6 +406,7 @@ int ff_h264_update_thread_context(AVCodecContext *dst,
 
     h->next_output_pic   = h1->next_output_pic;
     h->next_outputed_poc = h1->next_outputed_poc;
+    h->poc_offset        = h1->poc_offset;
 
     memcpy(h->mmco, h1->mmco, sizeof(h->mmco));
     h->nb_mmco         = h1->nb_mmco;
@@ -510,6 +511,7 @@ static int h264_frame_start(H264Context *h)
     pic->sei_recovery_frame_cnt = h->sei.recovery_point.recovery_frame_cnt;
 
     pic->f->pict_type = h->slice_ctx[0].slice_type;
+    h->picture_intra_only = 1; // set to 0 by h264_slice_init
 
     pic->f->crop_left   = h->crop_left;
     pic->f->crop_right  = h->crop_right;
@@ -1335,6 +1337,7 @@ static int h264_export_frame_props(H264Context *h)
             return AVERROR(ENOMEM);
 
         fgp->type = AV_FILM_GRAIN_PARAMS_H274;
+        /* fgp->seed is set by ff_h264_field_end */
 
         fgp->codec.h274.model_id = fgc->model_id;
         if (fgc->separate_colour_description_present_flag) {
@@ -1542,6 +1545,9 @@ static int h264_field_start(H264Context *h, const H264SliceContext *sl,
     h->poc.delta_poc_bottom = sl->delta_poc_bottom;
     h->poc.delta_poc[0]     = sl->delta_poc[0];
     h->poc.delta_poc[1]     = sl->delta_poc[1];
+
+    if (nal->type == H264_NAL_IDR_SLICE)
+        h->poc_offset = sl->idr_pic_id;
 
     /* Shorten frame num gaps so we don't have to allocate reference
      * frames just to throw them away */
@@ -1891,7 +1897,7 @@ static int h264_slice_header_parse(const H264Context *h, H264SliceContext *sl,
     }
 
     if (nal->type == H264_NAL_IDR_SLICE)
-        get_ue_golomb_long(&sl->gb); /* idr_pic_id */
+        sl->idr_pic_id = get_ue_golomb_long(&sl->gb);
 
     sl->poc_lsb = 0;
     sl->delta_poc_bottom = 0;
@@ -2023,6 +2029,9 @@ static int h264_slice_init(H264Context *h, H264SliceContext *sl,
         av_log(h->avctx, AV_LOG_ERROR, "Invalid mix of IDR and non-IDR slices\n");
         return AVERROR_INVALIDDATA;
     }
+
+    if (sl->slice_type_nos != AV_PICTURE_TYPE_I)
+        h->picture_intra_only = 0;
 
     av_assert1(h->mb_num == h->mb_width * h->mb_height);
     if (sl->first_mb_addr << FIELD_OR_MBAFF_PICTURE(h) >= h->mb_num ||
