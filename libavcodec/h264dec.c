@@ -824,9 +824,33 @@ static int h264_export_enc_params(AVFrame *f, H264Picture *p)
 static int output_frame(H264Context *h, AVFrame *dst, H264Picture *srcp)
 {
     AVFrame *src = srcp->f;
+    AVFrameSideData *sd;
     int ret;
 
-    ret = av_frame_ref(dst, src);
+    if ((sd = av_frame_get_side_data(src, AV_FRAME_DATA_FILM_GRAIN_PARAMS))) {
+        if (h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_FILM_GRAIN) {
+            // Film grain exported as-is
+            ret = av_frame_ref(dst, src);
+        } else {
+            // Film grain needs to be applied by the decoder
+            dst->format = src->format;
+            dst->width = src->width;
+            dst->height = src->height;
+            ret = av_frame_copy_props(dst, src);
+            if (ret < 0)
+                return ret;
+            ret = av_frame_get_buffer(dst, 0);
+            if (ret < 0)
+                return ret;
+            av_frame_remove_side_data(dst, AV_FRAME_DATA_FILM_GRAIN_PARAMS);
+            ret = ff_h274_apply_film_grain(dst, src, &h->h274db,
+                                           (AVFilmGrainParams *) sd->data);
+        }
+    } else {
+        // No film grain present
+        ret = av_frame_ref(dst, src);
+    }
+
     if (ret < 0)
         return ret;
 

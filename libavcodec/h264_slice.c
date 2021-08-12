@@ -1329,8 +1329,7 @@ static int h264_export_frame_props(H264Context *h)
     }
     h->sei.unregistered.nb_buf_ref = 0;
 
-    if (h->sei.film_grain_characteristics.present &&
-        (h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_FILM_GRAIN)) {
+    if (h->sei.film_grain_characteristics.present) {
         H264SEIFilmGrainCharacteristics *fgc = &h->sei.film_grain_characteristics;
         AVFilmGrainParams *fgp = av_film_grain_params_create_side_data(out);
         if (!fgp)
