@@ -400,6 +400,20 @@ static int filter_frame(AVFilterLink *link, AVFrame *in)
     out->width = outlink->w;
     out->height = outlink->h;
 
+#if PL_API_VER >= 186
+    /* This filter always applies dovi metadata if present, in which case the
+     * colorimetry metadata should be defaulted to the output of the dolby
+     * vision reshaping process (always BT.2020+PQ). Also strip the RPUs
+     * to avoid downstream clients from re-applying them a second time. */
+    if (av_frame_get_side_data(in, AV_FRAME_DATA_DOVI_METADATA)) {
+        av_frame_remove_side_data(out, AV_FRAME_DATA_DOVI_RPU_BUFFER);
+        av_frame_remove_side_data(out, AV_FRAME_DATA_DOVI_METADATA);
+        out->colorspace = AVCOL_SPC_BT2020_NCL;
+        out->color_primaries = AVCOL_PRI_BT2020;
+        out->color_trc = AVCOL_TRC_SMPTE2084;
+    }
+#endif
+
     if (s->colorspace >= 0)
         out->colorspace = s->colorspace;
     if (s->color_range >= 0)
