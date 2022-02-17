@@ -26,6 +26,14 @@
 #include <libplacebo/utils/libav.h>
 #include <libplacebo/vulkan.h>
 
+struct custom_lut {
+    const struct pl_custom_lut *lut;
+    char *path;
+    void *bin;
+    int bin_len;
+    int type;
+};
+
 typedef struct LibplaceboContext {
     /* lavfi vulkan*/
     FFVulkanContext vkctx;
@@ -115,6 +123,11 @@ typedef struct LibplaceboContext {
     int shader_bin_len;
     const struct pl_hook *hooks[2];
     int num_hooks;
+
+    /* custom LUTs */
+    struct custom_lut lut;
+    struct custom_lut input_lut;
+    struct custom_lut output_lut;
 } LibplaceboContext;
 
 static inline enum pl_log_level get_log_level(void)
@@ -202,6 +215,37 @@ static int libplacebo_init(AVFilterContext *avctx)
     return 0;
 }
 
+static int load_custom_lut(AVFilterContext *avctx, struct custom_lut *lut)
+{
+    LibplaceboContext *s = avctx->priv;
+    uint8_t *buf = NULL;
+    size_t buf_len;
+    int err;
+
+    if (lut->bin_len) {
+        // Binary specified
+        buf = lut->bin;
+        buf_len = lut->bin_len;
+    } else if (lut->path) {
+        // File path specified
+        if ((err = av_file_map(lut->path, &buf, &buf_len, 0, s)))
+            return err;
+    } else {
+        // No LUT specified
+        return 0;
+    }
+
+    lut->lut = pl_lut_parse_cube(s->log, buf, buf_len);
+    if (!lut->lut) {
+        av_log(s, AV_LOG_ERROR, "Failed parsing custom .cube LUT!\n");
+        if (buf && buf != lut->bin)
+            av_file_unmap(buf, buf_len);
+        return AVERROR_EXTERNAL;
+    }
+
+    return 0;
+}
+
 static int init_vulkan(AVFilterContext *avctx)
 {
     int err = 0;
@@ -254,6 +298,10 @@ static int init_vulkan(AVFilterContext *avctx)
         RET(parse_shader(avctx, buf, buf_len));
     }
 
+    RET(load_custom_lut(avctx, &s->lut));
+    RET(load_custom_lut(avctx, &s->input_lut));
+    RET(load_custom_lut(avctx, &s->output_lut));
+
     /* fall through */
 fail:
     if (buf)
@@ -268,6 +316,9 @@ static void libplacebo_uninit(AVFilterContext *avctx)
 
     for (int i = 0; i < s->num_hooks; i++)
         pl_mpv_user_shader_destroy(&s->hooks[i]);
+    pl_lut_free(&s->lut.lut);
+    pl_lut_free(&s->input_lut.lut);
+    pl_lut_free(&s->output_lut.lut);
     pl_renderer_destroy(&s->renderer);
     pl_vulkan_destroy(&s->vulkan);
     pl_log_destroy(&s->log);
@@ -304,6 +355,11 @@ static int process_frames(AVFilterContext *avctx, AVFrame *out, AVFrame *in)
         float aspect = pl_rect2df_aspect(&target.crop) * av_q2d(s->target_sar);
         pl_rect2df_aspect_set(&target.crop, aspect, s->pad_crop_ratio);
     }
+
+    image.lut = s->input_lut.lut;
+    image.lut_type = s->input_lut.type;
+    target.lut = s->output_lut.lut;
+    target.lut_type = s->output_lut.type;
 
     /* Update render params */
     params = (struct pl_render_params) {
@@ -361,6 +417,8 @@ static int process_frames(AVFilterContext *avctx, AVFrame *out, AVFrame *in)
 
         .hooks = s->hooks,
         .num_hooks = s->num_hooks,
+        .lut = s->lut.lut,
+        .lut_type = s->lut.type,
 
         .skip_anti_aliasing = s->skip_aa,
         .polar_cutoff = s->polar_cutoff,
@@ -649,6 +707,26 @@ static const AVOption libplacebo_options[] = {
 
     { "custom_shader_path", "Path to custom user shader (mpv .hook format)", OFFSET(shader_path), AV_OPT_TYPE_STRING, .flags = STATIC },
     { "custom_shader_bin", "Custom user shader as binary (mpv .hook format)", OFFSET(shader_bin), AV_OPT_TYPE_BINARY, .flags = STATIC },
+
+    { "lut_path", "Path to custom color LUT (.cube format)", OFFSET(lut.path), AV_OPT_TYPE_STRING, .flags = STATIC },
+    { "lut_bin", "Custom color LUT as binary (.cube format)", OFFSET(lut.bin), AV_OPT_TYPE_BINARY, .flags = STATIC },
+    { "lut_type", "Color LUT interpretation", OFFSET(lut.type), AV_OPT_TYPE_INT, {.i64 = PL_LUT_UNKNOWN}, 0, PL_LUT_CONVERSION, DYNAMIC, "lut_type" },
+        { "unknown", "Unknown LUT type", 0, AV_OPT_TYPE_CONST, {.i64 = PL_LUT_UNKNOWN}, 0, 0, STATIC, "lut_type" },
+        { "native", "Non-linear gamma RGB", 0, AV_OPT_TYPE_CONST, {.i64 = PL_LUT_NATIVE}, 0, 0, STATIC, "lut_type" },
+        { "normalized", "Normalized linear RGB (1.0 = SDR peak)", 0, AV_OPT_TYPE_CONST, {.i64 = PL_LUT_NORMALIZED}, 0, 0, STATIC, "lut_type" },
+        { "conversion", "LUT replaces tone mapping / gamut mapping", 0, AV_OPT_TYPE_CONST, {.i64 = PL_LUT_CONVERSION}, 0, 0, STATIC, "lut_type" },
+
+    { "input_lut_path", "Path to custom input LUT (.cube format)", OFFSET(input_lut.path), AV_OPT_TYPE_STRING, .flags = STATIC },
+    { "input_lut_bin", "Custom input LUT as binary (.cube format)", OFFSET(input_lut.bin), AV_OPT_TYPE_BINARY, .flags = STATIC },
+    { "input_lut_type", "Input LUT interpretation", OFFSET(input_lut.type), AV_OPT_TYPE_INT, {.i64 = PL_LUT_UNKNOWN}, 0, PL_LUT_CONVERSION, DYNAMIC, "frame_lut_type" },
+
+    { "output_lut_path", "Path to custom output LUT (.cube format)", OFFSET(output_lut.path), AV_OPT_TYPE_STRING, .flags = STATIC },
+    { "output_lut_bin", "Custom output LUT as binary (.cube format)", OFFSET(output_lut.bin), AV_OPT_TYPE_BINARY, .flags = STATIC },
+    { "output_lut_type", "Output LUT interpretation", OFFSET(output_lut.type), AV_OPT_TYPE_INT, {.i64 = PL_LUT_UNKNOWN}, 0, PL_LUT_CONVERSION, DYNAMIC, "frame_lut_type" },
+        { "unknown", "Unknown LUT type", 0, AV_OPT_TYPE_CONST, {.i64 = PL_LUT_UNKNOWN}, 0, 0, STATIC, "frame_lut_type" },
+        { "native", "Native image color space (e.g. YUV)", 0, AV_OPT_TYPE_CONST, {.i64 = PL_LUT_NATIVE}, 0, 0, STATIC, "frame_lut_type" },
+        { "normalized", "Decoded non-linear RGB", 0, AV_OPT_TYPE_CONST, {.i64 = PL_LUT_NORMALIZED}, 0, 0, STATIC, "frame_lut_type" },
+        { "conversion", "LUT replaces color system conversion", 0, AV_OPT_TYPE_CONST, {.i64 = PL_LUT_CONVERSION}, 0, 0, STATIC, "frame_lut_type" },
 
     /* Performance/quality tradeoff options */
     { "skip_aa", "Skip anti-aliasing", OFFSET(skip_aa), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 0, DYNAMIC },
