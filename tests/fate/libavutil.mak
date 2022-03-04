@@ -164,7 +164,7 @@ fate-tea: CMD = run libavutil/tests/tea$(EXESUF)
 
 FATE_LIBAVUTIL += fate-opt
 fate-opt: libavutil/tests/opt$(EXESUF)
-fate-opt: CMD = run libavutil/tests/opt$(EXESUF)
+fate-opt: CMD = run libavutil/tests/opt$(EXESUF) $(TARGET_SAMPLES)
 
 FATE_LIBAVUTIL += $(FATE_LIBAVUTIL-yes)
 FATE-$(CONFIG_AVUTIL) += $(FATE_LIBAVUTIL)

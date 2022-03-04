@@ -113,7 +113,7 @@ static void log_callback_help(void *ptr, int level, const char *fmt, va_list vl)
     vfprintf(stdout, fmt, vl);
 }
 
-int main(void)
+int main(int argc, const char **argv)
 {
     int i;
 
@@ -352,6 +352,42 @@ int main(void)
             else
                 printf("OK    '%s'\n", options[i]);
         }
+        av_opt_free(&test_ctx);
+    }
+
+    printf("\nTesting av_opt_set_filepath()\n");
+    {
+        TestContext test_ctx = { 0 };
+        const char *samples;
+        char buf[256];
+        uint8_t *value;
+        int ret = AVERROR_BUG;
+
+        if (argc < 2)
+            return 1;
+        samples = argv[1];
+
+        test_ctx.class = &test_class;
+        av_opt_set_defaults(&test_ctx);
+        av_log_set_level(AV_LOG_QUIET);
+
+        if (snprintf(buf, sizeof(buf), "@%s/HEADER.txt", samples) >= sizeof(buf))
+            return 1;
+
+        ret = av_opt_set_filepath(&test_ctx, "bin", &buf[1], 0);
+        if (!ret)
+            ret = av_opt_get(&test_ctx, "bin", 0, &value);
+        printf("av_opt_set_filepath: bin='%s'\n",
+               ret ? av_err2str(ret) : (char *) value);
+        av_free(value);
+
+        ret = av_opt_set(&test_ctx, "bin", buf, 0);
+        if (!ret)
+            ret = av_opt_get(&test_ctx, "bin", 0, &value);
+        printf("av_opt_set: bin='%s'\n",
+               ret ? av_err2str(ret) : (char *) value);
+        av_free(value);
+
         av_opt_free(&test_ctx);
     }
 
