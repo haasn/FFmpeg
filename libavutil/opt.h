@@ -699,6 +699,11 @@ int av_opt_set_channel_layout(void *obj, const char *name, int64_t ch_layout, in
  * caller still owns val is and responsible for freeing it.
  */
 int av_opt_set_dict_val(void *obj, const char *name, const AVDictionary *val, int search_flags);
+/**
+ * @note This behaves like av_opt_set_bin() but loads the binary data from a
+ * file. May also return errors related to file I/O.
+ */
+int av_opt_set_filepath(void *obj, const char *name, const char *val, int search_flags);
 
 /**
  * Set a binary option to an integer list.

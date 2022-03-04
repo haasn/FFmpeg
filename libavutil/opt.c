@@ -32,6 +32,7 @@
 #include "common.h"
 #include "dict.h"
 #include "eval.h"
+#include "file.h"
 #include "log.h"
 #include "parseutils.h"
 #include "pixdesc.h"
@@ -465,6 +466,33 @@ static int set_string_dict(void *obj, const AVOption *o, const char *val, uint8_
     return 0;
 }
 
+static int set_string_filepath(void *obj, const AVOption *o, const char *path, uint8_t **dst)
+{
+    int *lendst = (int *)(dst + 1);
+    uint8_t *bin;
+    size_t bin_len;
+    int err;
+
+    av_freep(dst);
+    *lendst = 0;
+
+    if (!path || !path[0])
+        return 0;
+
+    err = av_file_map(path, &bin, &bin_len, 0, obj);
+    if (err)
+        return err;
+
+    *dst = av_memdup(bin, bin_len);
+    av_file_unmap(bin, bin_len);
+
+    if (!*dst)
+        return AVERROR(ENOMEM);
+
+    *lendst = bin_len;
+    return 0;
+}
+
 int av_opt_set(void *obj, const char *name, const char *val, int search_flags)
 {
     int ret = 0;
@@ -492,7 +520,11 @@ int av_opt_set(void *obj, const char *name, const char *val, int search_flags)
     case AV_OPT_TYPE_STRING:
         return set_string(obj, o, val, dst);
     case AV_OPT_TYPE_BINARY:
-        return set_string_binary(obj, o, val, dst);
+        if (val && val[0] == '@') {
+            return set_string_filepath(obj, o, &val[1], dst);
+        } else {
+            return set_string_binary(obj, o, val, dst);
+        }
     case AV_OPT_TYPE_FLAGS:
     case AV_OPT_TYPE_INT:
     case AV_OPT_TYPE_INT64:
@@ -629,6 +661,25 @@ int av_opt_set_bin(void *obj, const char *name, const uint8_t *val, int len, int
         memcpy(ptr, val, len);
 
     return 0;
+}
+
+int av_opt_set_filepath(void *obj, const char *name, const char *path, int search_flags)
+{
+    uint8_t *bin;
+    size_t bin_len;
+    int err;
+
+    if (!path || !path[0])
+        return av_opt_set_bin(obj, name, NULL, 0, search_flags);
+
+    err = av_file_map(path, &bin, &bin_len, 0, obj);
+    if (err)
+        return err;
+
+    err = av_opt_set_bin(obj, name, bin, bin_len, search_flags);
+    av_file_unmap(bin, bin_len);
+
+    return err;
 }
 
 int av_opt_set_image_size(void *obj, const char *name, int w, int h, int search_flags)
