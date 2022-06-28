@@ -2187,6 +2187,7 @@ const FFCodec ff_tiff_decoder = {
     .close          = tiff_end,
     FF_CODEC_DECODE_CB(decode_frame),
     .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_FRAME_THREADS,
-    .caps_internal  = FF_CODEC_CAP_INIT_THREADSAFE | FF_CODEC_CAP_INIT_CLEANUP,
+    .caps_internal  = FF_CODEC_CAP_INIT_THREADSAFE | FF_CODEC_CAP_INIT_CLEANUP |
+                      FF_CODEC_CAP_ICC_PROFILES,
     .p.priv_class   = &tiff_decoder_class,
 };
