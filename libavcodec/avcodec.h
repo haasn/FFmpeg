@@ -980,6 +980,16 @@ typedef struct AVCodecContext {
     enum AVChromaLocation chroma_sample_location;
 
     /**
+     * Whether to decode/encode ICC profiles. If set, libavcodec will
+     * generate/parse ICC profiles as appropriate for the type of file. No
+     * effect on codecs which cannot contain embedded ICC profiles, or when
+     * compiled without support for lcms2.
+     * - encoding: Set by user
+     * - decoding: Set by user
+     */
+    int icc_profiles;
+
+    /**
      * Number of slices.
      * Indicates number of picture subdivisions. Used for parallelized
      * decoding.
