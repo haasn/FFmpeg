@@ -157,6 +157,7 @@ typedef struct LibplaceboContext {
     int color_range;
     int color_primaries;
     int color_trc;
+    int neighbourhood;
 
     /* pl_render_params */
     struct pl_render_params params;
@@ -712,6 +713,7 @@ static int output_frame_mix(AVFilterContext *ctx,
     LibplaceboContext *s = ctx->priv;
     AVFilterLink *outlink = ctx->outputs[0];
     const AVPixFmtDescriptor *outdesc = av_pix_fmt_desc_get(outlink->format);
+    float out_pts = pts * av_q2d(outlink->time_base);
     struct pl_frame target;
     const AVFrame *ref;
     AVFrame *out;
@@ -794,8 +796,27 @@ static int output_frame_mix(AVFilterContext *ctx,
         goto fail;
     }
 
-    update_crops(ctx, mix, &target, ref_sig, out->pts * av_q2d(outlink->time_base));
-    pl_render_image_mix(s->renderer, mix, &target, &s->params);
+    if (s->neighbourhood > 0 && mix->num_frames > 1) {
+        /* Split frame neighbourhood into separate render calls, one per frame */
+        for (int i = 0; i < mix->num_frames; i++) {
+            struct pl_frame_mix split = {
+                .num_frames = 1,
+                .frames = &mix->frames[i],
+                .signatures = &mix->signatures[i],
+                .timestamps = &(float) {0.0f},
+            };
+
+            s->params.skip_target_clearing = i > 0;
+            s->params.blend_params = i > 0 ? &pl_alpha_overlay : NULL;
+            update_crops(ctx, &split, &target, split.signatures[0], out_pts);
+            pl_render_image_mix(s->renderer, &split, &target, &s->params);
+        }
+    } else {
+        s->params.skip_target_clearing = false;
+        s->params.blend_params = NULL;
+        update_crops(ctx, mix, &target, ref_sig, out_pts);
+        pl_render_image_mix(s->renderer, mix, &target, &s->params);
+    }
 
     if (outdesc->flags & AV_PIX_FMT_FLAG_HWACCEL) {
         pl_unmap_avframe(s->gpu, &target);
@@ -906,7 +927,8 @@ static int libplacebo_activate(AVFilterContext *ctx)
 
         ret = pl_queue_update(s->queue, &mix, pl_queue_params(
             .pts            = pts * av_q2d(outlink->time_base),
-            .radius         = pl_frame_mix_radius(&s->params),
+            .radius         = s->neighbourhood > 0 ? s->neighbourhood :
+                              pl_frame_mix_radius(&s->params),
             .vsync_duration = av_q2d(av_inv_q(outlink->frame_rate)),
         ));
 
@@ -1110,6 +1132,7 @@ static const AVOption libplacebo_options[] = {
     { "w", "Output video frame width",  OFFSET(w_expr), AV_OPT_TYPE_STRING, {.str = "iw"}, .flags = STATIC },
     { "h", "Output video frame height", OFFSET(h_expr), AV_OPT_TYPE_STRING, {.str = "ih"}, .flags = STATIC },
     { "fps", "Output video frame rate", OFFSET(fps_string), AV_OPT_TYPE_STRING, {.str = "none"}, .flags = STATIC },
+    { "neighbourhood", "Render frames in groups with this neighbourhood size", OFFSET(neighbourhood), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 8, STATIC },
     { "crop_x", "Input video crop x", OFFSET(crop_x_expr), AV_OPT_TYPE_STRING, {.str = "(iw-cw)/2"}, .flags = DYNAMIC },
     { "crop_y", "Input video crop y", OFFSET(crop_y_expr), AV_OPT_TYPE_STRING, {.str = "(ih-ch)/2"}, .flags = DYNAMIC },
     { "crop_w", "Input video crop w", OFFSET(crop_w_expr), AV_OPT_TYPE_STRING, {.str = "iw"}, .flags = DYNAMIC },
