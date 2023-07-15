@@ -235,6 +235,12 @@ typedef struct AVCodec {
      * Array of supported channel layouts, terminated with a zeroed layout.
      */
     const AVChannelLayout *ch_layouts;
+
+    /**
+     * Array of supported YUV color formats. Ignored for RGB/Gray formats.
+     */
+    const enum AVColorRange *color_ranges; ///< terminated by AVCOL_RANGE_UNSPECIFIED
+    const enum AVColorSpace *color_spaces; ///< terminated by AVCOL_SPC_UNSPECIFIED
 } AVCodec;
 
 /**
