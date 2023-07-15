@@ -13,10 +13,6 @@ FATE_PIXFMT-$(CONFIG_SCALE_FILTER) =           bgr24           \
                         yuv422p         \
                         yuv440p         \
                         yuv444p         \
-                        yuvj420p        \
-                        yuvj422p        \
-                        yuvj440p        \
-                        yuvj444p        \
                         yuyv422         \
 
 FATE_PIXFMT := $(FATE_PIXFMT-yes:%=fate-pixfmt-%)

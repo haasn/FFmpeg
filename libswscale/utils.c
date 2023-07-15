@@ -78,10 +78,6 @@ static const FormatEntry format_entries[] = {
     [AV_PIX_FMT_MONOWHITE]   = { 1, 1 },
     [AV_PIX_FMT_MONOBLACK]   = { 1, 1 },
     [AV_PIX_FMT_PAL8]        = { 1, 0 },
-    [AV_PIX_FMT_YUVJ420P]    = { 1, 1 },
-    [AV_PIX_FMT_YUVJ411P]    = { 1, 1 },
-    [AV_PIX_FMT_YUVJ422P]    = { 1, 1 },
-    [AV_PIX_FMT_YUVJ444P]    = { 1, 1 },
     [AV_PIX_FMT_YVYU422]     = { 1, 1 },
     [AV_PIX_FMT_UYVY422]     = { 1, 1 },
     [AV_PIX_FMT_UYYVYY411]   = { 0, 0 },
@@ -112,7 +108,6 @@ static const FormatEntry format_entries[] = {
     [AV_PIX_FMT_GRAY16BE]    = { 1, 1 },
     [AV_PIX_FMT_GRAY16LE]    = { 1, 1 },
     [AV_PIX_FMT_YUV440P]     = { 1, 1 },
-    [AV_PIX_FMT_YUVJ440P]    = { 1, 1 },
     [AV_PIX_FMT_YUV440P10LE] = { 1, 1 },
     [AV_PIX_FMT_YUV440P10BE] = { 1, 1 },
     [AV_PIX_FMT_YUV440P12LE] = { 1, 1 },
@@ -928,21 +923,6 @@ static void fill_xyztables(struct SwsContext *c)
 static int handle_jpeg(enum AVPixelFormat *format)
 {
     switch (*format) {
-    case AV_PIX_FMT_YUVJ420P:
-        *format = AV_PIX_FMT_YUV420P;
-        return 1;
-    case AV_PIX_FMT_YUVJ411P:
-        *format = AV_PIX_FMT_YUV411P;
-        return 1;
-    case AV_PIX_FMT_YUVJ422P:
-        *format = AV_PIX_FMT_YUV422P;
-        return 1;
-    case AV_PIX_FMT_YUVJ444P:
-        *format = AV_PIX_FMT_YUV444P;
-        return 1;
-    case AV_PIX_FMT_YUVJ440P:
-        *format = AV_PIX_FMT_YUV440P;
-        return 1;
     case AV_PIX_FMT_GRAY8:
     case AV_PIX_FMT_YA8:
     case AV_PIX_FMT_GRAY9LE:
