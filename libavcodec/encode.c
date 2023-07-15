@@ -27,6 +27,7 @@
 #include "libavutil/internal.h"
 #include "libavutil/mem.h"
 #include "libavutil/pixdesc.h"
+#include "libavutil/pixfmt.h"
 #include "libavutil/samplefmt.h"
 
 #include "avcodec.h"
@@ -559,10 +560,23 @@ int attribute_align_arg avcodec_receive_packet(AVCodecContext *avctx, AVPacket *
     return 0;
 }
 
+static int fmt_is_regular_yuv(enum AVPixelFormat fmt)
+{
+    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(fmt);
+    if (!desc || desc->nb_components < 3)
+        return 0;
+    if (desc->flags & (AV_PIX_FMT_FLAG_RGB | AV_PIX_FMT_FLAG_PAL |
+                       AV_PIX_FMT_FLAG_XYZ | AV_PIX_FMT_FLAG_FLOAT))
+        return 0;
+    return 1;
+}
+
+
 static int encode_preinit_video(AVCodecContext *avctx)
 {
     const AVCodec *c = avctx->codec;
     const AVPixFmtDescriptor *pixdesc = av_pix_fmt_desc_get(avctx->pix_fmt);
+    enum AVPixelFormat swfmt = avctx->pix_fmt;
     const enum AVPixelFormat *pix_fmts;
     int ret, i, num_pix_fmts;
 
@@ -593,6 +607,69 @@ static int encode_preinit_video(AVCodecContext *avctx)
             }
 
             return AVERROR(EINVAL);
+        }
+    }
+
+    if (pixdesc->flags & AV_PIX_FMT_FLAG_HWACCEL) {
+        const AVHWFramesContext *hwfc = (void *) avctx->hw_frames_ctx->data;
+        swfmt = hwfc->sw_format;
+    }
+
+    if (fmt_is_regular_yuv(swfmt)) {
+        enum AVColorSpace *color_spaces;
+        enum AVColorRange *color_ranges;
+        int num_color_spaces, num_color_ranges;
+
+        ret = avcodec_get_supported_config(avctx, NULL, AV_CODEC_CONFIG_COLOR_SPACE,
+                                           0, (const void **) &color_spaces,
+                                           &num_color_spaces);
+        if (ret < 0)
+            return ret;
+
+        if (avctx->colorspace != AVCOL_SPC_UNSPECIFIED && color_spaces) {
+            for (i = 0; i < num_color_spaces; i++)
+                if (avctx->colorspace == color_spaces[i])
+                    break;
+            if (i == num_color_spaces) {
+                av_log(avctx, AV_LOG_ERROR,
+                       "Specified color space %s is not supported by the %s encoder.\n",
+                       av_color_space_name(avctx->colorspace), c->name);
+                av_log(avctx, AV_LOG_ERROR, "Supported color spaces:\n");
+                for (int p = 0; p < num_color_spaces; p++) {
+                    av_log(avctx, AV_LOG_ERROR, "  %s\n",
+                           av_color_space_name(color_spaces[p]));
+                }
+                return AVERROR(EINVAL);
+            }
+        }
+
+        ret = avcodec_get_supported_config(avctx, NULL, AV_CODEC_CONFIG_COLOR_SPACE,
+                                           0, (const void **) &color_ranges,
+                                           &num_color_ranges);
+        if (ret < 0)
+            return ret;
+
+
+        if (avctx->color_range != AVCOL_RANGE_UNSPECIFIED && color_ranges) {
+            for (i = 0; i < num_color_ranges; i++) {
+                if (avctx->color_range == color_ranges[i])
+                    break;
+            }
+            if (i == num_color_ranges) {
+                if (i == 1 && !avctx->color_range) {
+                    avctx->color_range = color_ranges[0];
+                } else if (avctx->color_range) {
+                    av_log(avctx, AV_LOG_ERROR,
+                           "Specified color range %s is not supported by the %s encoder.\n",
+                           av_color_range_name(avctx->color_range), c->name);
+                    av_log(avctx, AV_LOG_ERROR, "Supported color ranges:\n");
+                    for (int p = 0; p < num_color_ranges; p++) {
+                        av_log(avctx, AV_LOG_ERROR, "  %s\n",
+                               av_color_range_name(color_ranges[p]));
+                    }
+                    return AVERROR(EINVAL);
+                }
+            }
         }
     }
 
