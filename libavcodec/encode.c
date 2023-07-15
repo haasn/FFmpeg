@@ -611,6 +611,108 @@ static int encode_preinit_video(AVCodecContext *avctx)
             avctx->color_range = AVCOL_RANGE_JPEG;
     }
 
+    if (c->csps) {
+        for (i = 0; c->csps[i] != AVCOL_SPC_UNSPECIFIED; i++)
+            if (avctx->colorspace == c->csps[i])
+                break;
+        if (c->csps[i] == AVCOL_SPC_UNSPECIFIED) {
+            av_log(avctx, AV_LOG_ERROR,
+                   "Specified colorspace %s is not supported by the %s encoder.\n",
+                   av_color_space_name(avctx->colorspace), c->name);
+            av_log(avctx, AV_LOG_ERROR, "Supported colorspaces:\n");
+            for (int p = 0; c->csps[p] != AVCOL_SPC_UNSPECIFIED; p++) {
+                av_log(avctx, AV_LOG_ERROR, "  %s\n",
+                       av_color_space_name(c->csps[p]));
+            }
+            return AVERROR(EINVAL);
+        }
+    }
+
+    if (c->color_ranges) {
+        for (i = 0; c->color_ranges[i] != AVCOL_RANGE_UNSPECIFIED; i++) {
+            if (avctx->color_range == c->color_ranges[i])
+                break;
+        }
+        if (c->color_ranges[i] == AVCOL_RANGE_UNSPECIFIED) {
+            if (i == 1 && !avctx->color_range) {
+                avctx->color_range = c->color_ranges[0];
+            } else if (avctx->color_range) {
+                av_log(avctx, AV_LOG_ERROR,
+                       "Specified color range %s is not supported by the %s encoder.\n",
+                       av_color_range_name(avctx->color_range), c->name);
+                av_log(avctx, AV_LOG_ERROR, "Supported color ranges:\n");
+                for (int p = 0; c->color_ranges[p] != AVCOL_RANGE_UNSPECIFIED; p++) {
+                    av_log(avctx, AV_LOG_ERROR, "  %s\n",
+                           av_color_range_name(c->color_ranges[p]));
+                }
+                return AVERROR(EINVAL);
+            }
+        }
+    }
+
+    if (c->chroma_locs) {
+        for (i = 0; c->chroma_locs[i] != AVCHROMA_LOC_UNSPECIFIED; i++)
+            if (avctx->chroma_sample_location == c->chroma_locs[i])
+                break;
+        if (c->chroma_locs[i] == AVCHROMA_LOC_UNSPECIFIED) {
+            if (i == 1 && !avctx->chroma_sample_location) {
+                avctx->chroma_sample_location = c->chroma_locs[0];
+            } else if (avctx->chroma_sample_location) {
+                av_log(avctx, AV_LOG_ERROR,
+                       "Specified chroma sample location %s is not supported by the %s encoder.\n",
+                       av_chroma_location_name(avctx->chroma_sample_location), c->name);
+                av_log(avctx, AV_LOG_ERROR, "Supported chroma sample locations:\n");
+                for (int p = 0; c->chroma_locs[p] != AVCHROMA_LOC_UNSPECIFIED; p++) {
+                    av_log(avctx, AV_LOG_ERROR, "  %s\n",
+                           av_chroma_location_name(c->chroma_locs[p]));
+                }
+                return AVERROR(EINVAL);
+            }
+        }
+    }
+
+    if (c->primaries) {
+        for (i = 0; c->primaries[i] != AVCOL_PRI_UNSPECIFIED; i++)
+            if (avctx->color_primaries == c->primaries[i])
+                break;
+        if (c->primaries[i] == AVCOL_PRI_UNSPECIFIED) {
+            if (i == 1 && !avctx->color_primaries) {
+                avctx->color_primaries = c->primaries[0];
+            } else if (avctx->color_primaries) {
+                av_log(avctx, AV_LOG_ERROR,
+                       "Specified color primaries %s is not supported by the %s encoder.\n",
+                       av_color_primaries_name(avctx->color_primaries), c->name);
+                av_log(avctx, AV_LOG_ERROR, "Supported color primaries:\n");
+                for (int p = 0; c->primaries[p] != AVCOL_PRI_UNSPECIFIED; p++) {
+                    av_log(avctx, AV_LOG_ERROR, "  %s\n",
+                           av_color_primaries_name(c->primaries[p]));
+                }
+                return AVERROR(EINVAL);
+            }
+        }
+    }
+
+    if (c->trcs) {
+        for (i = 0; c->trcs[i] != AVCOL_TRC_UNSPECIFIED; i++)
+            if (avctx->color_trc == c->trcs[i])
+                break;
+        if (c->trcs[i] == AVCOL_TRC_UNSPECIFIED) {
+            if (i == 1 && !avctx->color_trc) {
+                avctx->color_trc = c->trcs[0];
+            } else if (avctx->color_trc) {
+                av_log(avctx, AV_LOG_ERROR,
+                       "Specified color transfer characteristics %s is not supported by the %s encoder.\n",
+                       av_color_transfer_name(avctx->color_trc), c->name);
+                av_log(avctx, AV_LOG_ERROR, "Supported color transfer characteristics:\n");
+                for (int p = 0; c->trcs[p] != AVCOL_TRC_UNSPECIFIED; p++) {
+                    av_log(avctx, AV_LOG_ERROR, "  %s\n",
+                           av_color_transfer_name(c->trcs[p]));
+                }
+                return AVERROR(EINVAL);
+            }
+        }
+    }
+
     if (    avctx->bits_per_raw_sample < 0
         || (avctx->bits_per_raw_sample > 8 && pixdesc->comp[0].depth <= 8)) {
         av_log(avctx, AV_LOG_WARNING, "Specified bit depth %d not possible with the specified pixel formats depth %d\n",
