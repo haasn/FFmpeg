@@ -235,6 +235,13 @@ typedef struct AVCodec {
      * Array of supported channel layouts, terminated with a zeroed layout.
      */
     const AVChannelLayout *ch_layouts;
+
+    /* Extended colorspace support metadata */
+    const enum AVColorSpace *csps;                  ///< array of supported color spaces, or NULL if unknown, array is terminated by AVCOL_SPC_UNSPECIFIED
+    const enum AVColorRange *color_ranges;          ///< array of supported color ranges, or NULL if unknown, array is terminated by 0
+    const enum AVChromaLocation *chroma_locs;       ///< array of supported chroma locations, or NULL if unknown, array is terminated by 0
+    const enum AVColorPrimaries *primaries;         ///< array of supported color primaries, or NULL if unknown, array is terminated by 0
+    const enum AVColorTransferCharacteristic *trcs; ///< array of supported transfer characteristics, or NULL if known, array is terminated by 0
 } AVCodec;
 
 /**
