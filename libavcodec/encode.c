@@ -605,6 +605,45 @@ static int encode_preinit_video(AVCodecContext *avctx)
         }
     }
 
+    if (avctx->colorspace != AVCOL_SPC_UNSPECIFIED && c->color_spaces) {
+        for (i = 0; c->color_spaces[i] != AVCOL_SPC_UNSPECIFIED; i++)
+            if (avctx->colorspace == c->color_spaces[i])
+                break;
+        if (c->color_spaces[i] == AVCOL_SPC_UNSPECIFIED) {
+            av_log(avctx, AV_LOG_ERROR,
+                   "Specified color space %s is not supported by the %s encoder.\n",
+                   av_color_space_name(avctx->colorspace), c->name);
+            av_log(avctx, AV_LOG_ERROR, "Supported color spaces:\n");
+            for (int p = 0; c->color_spaces[p] != AVCOL_SPC_UNSPECIFIED; p++) {
+                av_log(avctx, AV_LOG_ERROR, "  %s\n",
+                       av_color_space_name(c->color_spaces[p]));
+            }
+            return AVERROR(EINVAL);
+        }
+    }
+
+    if (avctx->color_range != AVCOL_RANGE_UNSPECIFIED && c->color_ranges) {
+        for (i = 0; c->color_ranges[i] != AVCOL_RANGE_UNSPECIFIED; i++) {
+            if (avctx->color_range == c->color_ranges[i])
+                break;
+        }
+        if (c->color_ranges[i] == AVCOL_RANGE_UNSPECIFIED) {
+            if (i == 1 && !avctx->color_range) {
+                avctx->color_range = c->color_ranges[0];
+            } else if (avctx->color_range) {
+                av_log(avctx, AV_LOG_ERROR,
+                       "Specified color range %s is not supported by the %s encoder.\n",
+                       av_color_range_name(avctx->color_range), c->name);
+                av_log(avctx, AV_LOG_ERROR, "Supported color ranges:\n");
+                for (int p = 0; c->color_ranges[p] != AVCOL_RANGE_UNSPECIFIED; p++) {
+                    av_log(avctx, AV_LOG_ERROR, "  %s\n",
+                           av_color_range_name(c->color_ranges[p]));
+                }
+                return AVERROR(EINVAL);
+            }
+        }
+    }
+
     if (    avctx->bits_per_raw_sample < 0
         || (avctx->bits_per_raw_sample > 8 && pixdesc->comp[0].depth <= 8)) {
         av_log(avctx, AV_LOG_WARNING, "Specified bit depth %d not possible with the specified pixel formats depth %d\n",
