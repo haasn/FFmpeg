@@ -23,6 +23,7 @@
 
 #include "libavutil/buffer.h"
 #include "libavutil/frame.h"
+#include "libavutil/film_grain_params.h"
 
 #include "avcodec.h"
 #include "bytestream.h"
@@ -119,6 +120,13 @@ typedef struct H2645SEIContentLight {
     uint16_t max_pic_average_light_level;
 } H2645SEIContentLight;
 
+typedef struct H2465SEIAV1FilmGrain {
+    int  present;
+    uint16_t grain_seed;
+    uint8_t  params_set_idx;
+    AVFilmGrainAOMParams params[8];
+} H2645SEIAOMFilmGrain;
+
 typedef struct H2645SEI {
     H2645SEIA53Caption a53_caption;
     H2645SEIAFD afd;
@@ -132,6 +140,7 @@ typedef struct H2645SEI {
     H2645SEIAmbientViewingEnvironment ambient_viewing_environment;
     H2645SEIMasteringDisplay mastering_display;
     H2645SEIContentLight content_light;
+    H2645SEIAOMFilmGrain aom_film_grain;
 } H2645SEI;
 
 enum {

@@ -95,6 +95,93 @@ static int decode_registered_user_data_dynamic_hdr_vivid(HEVCSEIDynamicHDRVivid 
 
     return 0;
 }
+
+static int decode_aom_film_grain(H2645SEIAOMFilmGrain *s,
+                                 GetByteContext *gbyte)
+{
+
+    GetBitContext gbc, *gb = &gbc;
+    AVFilmGrainAOMParams *fgp;
+    int ret, i, uv, num_y_coeffs, update_grain, luma_only;
+
+    ret = init_get_bits8(gb, gbyte->buffer, bytestream2_get_bytes_left(gbyte));
+    if (ret < 0)
+        return ret;
+
+    s->present = get_bits1(gb);
+    if (!s->present)
+        return 0;
+
+    s->grain_seed = get_bits(gb, 16);
+    s->params_set_idx = get_bits(gb, 3);
+    update_grain = get_bits1(gb);
+    if (!update_grain)
+        return 0;
+
+    fgp = &s->params[s->params_set_idx];
+    fgp->num_y_points = get_bits(gb, 4);
+    if (fgp->num_y_points > 14)
+        goto error;
+    for (i = 0; i < fgp->num_y_points; i++) {
+        fgp->y_points[i][0] = get_bits(gb, 8);
+        if (i && fgp->y_points[i - 1][0] >= fgp->y_points[i][0])
+            goto error;
+        fgp->y_points[i][1] = get_bits(gb, 8);
+    }
+    luma_only = get_bits1(gb);
+    if (luma_only) {
+        fgp->chroma_scaling_from_luma = 0;
+        fgp->num_uv_points[0] = fgp->num_uv_points[1] = 0;
+    } else {
+        fgp->chroma_scaling_from_luma = get_bits1(gb);
+        if (fgp->chroma_scaling_from_luma) {
+            fgp->num_uv_points[0] = fgp->num_uv_points[1] = 0;
+        } else {
+            for (uv = 0; uv < 2; uv++) {
+                fgp->num_uv_points[uv] = get_bits(gb, 4);
+                if (fgp->num_uv_points[uv] > 10)
+                    goto error;
+                for (i = 0; i < fgp->num_uv_points[uv]; i++) {
+                    fgp->uv_points[uv][i][0] = get_bits(gb, 8);
+                    if (i && fgp->uv_points[uv][i - 1][0] >= fgp->uv_points[uv][i][0])
+                        goto error;
+                    fgp->uv_points[uv][i][1] = get_bits(gb, 8);
+                }
+            }
+        }
+    }
+    fgp->scaling_shift = get_bits(gb, 2) + 8;
+    fgp->ar_coeff_lag = get_bits(gb, 2);
+    num_y_coeffs = 2 * fgp->ar_coeff_lag * (fgp->ar_coeff_lag + 1);
+    if (fgp->num_y_points) {
+        for (i = 0; i < num_y_coeffs; i++)
+            fgp->ar_coeffs_y[i] = get_bits(gb, 8) - 128;
+    }
+    for (uv = 0; uv < 2; uv++) {
+        if (fgp->chroma_scaling_from_luma || fgp->num_uv_points[uv]) {
+            for (i = 0; i < num_y_coeffs + !!fgp->num_y_points; i++)
+                fgp->ar_coeffs_uv[uv][i] = get_bits(gb, 8) - 128;
+            if (!fgp->num_y_points)
+                fgp->ar_coeffs_uv[uv][num_y_coeffs] = 0;
+        }
+    }
+    fgp->ar_coeff_shift = get_bits(gb, 2) + 6;
+    fgp->grain_scale_shift = get_bits(gb, 2);
+    for (uv = 0; uv < 2; uv++) {
+        if (fgp->num_uv_points[uv]) {
+            fgp->uv_mult[uv]      = get_bits(gb, 8) - 128;
+            fgp->uv_mult_luma[uv] = get_bits(gb, 8) - 128;
+            fgp->uv_offset[uv]    = get_bits(gb, 9) - 256;
+        }
+    }
+    fgp->overlap_flag = get_bits1(gb);
+    fgp->limit_output_range = get_bits1(gb);
+    return 0;
+
+error:
+    s->present = 0;
+    return AVERROR_INVALIDDATA;
+}
 #endif
 
 static int decode_registered_user_data_afd(H2645SEIAFD *h, GetByteContext *gb)
@@ -206,6 +293,21 @@ static int decode_registered_user_data(H2645SEI *h, GetByteContext *gb,
             application_identifier == smpte2094_40_application_identifier) {
             return decode_registered_user_data_dynamic_hdr_plus(&h->dynamic_hdr_plus, gb);
         }
+        break;
+    }
+    case 0x5890: { // aom_provider_code
+        const uint16_t aom_grain_provider_oriented_code = 0x0001;
+        uint16_t provider_oriented_code;
+
+        if (!IS_HEVC(codec_id))
+            goto unsupported_provider_code;
+
+        if (bytestream2_get_bytes_left(gb) < 2)
+            return AVERROR_INVALIDDATA;
+
+        provider_oriented_code = bytestream2_get_be16u(gb);
+        if (provider_oriented_code == aom_grain_provider_oriented_code)
+            return decode_aom_film_grain(&h->aom_film_grain, gb);
         break;
     }
     unsupported_provider_code:
@@ -690,6 +792,21 @@ int ff_h2645_sei_to_frame(AVFrame *frame, H2645SEI *sei,
             avctx->properties |= FF_CODEC_PROPERTY_FILM_GRAIN;
     }
 
+    if (sei->aom_film_grain.present) {
+        H2645SEIAOMFilmGrain *aom = &sei->aom_film_grain;
+        AVFilmGrainParams *fgp = av_film_grain_params_create_side_data(frame);
+
+        if (!fgp)
+            return AVERROR(ENOMEM);
+
+        fgp->type = AV_FILM_GRAIN_PARAMS_AV1;
+        fgp->seed = aom->grain_seed;
+        fgp->codec.aom = aom->params[aom->params_set_idx];
+
+        if (avctx)
+            avctx->properties |= FF_CODEC_PROPERTY_FILM_GRAIN;
+    }
+
     if (sei->ambient_viewing_environment.present) {
         H2645SEIAmbientViewingEnvironment *env =
             &sei->ambient_viewing_environment;
@@ -779,4 +896,5 @@ void ff_h2645_sei_reset(H2645SEI *s)
     s->ambient_viewing_environment.present = 0;
     s->mastering_display.present = 0;
     s->content_light.present = 0;
+    s->aom_film_grain.present = 0;
 }
