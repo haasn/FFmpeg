@@ -169,6 +169,7 @@ typedef struct OutputFilterPriv {
     int width, height;
     int sample_rate;
     AVChannelLayout ch_layout;
+    enum AVColorRange range;
 
     // time base in which the output is sent to our downstream
     // does not need to match the filtersink's timebase
@@ -184,6 +185,7 @@ typedef struct OutputFilterPriv {
     const int *formats;
     const AVChannelLayout *ch_layouts;
     const int *sample_rates;
+    const enum AVColorRange *ranges;
 
     AVRational enc_timebase;
     // offset for output timestamps, in AV_TIME_BASE_Q
@@ -367,6 +369,9 @@ DEF_CHOOSE_FORMAT(sample_fmts, enum AVSampleFormat, format, formats,
 
 DEF_CHOOSE_FORMAT(sample_rates, int, sample_rate, sample_rates, 0,
                   "%d", )
+
+DEF_CHOOSE_FORMAT(out_range, enum AVColorRange, range, ranges,
+                  AVCOL_RANGE_UNSPECIFIED, "%s", av_color_range_name);
 
 static void choose_channel_layouts(OutputFilterPriv *ofp, AVBPrint *bprint)
 {
@@ -662,6 +667,17 @@ static int set_channel_layout(OutputFilterPriv *f, OutputStream *ost)
     return 0;
 }
 
+static int ost_opt_int(OutputStream *ost, const char *name, int defval)
+{
+    const AVDictionaryEntry *e = av_dict_get(ost->encoder_opts, name, NULL, 0);
+    if (e) {
+        const AVOption *o = av_opt_find(ost->enc_ctx, e->key, NULL, 0, 0);
+        av_assert0(o);
+        av_opt_eval_int(ost->enc_ctx, o, e->value, &defval);
+    }
+    return defval;
+}
+
 int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost)
 {
     const OutputFile  *of = output_files[ost->file_index];
@@ -669,6 +685,7 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost)
     FilterGraph  *fg = ofilter->graph;
     FilterGraphPriv *fgp = fgp_from_fg(fg);
     const AVCodec *c = ost->enc_ctx->codec;
+    enum AVColorRange color_range;
 
     av_assert0(!ofilter->ost);
 
@@ -682,6 +699,26 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost)
     case AVMEDIA_TYPE_VIDEO:
         ofp->width      = ost->enc_ctx->width;
         ofp->height     = ost->enc_ctx->height;
+        color_range     = ost_opt_int(ost, "color_range", ost->enc_ctx->color_range);
+        if (color_range != AVCOL_RANGE_UNSPECIFIED) {
+            ofp->range = color_range;
+        } else {
+            ofp->ranges = c->color_ranges;
+
+            // MJPEG encoder exports a full list of supported pixel formats,
+            // but the full-range ones are experimental-only.
+            // Restrict the auto-conversion list unless -strict experimental
+            // has been specified.
+            if (!strcmp(c->name, "mjpeg")) {
+                static const enum AVColorRange mjpeg_ranges[] =
+                    { AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED };
+
+                int strict_val = ost->enc_ctx->strict_std_compliance;
+                strict_val = ost_opt_int(ost, "strict", strict_val);
+                if (strict_val > FF_COMPLIANCE_UNOFFICIAL)
+                    ofp->ranges = mjpeg_ranges;
+            }
+        }
         if (ost->enc_ctx->pix_fmt != AV_PIX_FMT_NONE) {
             ofp->format = ost->enc_ctx->pix_fmt;
         } else {
@@ -1149,6 +1186,7 @@ static int configure_output_video_filter(FilterGraph *fg, OutputFilter *ofilter,
     OutputFilterPriv *ofp = ofp_from_ofilter(ofilter);
     OutputStream *ost = ofilter->ost;
     OutputFile    *of = output_files[ost->file_index];
+    FilterGraphPriv *fgp = fgp_from_fg(fg);
     AVFilterContext *last_filter = out->filter_ctx;
     AVBPrint bprint;
     int pad_idx = out->pad_idx;
@@ -1164,22 +1202,27 @@ static int configure_output_video_filter(FilterGraph *fg, OutputFilter *ofilter,
     if (ret < 0)
         return ret;
 
-    if ((ofp->width || ofp->height) && ofilter->ost->autoscale) {
-        char args[255];
+    av_bprint_init(&bprint, 0, AV_BPRINT_SIZE_UNLIMITED);
+    if ((ofp->width || ofp->height) && ofilter->ost->autoscale)
+        av_bprintf(&bprint, "w=%d:h=%d:", ofp->width, ofp->height);
+    if (!fgp->disable_conversions)
+        choose_out_range(ofp, &bprint);
+    if (bprint.len) {
         AVFilterContext *filter;
         const AVDictionaryEntry *e = NULL;
 
-        snprintf(args, sizeof(args), "%d:%d",
-                 ofp->width, ofp->height);
+        while ((e = av_dict_iterate(ost->sws_dict, e)))
+            av_bprintf(&bprint, "%s=%s:", e->key, e->value);
 
-        while ((e = av_dict_iterate(ost->sws_dict, e))) {
-            av_strlcatf(args, sizeof(args), ":%s=%s", e->key, e->value);
-        }
+        if (!av_bprint_is_complete(&bprint))
+            return AVERROR(ENOMEM);
 
         snprintf(name, sizeof(name), "scaler_out_%d_%d",
                  ost->file_index, ost->index);
-        if ((ret = avfilter_graph_create_filter(&filter, avfilter_get_by_name("scale"),
-                                                name, args, NULL, fg->graph)) < 0)
+        ret = avfilter_graph_create_filter(&filter, avfilter_get_by_name("scale"),
+                                           name, bprint.str, NULL, fg->graph);
+        av_bprint_finalize(&bprint, NULL);
+        if (ret < 0)
             return ret;
         if ((ret = avfilter_link(last_filter, pad_idx, filter, 0)) < 0)
             return ret;
