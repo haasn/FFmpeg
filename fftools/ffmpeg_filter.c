@@ -169,6 +169,8 @@ typedef struct OutputFilterPriv {
     int width, height;
     int sample_rate;
     AVChannelLayout ch_layout;
+    enum AVColorSpace color_space;
+    enum AVColorRange color_range;
 
     // time base in which the output is sent to our downstream
     // does not need to match the filtersink's timebase
@@ -184,6 +186,8 @@ typedef struct OutputFilterPriv {
     const int *formats;
     const AVChannelLayout *ch_layouts;
     const int *sample_rates;
+    const enum AVColorSpace *color_spaces;
+    const enum AVColorRange *color_ranges;
 
     AVRational enc_timebase;
     // offset for output timestamps, in AV_TIME_BASE_Q
@@ -337,6 +341,12 @@ DEF_CHOOSE_FORMAT(sample_fmts, enum AVSampleFormat, format, formats,
 
 DEF_CHOOSE_FORMAT(sample_rates, int, sample_rate, sample_rates, 0,
                   "%d", )
+
+DEF_CHOOSE_FORMAT(color_spaces, enum AVColorSpace, color_space, color_spaces,
+                  AVCOL_SPC_UNSPECIFIED, "%s", av_color_space_name);
+
+DEF_CHOOSE_FORMAT(color_ranges, enum AVColorRange, color_range, color_ranges,
+                  AVCOL_RANGE_UNSPECIFIED, "%s", av_color_range_name);
 
 static void choose_channel_layouts(OutputFilterPriv *ofp, AVBPrint *bprint)
 {
@@ -564,6 +574,8 @@ static OutputFilter *ofilter_alloc(FilterGraph *fg)
     ofilter           = &ofp->ofilter;
     ofilter->graph    = fg;
     ofp->format       = -1;
+    ofp->color_space  = AVCOL_SPC_UNSPECIFIED;
+    ofp->color_range  = AVCOL_RANGE_UNSPECIFIED;
     ofilter->last_pts = AV_NOPTS_VALUE;
 
     return ofilter;
@@ -632,6 +644,17 @@ static int set_channel_layout(OutputFilterPriv *f, OutputStream *ost)
     return 0;
 }
 
+static int ost_opt_int(OutputStream *ost, const char *name, int defval)
+{
+    const AVDictionaryEntry *e = av_dict_get(ost->encoder_opts, name, NULL, 0);
+    if (e) {
+        const AVOption *o = av_opt_find(ost->enc_ctx, e->key, NULL, 0, 0);
+        av_assert0(o);
+        av_opt_eval_int(ost->enc_ctx, o, e->value, &defval);
+    }
+    return defval;
+}
+
 int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost)
 {
     const OutputFile  *of = output_files[ost->file_index];
@@ -639,6 +662,8 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost)
     FilterGraph  *fg = ofilter->graph;
     FilterGraphPriv *fgp = fgp_from_fg(fg);
     const AVCodec *c = ost->enc_ctx->codec;
+    enum AVColorSpace color_space;
+    enum AVColorRange color_range;
 
     av_assert0(!ofilter->ost);
 
@@ -652,6 +677,8 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost)
     case AVMEDIA_TYPE_VIDEO:
         ofp->width      = ost->enc_ctx->width;
         ofp->height     = ost->enc_ctx->height;
+        color_space     = ost_opt_int(ost, "color_space", ost->enc_ctx->colorspace);
+        color_range     = ost_opt_int(ost, "color_range", ost->enc_ctx->color_range);
         if (ost->enc_ctx->pix_fmt != AV_PIX_FMT_NONE) {
             ofp->format = ost->enc_ctx->pix_fmt;
         } else if (!ost->keep_pix_fmt) {
@@ -679,6 +706,30 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost)
 
                 if (strict_val > FF_COMPLIANCE_UNOFFICIAL)
                     ofp->formats = mjpeg_formats;
+            }
+        }
+        if (color_space != AVCOL_SPC_UNSPECIFIED) {
+            ofp->color_space = color_space;
+        } else {
+            ofp->color_spaces = c->color_spaces;
+        }
+        if (color_range != AVCOL_RANGE_UNSPECIFIED) {
+            ofp->color_range = color_range;
+        } else {
+            ofp->color_ranges = c->color_ranges;
+
+            // MJPEG encoder exports a full list of supported pixel formats,
+            // but the full-range ones are experimental-only.
+            // Restrict the auto-conversion list unless -strict experimental
+            // has been specified.
+            if (!strcmp(c->name, "mjpeg")) {
+                static const enum AVColorRange mjpeg_ranges[] =
+                    { AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED };
+
+                int strict_val = ost->enc_ctx->strict_std_compliance;
+                strict_val = ost_opt_int(ost, "strict", strict_val);
+                if (strict_val > FF_COMPLIANCE_UNOFFICIAL)
+                    ofp->color_ranges = mjpeg_ranges;
             }
         }
 
@@ -1160,6 +1211,8 @@ static int configure_output_video_filter(FilterGraph *fg, OutputFilter *ofilter,
     av_assert0(!ost->keep_pix_fmt || (!ofp->format && !ofp->formats));
     av_bprint_init(&bprint, 0, AV_BPRINT_SIZE_UNLIMITED);
     choose_pix_fmts(ofp, &bprint);
+    choose_color_spaces(ofp, &bprint);
+    choose_color_ranges(ofp, &bprint);
     if (!av_bprint_is_complete(&bprint))
         return AVERROR(ENOMEM);
     if (bprint.len) {
@@ -1663,6 +1716,8 @@ static int configure_filtergraph(FilterGraph *fg)
 
         ofp->width  = av_buffersink_get_w(sink);
         ofp->height = av_buffersink_get_h(sink);
+        ofp->color_space = av_buffersink_get_colorspace(sink);
+        ofp->color_range = av_buffersink_get_color_range(sink);
 
         // If the timing parameters are not locked yet, get the tentative values
         // here but don't lock them. They will only be used if no output frames
