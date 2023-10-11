@@ -133,7 +133,13 @@ typedef struct FFCodec {
     /**
      * Internal codec capabilities FF_CODEC_CAP_*.
      */
-    unsigned caps_internal:29;
+    unsigned caps_internal:27;
+
+    /**
+     * This field determines the video color ranges supported by a codec.
+     * Should be set to a bitmask of AVCOL_RANGE_MPEG and AVCOL_RANGE_JPEG.
+     */
+    unsigned color_ranges:2;
 
     /**
      * This field determines the type of the codec (decoder/encoder)
