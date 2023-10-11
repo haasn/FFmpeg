@@ -685,6 +685,9 @@ const FFCodec ff_amv_encoder = {
     .p.pix_fmts     = (const enum AVPixelFormat[]) {
         AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_NONE
     },
+    .p.color_ranges = (const enum AVColorRange[]) {
+        AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED
+    },
     .p.priv_class   = &amv_class,
     .p.capabilities = AV_CODEC_CAP_ENCODER_REORDERED_OPAQUE,
 };
