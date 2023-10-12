@@ -442,29 +442,23 @@ static int create_filtergraph(AVFilterContext *ctx,
         if (s->user_iprm != AVCOL_PRI_UNSPECIFIED)
             s->in_prm = s->user_iprm;
         s->in_primaries = av_csp_primaries_desc_from_id(s->in_prm);
-        if (!s->in_primaries) {
+        s->out_prm = out->color_primaries;
+        s->out_primaries = av_csp_primaries_desc_from_id(s->out_prm);
+        if (s->out_prm == AVCOL_PRI_UNSPECIFIED || s->fast_mode) {
+            static const AVColorPrimariesDesc unknown = {0};
+            s->in_primaries = s->out_primaries = &unknown; /* force passthrough */
+        } else if (!s->in_primaries) {
             av_log(ctx, AV_LOG_ERROR,
                    "Unsupported input primaries %d (%s)\n",
                    s->in_prm, av_color_primaries_name(s->in_prm));
             return AVERROR(EINVAL);
-        }
-        s->out_prm = out->color_primaries;
-        s->out_primaries = av_csp_primaries_desc_from_id(s->out_prm);
-        if (!s->out_primaries) {
-            if (s->out_prm == AVCOL_PRI_UNSPECIFIED) {
-                if (s->user_all == CS_UNSPECIFIED) {
-                    av_log(ctx, AV_LOG_ERROR, "Please specify output primaries\n");
-                } else {
-                    av_log(ctx, AV_LOG_ERROR,
-                           "Unsupported output color property %d\n", s->user_all);
-                }
-            } else {
-                av_log(ctx, AV_LOG_ERROR,
-                       "Unsupported output primaries %d (%s)\n",
-                       s->out_prm, av_color_primaries_name(s->out_prm));
-            }
+        } else if (!s->out_primaries) {
+            av_log(ctx, AV_LOG_ERROR,
+                   "Unsupported output primaries %d (%s)\n",
+                   s->out_prm, av_color_primaries_name(s->out_prm));
             return AVERROR(EINVAL);
         }
+
         s->lrgb2lrgb_passthrough = !memcmp(s->in_primaries, s->out_primaries,
                                            sizeof(*s->in_primaries));
         if (!s->lrgb2lrgb_passthrough) {
@@ -505,38 +499,33 @@ static int create_filtergraph(AVFilterContext *ctx,
         if (s->user_itrc != AVCOL_TRC_UNSPECIFIED)
             s->in_trc = s->user_itrc;
         s->in_txchr = get_transfer_characteristics(s->in_trc);
-        if (!s->in_txchr) {
-            av_log(ctx, AV_LOG_ERROR,
-                   "Unsupported input transfer characteristics %d (%s)\n",
-                   s->in_trc, av_color_transfer_name(s->in_trc));
-            return AVERROR(EINVAL);
-        }
     }
 
     if (!s->out_txchr) {
         av_freep(&s->lin_lut);
         s->out_trc = out->color_trc;
         s->out_txchr = get_transfer_characteristics(s->out_trc);
-        if (!s->out_txchr) {
-            if (s->out_trc == AVCOL_TRC_UNSPECIFIED) {
-                if (s->user_all == CS_UNSPECIFIED) {
-                    av_log(ctx, AV_LOG_ERROR,
-                           "Please specify output transfer characteristics\n");
-                } else {
-                    av_log(ctx, AV_LOG_ERROR,
-                           "Unsupported output color property %d\n", s->user_all);
-                }
-            } else {
-                av_log(ctx, AV_LOG_ERROR,
-                       "Unsupported output transfer characteristics %d (%s)\n",
-                       s->out_trc, av_color_transfer_name(s->out_trc));
-            }
-            return AVERROR(EINVAL);
-        }
     }
 
-    s->rgb2rgb_passthrough = s->fast_mode || (s->lrgb2lrgb_passthrough &&
-                             !memcmp(s->in_txchr, s->out_txchr, sizeof(*s->in_txchr)));
+    if ((s->out_trc == AVCOL_TRC_UNSPECIFIED && s->lrgb2lrgb_passthrough) || s->fast_mode) {
+        static const struct TransferCharacteristics unknown = {0};
+        s->in_txchr = s->out_txchr = &unknown; /* force passthrough */
+    } else if (!s->in_txchr) {
+        av_log(ctx, AV_LOG_ERROR,
+               "Unsupported input transfer characteristics %d (%s)\n",
+               s->in_trc, av_color_transfer_name(s->in_trc));
+        return AVERROR(EINVAL);
+    } else if (s->out_trc == AVCOL_TRC_UNSPECIFIED) {
+        s->out_txchr = s->in_txchr;
+    } else if (!s->out_txchr) {
+        av_log(ctx, AV_LOG_ERROR,
+               "Unsupported output transfer characteristics %d (%s)\n",
+               s->out_trc, av_color_transfer_name(s->out_trc));
+        return AVERROR(EINVAL);
+    }
+
+    s->rgb2rgb_passthrough = s->lrgb2lrgb_passthrough &&
+                             !memcmp(s->in_txchr, s->out_txchr, sizeof(*s->in_txchr));
     if (!s->rgb2rgb_passthrough && !s->lin_lut) {
         res = fill_gamma_table(s);
         if (res < 0)
