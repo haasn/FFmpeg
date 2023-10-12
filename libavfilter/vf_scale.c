@@ -863,6 +863,8 @@ scale:
             in_full  = (in_range == AVCOL_RANGE_JPEG);
         if (scale->out_range != AVCOL_RANGE_UNSPECIFIED)
             out_full = (scale->out_range == AVCOL_RANGE_JPEG);
+        else if (in->format == out->format)
+            out_full = in_full; /* preserve pixel range by default */
 
         sws_setColorspaceDetails(scale->sws, inv_table, in_full,
                                  table, out_full,
