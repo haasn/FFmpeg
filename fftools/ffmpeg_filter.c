@@ -170,6 +170,9 @@ typedef struct OutputFilterPriv {
     int sample_rate;
     AVChannelLayout ch_layout;
     enum AVColorRange range;
+    enum AVColorSpace csp;
+    enum AVColorPrimaries prim;
+    enum AVColorTransferCharacteristic trc;
 
     // time base in which the output is sent to our downstream
     // does not need to match the filtersink's timebase
@@ -186,6 +189,9 @@ typedef struct OutputFilterPriv {
     const AVChannelLayout *ch_layouts;
     const int *sample_rates;
     const enum AVColorRange *ranges;
+    const enum AVColorSpace *csps;
+    const enum AVColorPrimaries *prims;
+    const enum AVColorTransferCharacteristic *trcs;
 
     AVRational enc_timebase;
     // offset for output timestamps, in AV_TIME_BASE_Q
@@ -372,6 +378,15 @@ DEF_CHOOSE_FORMAT(sample_rates, int, sample_rate, sample_rates, 0,
 
 DEF_CHOOSE_FORMAT(out_range, enum AVColorRange, range, ranges,
                   AVCOL_RANGE_UNSPECIFIED, "%s", av_color_range_name);
+
+DEF_CHOOSE_FORMAT(space, enum AVColorSpace, csp, csps,
+                  AVCOL_SPC_UNSPECIFIED, "%s", av_color_space_name);
+
+DEF_CHOOSE_FORMAT(primaries, enum AVColorPrimaries, prim, prims,
+                  AVCOL_PRI_UNSPECIFIED, "%s", av_color_primaries_name);
+
+DEF_CHOOSE_FORMAT(trc, enum AVColorTransferCharacteristic, trc, trcs,
+                  AVCOL_TRC_UNSPECIFIED, "%s", av_color_transfer_name);
 
 static void choose_channel_layouts(OutputFilterPriv *ofp, AVBPrint *bprint)
 {
@@ -599,6 +614,9 @@ static OutputFilter *ofilter_alloc(FilterGraph *fg)
     ofilter           = &ofp->ofilter;
     ofilter->graph    = fg;
     ofp->format       = -1;
+    ofp->csp          = AVCOL_SPC_UNSPECIFIED;
+    ofp->prim         = AVCOL_PRI_UNSPECIFIED;
+    ofp->trc          = AVCOL_TRC_UNSPECIFIED;
     ofilter->last_pts = AV_NOPTS_VALUE;
 
     return ofilter;
@@ -686,6 +704,9 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost)
     FilterGraphPriv *fgp = fgp_from_fg(fg);
     const AVCodec *c = ost->enc_ctx->codec;
     enum AVColorRange color_range;
+    enum AVColorPrimaries color_primaries;
+    enum AVColorTransferCharacteristic color_trc;
+    enum AVColorSpace color_space;
 
     av_assert0(!ofilter->ost);
 
@@ -700,6 +721,9 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost)
         ofp->width      = ost->enc_ctx->width;
         ofp->height     = ost->enc_ctx->height;
         color_range     = ost_opt_int(ost, "color_range", ost->enc_ctx->color_range);
+        color_primaries = ost_opt_int(ost, "color_primaries", ost->enc_ctx->color_primaries);
+        color_trc       = ost_opt_int(ost, "color_trc", ost->enc_ctx->color_trc);
+        color_space     = ost_opt_int(ost, "colorspace", ost->enc_ctx->colorspace);
         if (color_range != AVCOL_RANGE_UNSPECIFIED) {
             ofp->range = color_range;
         } else {
@@ -718,6 +742,21 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost)
                 if (strict_val > FF_COMPLIANCE_UNOFFICIAL)
                     ofp->ranges = mjpeg_ranges;
             }
+        }
+        if (color_primaries != AVCOL_PRI_UNSPECIFIED) {
+            ofp->prim = color_primaries;
+        } else {
+            ofp->prims = c->primaries;
+        }
+        if (color_trc != AVCOL_TRC_UNSPECIFIED) {
+            ofp->trc = color_trc;
+        } else {
+            ofp->trcs = c->trcs;
+        }
+        if (color_space != AVCOL_SPC_UNSPECIFIED) {
+            ofp->csp = color_space;
+        } else {
+            ofp->csps = c->csps;
         }
         if (ost->enc_ctx->pix_fmt != AV_PIX_FMT_NONE) {
             ofp->format = ost->enc_ctx->pix_fmt;
@@ -1229,6 +1268,32 @@ static int configure_output_video_filter(FilterGraph *fg, OutputFilter *ofilter,
 
         last_filter = filter;
         pad_idx = 0;
+    }
+
+    if (!fgp->disable_conversions) {
+        av_bprint_init(&bprint, 0, AV_BPRINT_SIZE_UNLIMITED);
+        choose_space(ofp,     &bprint);
+        choose_primaries(ofp, &bprint);
+        choose_trc(ofp,       &bprint);
+        if (!av_bprint_is_complete(&bprint))
+            return AVERROR(ENOMEM);
+        if (bprint.len) {
+            AVFilterContext *filter;
+
+            snprintf(name, sizeof(name), "csp_out_%d_%d",
+                     ost->file_index, ost->index);
+            ret = avfilter_graph_create_filter(&filter,
+                                               avfilter_get_by_name("colorspace"),
+                                               name, bprint.str, NULL, fg->graph);
+            av_bprint_finalize(&bprint, NULL);
+            if (ret < 0)
+                return ret;
+            if ((ret = avfilter_link(last_filter, pad_idx, filter, 0)) < 0)
+                return ret;
+
+            last_filter = filter;
+            pad_idx = 0;
+        }
     }
 
     av_bprint_init(&bprint, 0, AV_BPRINT_SIZE_UNLIMITED);
