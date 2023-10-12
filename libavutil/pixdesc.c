@@ -2978,8 +2978,7 @@ enum AVPixelFormat av_pix_fmt_swap_endianness(enum AVPixelFormat pix_fmt)
 #define FF_COLOR_NA      -1
 #define FF_COLOR_RGB      0 /**< RGB color space */
 #define FF_COLOR_GRAY     1 /**< gray color space */
-#define FF_COLOR_YUV      2 /**< YUV color space. 16 <= Y <= 235, 16 <= U, V <= 240 */
-#define FF_COLOR_YUV_JPEG 3 /**< YUV color space. 0 <= Y <= 255, 0 <= U, V <= 255 */
+#define FF_COLOR_YUV      2 /**< YUV color space */
 #define FF_COLOR_XYZ      4
 
 #define pixdesc_has_alpha(pixdesc) \
@@ -2992,11 +2991,6 @@ static int get_color_type(const AVPixFmtDescriptor *desc) {
 
     if(desc->nb_components == 1 || desc->nb_components == 2)
         return FF_COLOR_GRAY;
-
-    if (desc->name) {
-        if (av_strstart(desc->name, "yuvj", NULL))
-            return FF_COLOR_YUV_JPEG;
-    }
 
     if(desc->flags & AV_PIX_FMT_FLAG_RGB)
         return FF_COLOR_RGB;
@@ -3134,12 +3128,6 @@ static int get_pix_fmt_score(enum AVPixelFormat dst_pix_fmt,
         break;
     case FF_COLOR_YUV:
         if (src_color != FF_COLOR_YUV)
-            loss |= FF_LOSS_COLORSPACE;
-        break;
-    case FF_COLOR_YUV_JPEG:
-        if (src_color != FF_COLOR_YUV_JPEG &&
-            src_color != FF_COLOR_YUV &&
-            src_color != FF_COLOR_GRAY)
             loss |= FF_LOSS_COLORSPACE;
         break;
     default:
