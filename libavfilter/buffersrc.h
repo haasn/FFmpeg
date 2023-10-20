@@ -106,6 +106,12 @@ typedef struct AVBufferSrcParameters {
     AVBufferRef *hw_frames_ctx;
 
     /**
+     * Video only, the YUV colorspace and range
+     */
+    enum AVColorSpace color_space;
+    enum AVColorRange color_range;
+
+    /**
      * Audio only, the audio sampling rate in samples per second.
      */
     int sample_rate;
