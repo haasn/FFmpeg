@@ -126,6 +126,8 @@ typedef struct InputFilterPriv {
 
     int width, height;
     AVRational sample_aspect_ratio;
+    enum AVColorSpace color_space;
+    enum AVColorRange color_range;
 
     int sample_rate;
     AVChannelLayout ch_layout;
@@ -146,6 +148,8 @@ typedef struct InputFilterPriv {
         int                 width;
         int                 height;
         AVRational          sample_aspect_ratio;
+        enum AVColorSpace   color_space;
+        enum AVColorRange   color_range;
 
         int                 sample_rate;
         AVChannelLayout     ch_layout;
@@ -257,6 +261,8 @@ static int sub2video_get_blank_frame(InputFilterPriv *ifp)
     frame->width  = ifp->width;
     frame->height = ifp->height;
     frame->format = ifp->format;
+    frame->colorspace = ifp->color_space;
+    frame->color_range = ifp->color_range;
 
     ret = av_frame_get_buffer(frame, 0);
     if (ret < 0)
@@ -833,6 +839,8 @@ static InputFilter *ifilter_alloc(FilterGraph *fg)
     ifp->index           = fg->nb_inputs - 1;
     ifp->format          = -1;
     ifp->fallback.format = -1;
+    ifp->color_space = ifp->fallback.color_space = AVCOL_SPC_UNSPECIFIED;
+    ifp->color_range = ifp->fallback.color_range = AVCOL_RANGE_UNSPECIFIED;
 
     ifp->frame_queue = av_fifo_alloc2(8, sizeof(AVFrame*), AV_FIFO_FLAG_AUTO_GROW);
     if (!ifp->frame_queue)
@@ -1485,9 +1493,11 @@ static int configure_input_video_filter(FilterGraph *fg, InputFilter *ifilter,
     av_bprint_init(&args, 0, AV_BPRINT_SIZE_AUTOMATIC);
     av_bprintf(&args,
              "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:"
-             "pixel_aspect=%d/%d",
+             "pixel_aspect=%d/%d:colorspace=%s:range=%s",
              ifp->width, ifp->height, ifp->format,
-             ifp->time_base.num, ifp->time_base.den, sar.num, sar.den);
+             ifp->time_base.num, ifp->time_base.den, sar.num, sar.den,
+             av_color_space_name(ifp->color_space),
+             av_color_range_name(ifp->color_range));
     if (fr.num && fr.den)
         av_bprintf(&args, ":frame_rate=%d/%d", fr.num, fr.den);
     snprintf(name, sizeof(name), "graph %d input from stream %d:%d", fg->index,
@@ -1831,6 +1841,8 @@ int ifilter_parameters_from_dec(InputFilter *ifilter, const AVCodecContext *dec)
         ifp->fallback.width                  = dec->width;
         ifp->fallback.height                 = dec->height;
         ifp->fallback.sample_aspect_ratio    = dec->sample_aspect_ratio;
+        ifp->fallback.color_space            = dec->colorspace;
+        ifp->fallback.color_range            = dec->color_range;
     } else if (dec->codec_type == AVMEDIA_TYPE_AUDIO) {
         int ret;
 
@@ -1871,6 +1883,8 @@ static int ifilter_parameters_from_frame(InputFilter *ifilter, const AVFrame *fr
     ifp->width               = frame->width;
     ifp->height              = frame->height;
     ifp->sample_aspect_ratio = frame->sample_aspect_ratio;
+    ifp->color_space         = frame->colorspace;
+    ifp->color_range         = frame->color_range;
 
     ifp->sample_rate         = frame->sample_rate;
     ret = av_channel_layout_copy(&ifp->ch_layout, &frame->ch_layout);
@@ -2543,6 +2557,8 @@ static int send_eof(FilterGraphThread *fgt, InputFilter *ifilter,
             ifp->width                  = ifp->fallback.width;
             ifp->height                 = ifp->fallback.height;
             ifp->sample_aspect_ratio    = ifp->fallback.sample_aspect_ratio;
+            ifp->color_space            = ifp->fallback.color_space;
+            ifp->color_range            = ifp->fallback.color_range;
 
             ret = av_channel_layout_copy(&ifp->ch_layout,
                                          &ifp->fallback.ch_layout);
@@ -2586,7 +2602,9 @@ static int send_frame(FilterGraph *fg, FilterGraphThread *fgt,
         break;
     case AVMEDIA_TYPE_VIDEO:
         need_reinit |= ifp->width  != frame->width ||
-                       ifp->height != frame->height;
+                       ifp->height != frame->height ||
+                       ifp->color_space != frame->colorspace ||
+                       ifp->color_range != frame->color_range;
         break;
     }
 
