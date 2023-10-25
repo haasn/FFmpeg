@@ -240,5 +240,12 @@ int ff_pnm_decode_header(AVCodecContext *avctx, PNMContext * const s)
         h /= 3;
         avctx->height = h;
     }
+
+    /* PGMYUV is always limited range, normal PGM is always full range */
+    if (avctx->codec_id == AV_CODEC_ID_PGMYUV)
+        avctx->color_range = AVCOL_RANGE_MPEG;
+    else
+        avctx->color_range = AVCOL_RANGE_JPEG;
+
     return 0;
 }
