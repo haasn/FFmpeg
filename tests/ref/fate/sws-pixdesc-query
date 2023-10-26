@@ -327,11 +327,6 @@ isYUV:
   yuva444p16le
   yuva444p9be
   yuva444p9le
-  yuvj411p
-  yuvj420p
-  yuvj422p
-  yuvj440p
-  yuvj444p
   yuyv422
   yvyu422
 
@@ -426,11 +421,6 @@ isPlanarYUV:
   yuva444p16le
   yuva444p9be
   yuva444p9le
-  yuvj411p
-  yuvj420p
-  yuvj422p
-  yuvj440p
-  yuvj444p
 
 isSemiPlanarYUV:
   nv12
@@ -957,11 +947,6 @@ Planar:
   yuva444p16le
   yuva444p9be
   yuva444p9le
-  yuvj411p
-  yuvj420p
-  yuvj422p
-  yuvj440p
-  yuvj444p
 
 PackedRGB:
   0bgr
