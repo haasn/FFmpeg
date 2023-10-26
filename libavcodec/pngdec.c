@@ -713,9 +713,9 @@ static int populate_avctx_color_fields(AVCodecContext *avctx, AVFrame *frame)
             avctx->color_trc = frame->color_trc = AVCOL_TRC_LINEAR;
     }
 
-    /* we only support pc-range RGB */
-    avctx->colorspace = frame->colorspace = AVCOL_SPC_RGB;
-    avctx->color_range = frame->color_range = AVCOL_RANGE_JPEG;
+    /* These fields are YUV-only, clear them explicitly for sanity */
+    avctx->colorspace = frame->colorspace = AVCOL_SPC_UNSPECIFIED;
+    avctx->color_range = frame->color_range = AVCOL_RANGE_UNSPECIFIED;
 
     /*
      * tRNS sets alpha depth to full, so we ignore sBIT if set.
