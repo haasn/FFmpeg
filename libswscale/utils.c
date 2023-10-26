@@ -943,21 +943,6 @@ static int handle_jpeg(enum AVPixelFormat *format)
     case AV_PIX_FMT_YUVJ440P:
         *format = AV_PIX_FMT_YUV440P;
         return 1;
-    case AV_PIX_FMT_GRAY8:
-    case AV_PIX_FMT_YA8:
-    case AV_PIX_FMT_GRAY9LE:
-    case AV_PIX_FMT_GRAY9BE:
-    case AV_PIX_FMT_GRAY10LE:
-    case AV_PIX_FMT_GRAY10BE:
-    case AV_PIX_FMT_GRAY12LE:
-    case AV_PIX_FMT_GRAY12BE:
-    case AV_PIX_FMT_GRAY14LE:
-    case AV_PIX_FMT_GRAY14BE:
-    case AV_PIX_FMT_GRAY16LE:
-    case AV_PIX_FMT_GRAY16BE:
-    case AV_PIX_FMT_YA16BE:
-    case AV_PIX_FMT_YA16LE:
-        return 1;
     default:
         return 0;
     }
