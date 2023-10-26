@@ -1163,8 +1163,7 @@ static av_cold int nvenc_setup_h264_config(AVCodecContext *avctx)
         vui->colourMatrix = IS_GBRP(ctx->data_pix_fmt) ? AVCOL_SPC_RGB : avctx->colorspace;
         vui->colourPrimaries = avctx->color_primaries;
         vui->transferCharacteristics = avctx->color_trc;
-        vui->videoFullRangeFlag = (avctx->color_range == AVCOL_RANGE_JPEG
-            || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ420P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ422P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ444P);
+        vui->videoFullRangeFlag = avctx->color_range == AVCOL_RANGE_JPEG;
     }
 
     vui->colourDescriptionPresentFlag =
@@ -1289,8 +1288,7 @@ static av_cold int nvenc_setup_hevc_config(AVCodecContext *avctx)
         vui->colourMatrix = IS_GBRP(ctx->data_pix_fmt) ? AVCOL_SPC_RGB : avctx->colorspace;
         vui->colourPrimaries = avctx->color_primaries;
         vui->transferCharacteristics = avctx->color_trc;
-        vui->videoFullRangeFlag = (avctx->color_range == AVCOL_RANGE_JPEG
-            || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ420P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ422P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ444P);
+        vui->videoFullRangeFlag = avctx->color_range == AVCOL_RANGE_JPEG;
     }
 
     vui->colourDescriptionPresentFlag =
@@ -1407,8 +1405,7 @@ static av_cold int nvenc_setup_av1_config(AVCodecContext *avctx)
         av1->matrixCoefficients = IS_GBRP(ctx->data_pix_fmt) ? AVCOL_SPC_RGB : avctx->colorspace;
         av1->colorPrimaries = avctx->color_primaries;
         av1->transferCharacteristics = avctx->color_trc;
-        av1->colorRange = (avctx->color_range == AVCOL_RANGE_JPEG
-            || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ420P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ422P || ctx->data_pix_fmt == AV_PIX_FMT_YUVJ444P);
+        av1->colorRange = avctx->color_range == AVCOL_RANGE_JPEG;
     }
 
     if (IS_YUV444(ctx->data_pix_fmt)) {

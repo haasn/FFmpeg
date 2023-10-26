@@ -252,10 +252,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
             avctx->color_range == AVCOL_RANGE_JPEG;
     else
         ctx->params->vui.bEnableVideoFullRangeFlag =
-            (desc->flags & AV_PIX_FMT_FLAG_RGB) ||
-            avctx->pix_fmt == AV_PIX_FMT_YUVJ420P ||
-            avctx->pix_fmt == AV_PIX_FMT_YUVJ422P ||
-            avctx->pix_fmt == AV_PIX_FMT_YUVJ444P;
+            desc->flags & AV_PIX_FMT_FLAG_RGB;
 
     if ((avctx->color_primaries <= AVCOL_PRI_SMPTE432 &&
          avctx->color_primaries != AVCOL_PRI_UNSPECIFIED) ||
@@ -797,11 +794,8 @@ FF_ENABLE_DEPRECATION_WARNINGS
 
 static const enum AVPixelFormat x265_csp_eight[] = {
     AV_PIX_FMT_YUV420P,
-    AV_PIX_FMT_YUVJ420P,
     AV_PIX_FMT_YUV422P,
-    AV_PIX_FMT_YUVJ422P,
     AV_PIX_FMT_YUV444P,
-    AV_PIX_FMT_YUVJ444P,
     AV_PIX_FMT_GBRP,
     AV_PIX_FMT_GRAY8,
     AV_PIX_FMT_NONE
@@ -809,11 +803,8 @@ static const enum AVPixelFormat x265_csp_eight[] = {
 
 static const enum AVPixelFormat x265_csp_ten[] = {
     AV_PIX_FMT_YUV420P,
-    AV_PIX_FMT_YUVJ420P,
     AV_PIX_FMT_YUV422P,
-    AV_PIX_FMT_YUVJ422P,
     AV_PIX_FMT_YUV444P,
-    AV_PIX_FMT_YUVJ444P,
     AV_PIX_FMT_GBRP,
     AV_PIX_FMT_YUV420P10,
     AV_PIX_FMT_YUV422P10,
@@ -826,11 +817,8 @@ static const enum AVPixelFormat x265_csp_ten[] = {
 
 static const enum AVPixelFormat x265_csp_twelve[] = {
     AV_PIX_FMT_YUV420P,
-    AV_PIX_FMT_YUVJ420P,
     AV_PIX_FMT_YUV422P,
-    AV_PIX_FMT_YUVJ422P,
     AV_PIX_FMT_YUV444P,
-    AV_PIX_FMT_YUVJ444P,
     AV_PIX_FMT_GBRP,
     AV_PIX_FMT_YUV420P10,
     AV_PIX_FMT_YUV422P10,
