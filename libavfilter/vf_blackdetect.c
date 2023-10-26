@@ -68,20 +68,12 @@ static const AVOption blackdetect_options[] = {
 
 AVFILTER_DEFINE_CLASS(blackdetect);
 
-#define YUVJ_FORMATS \
-    AV_PIX_FMT_YUVJ411P, AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_YUVJ422P, AV_PIX_FMT_YUVJ444P, AV_PIX_FMT_YUVJ440P
-
-static const enum AVPixelFormat yuvj_formats[] = {
-    YUVJ_FORMATS, AV_PIX_FMT_NONE
-};
-
 static const enum AVPixelFormat pix_fmts[] = {
     AV_PIX_FMT_GRAY8,
     AV_PIX_FMT_YUV410P, AV_PIX_FMT_YUV411P,
     AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV422P,
     AV_PIX_FMT_YUV440P, AV_PIX_FMT_YUV444P,
     AV_PIX_FMT_NV12, AV_PIX_FMT_NV21,
-    YUVJ_FORMATS,
     AV_PIX_FMT_GRAY10, AV_PIX_FMT_GRAY12, AV_PIX_FMT_GRAY14,
     AV_PIX_FMT_GRAY16,
     AV_PIX_FMT_YUV420P9, AV_PIX_FMT_YUV422P9, AV_PIX_FMT_YUV444P9,
@@ -179,8 +171,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *picref)
     double picture_black_ratio = 0;
     const int max = (1 << s->depth) - 1;
     const int factor = (1 << (s->depth - 8));
-    const int full = picref->color_range == AVCOL_RANGE_JPEG ||
-                     ff_fmt_is_in(picref->format, yuvj_formats);
+    const int full = picref->color_range == AVCOL_RANGE_JPEG;
 
     s->pixel_black_th_i = full ? s->pixel_black_th * max :
         // luminance_minimum_value + pixel_black_th * luminance_range_size

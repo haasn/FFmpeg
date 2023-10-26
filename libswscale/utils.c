@@ -79,10 +79,6 @@ static const FormatEntry format_entries[] = {
     [AV_PIX_FMT_MONOWHITE]   = { 1, 1 },
     [AV_PIX_FMT_MONOBLACK]   = { 1, 1 },
     [AV_PIX_FMT_PAL8]        = { 1, 0 },
-    [AV_PIX_FMT_YUVJ420P]    = { 1, 1 },
-    [AV_PIX_FMT_YUVJ411P]    = { 1, 1 },
-    [AV_PIX_FMT_YUVJ422P]    = { 1, 1 },
-    [AV_PIX_FMT_YUVJ444P]    = { 1, 1 },
     [AV_PIX_FMT_YVYU422]     = { 1, 1 },
     [AV_PIX_FMT_UYVY422]     = { 1, 1 },
     [AV_PIX_FMT_UYYVYY411]   = { 0, 0 },
@@ -113,7 +109,6 @@ static const FormatEntry format_entries[] = {
     [AV_PIX_FMT_GRAY16BE]    = { 1, 1 },
     [AV_PIX_FMT_GRAY16LE]    = { 1, 1 },
     [AV_PIX_FMT_YUV440P]     = { 1, 1 },
-    [AV_PIX_FMT_YUVJ440P]    = { 1, 1 },
     [AV_PIX_FMT_YUV440P10LE] = { 1, 1 },
     [AV_PIX_FMT_YUV440P10BE] = { 1, 1 },
     [AV_PIX_FMT_YUV440P12LE] = { 1, 1 },
@@ -954,24 +949,9 @@ static void fill_xyztables(struct SwsContext *c)
     }
 }
 
-static int handle_jpeg(enum AVPixelFormat *format)
+static int is_luma_only(enum AVPixelFormat *format)
 {
     switch (*format) {
-    case AV_PIX_FMT_YUVJ420P:
-        *format = AV_PIX_FMT_YUV420P;
-        return 1;
-    case AV_PIX_FMT_YUVJ411P:
-        *format = AV_PIX_FMT_YUV411P;
-        return 1;
-    case AV_PIX_FMT_YUVJ422P:
-        *format = AV_PIX_FMT_YUV422P;
-        return 1;
-    case AV_PIX_FMT_YUVJ444P:
-        *format = AV_PIX_FMT_YUV444P;
-        return 1;
-    case AV_PIX_FMT_YUVJ440P:
-        *format = AV_PIX_FMT_YUV440P;
-        return 1;
     case AV_PIX_FMT_GRAY8:
     case AV_PIX_FMT_YA8:
     case AV_PIX_FMT_GRAY9LE:
@@ -2069,7 +2049,6 @@ av_cold int sws_init_context(SwsContext *c, SwsFilter *srcFilter,
                              SwsFilter *dstFilter)
 {
     static AVOnce rgb2rgb_once = AV_ONCE_INIT;
-    enum AVPixelFormat src_format, dst_format;
     int ret;
 
     c->frame_src = av_frame_alloc();
@@ -2080,13 +2059,8 @@ av_cold int sws_init_context(SwsContext *c, SwsFilter *srcFilter,
     if (ff_thread_once(&rgb2rgb_once, ff_sws_rgb2rgb_init) != 0)
         return AVERROR_UNKNOWN;
 
-    src_format = c->srcFormat;
-    dst_format = c->dstFormat;
-    c->srcRange |= handle_jpeg(&c->srcFormat);
-    c->dstRange |= handle_jpeg(&c->dstFormat);
-
-    if (src_format != c->srcFormat || dst_format != c->dstFormat)
-        av_log(c, AV_LOG_WARNING, "deprecated pixel format used, make sure you did set range correctly\n");
+    c->srcRange |= is_luma_only(&c->srcFormat);
+    c->dstRange |= is_luma_only(&c->dstFormat);
 
     if (c->nb_threads != 1) {
         ret = context_init_threaded(c, srcFilter, dstFilter);

@@ -866,15 +866,10 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
         if (CHROMA444(h)) {
             if (h->avctx->colorspace == AVCOL_SPC_RGB)
                 *fmt++ = AV_PIX_FMT_GBRP;
-            else if (h->avctx->color_range == AVCOL_RANGE_JPEG)
-                *fmt++ = AV_PIX_FMT_YUVJ444P;
             else
                 *fmt++ = AV_PIX_FMT_YUV444P;
         } else if (CHROMA422(h)) {
-            if (h->avctx->color_range == AVCOL_RANGE_JPEG)
-                *fmt++ = AV_PIX_FMT_YUVJ422P;
-            else
-                *fmt++ = AV_PIX_FMT_YUV422P;
+            *fmt++ = AV_PIX_FMT_YUV422P;
         } else {
 #if CONFIG_H264_DXVA2_HWACCEL
             *fmt++ = AV_PIX_FMT_DXVA2_VLD;
@@ -889,10 +884,7 @@ static enum AVPixelFormat get_pixel_format(H264Context *h, int force_callback)
 #if CONFIG_H264_VAAPI_HWACCEL
             *fmt++ = AV_PIX_FMT_VAAPI;
 #endif
-            if (h->avctx->color_range == AVCOL_RANGE_JPEG)
-                *fmt++ = AV_PIX_FMT_YUVJ420P;
-            else
-                *fmt++ = AV_PIX_FMT_YUV420P;
+            *fmt++ = AV_PIX_FMT_YUV420P;
         }
         break;
     default:
@@ -1032,17 +1024,6 @@ fail:
     return ret;
 }
 
-static enum AVPixelFormat non_j_pixfmt(enum AVPixelFormat a)
-{
-    switch (a) {
-    case AV_PIX_FMT_YUVJ420P: return AV_PIX_FMT_YUV420P;
-    case AV_PIX_FMT_YUVJ422P: return AV_PIX_FMT_YUV422P;
-    case AV_PIX_FMT_YUVJ444P: return AV_PIX_FMT_YUV444P;
-    default:
-        return a;
-    }
-}
-
 static int h264_init_ps(H264Context *h, const H264SliceContext *sl, int first_slice)
 {
     const SPS *sps;
@@ -1075,8 +1056,7 @@ static int h264_init_ps(H264Context *h, const H264SliceContext *sl, int first_sl
                      || h->mb_width  != sps->mb_width
                      || h->mb_height != sps->mb_height
                     ));
-    if (h->avctx->pix_fmt == AV_PIX_FMT_NONE
-        || (non_j_pixfmt(h->avctx->pix_fmt) != non_j_pixfmt(get_pixel_format(h, 0))))
+    if (h->avctx->pix_fmt == AV_PIX_FMT_NONE || (h->avctx->pix_fmt != get_pixel_format(h, 0)))
         must_reinit = 1;
 
     if (first_slice && av_cmp_q(sps->vui.sar, h->avctx->sample_aspect_ratio))

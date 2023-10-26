@@ -76,13 +76,6 @@ static const AVOption interlace_options[] = {
 
 AVFILTER_DEFINE_CLASS(interlace);
 
-#define FULL_SCALE_YUVJ_FORMATS \
-    AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_YUVJ422P, AV_PIX_FMT_YUVJ444P, AV_PIX_FMT_YUVJ440P
-
-static const enum AVPixelFormat full_scale_yuvj_pix_fmts[] = {
-    FULL_SCALE_YUVJ_FORMATS, AV_PIX_FMT_NONE
-};
-
 static const AVRational standard_tbs[] = {
     {1, 25},
     {1, 30},
@@ -99,7 +92,7 @@ static const enum AVPixelFormat pix_fmts[] = {
     AV_PIX_FMT_YUV440P12LE, AV_PIX_FMT_YUV444P12LE,
     AV_PIX_FMT_YUVA420P, AV_PIX_FMT_YUVA422P, AV_PIX_FMT_YUVA444P,
     AV_PIX_FMT_YUVA420P10LE, AV_PIX_FMT_YUVA422P10LE, AV_PIX_FMT_YUVA444P10LE,
-    AV_PIX_FMT_GRAY8, FULL_SCALE_YUVJ_FORMATS,
+    AV_PIX_FMT_GRAY8,
     AV_PIX_FMT_NONE
 };
 
@@ -231,14 +224,12 @@ static int config_out_props(AVFilterLink *outlink)
         ff_draw_init2(&tinterlace->draw, outlink->format, outlink->colorspace, outlink->color_range, 0);
         ff_draw_color(&tinterlace->draw, &tinterlace->color, black);
         /* limited range */
-        if (!ff_fmt_is_in(outlink->format, full_scale_yuvj_pix_fmts)) {
-            ret = av_image_alloc(tinterlace->black_data[0], tinterlace->black_linesize,
-                                 outlink->w, outlink->h, outlink->format, 16);
-            if (ret < 0)
-                return ret;
-            ff_fill_rectangle(&tinterlace->draw, &tinterlace->color, tinterlace->black_data[0],
-                              tinterlace->black_linesize, 0, 0, outlink->w, outlink->h);
-        }
+        ret = av_image_alloc(tinterlace->black_data[0], tinterlace->black_linesize,
+                             outlink->w, outlink->h, outlink->format, 16);
+        if (ret < 0)
+            return ret;
+        ff_fill_rectangle(&tinterlace->draw, &tinterlace->color, tinterlace->black_data[0],
+                          tinterlace->black_linesize, 0, 0, outlink->w, outlink->h);
         /* full range */
         tinterlace->color.comp[0].u8[0] = 0;
         ret = av_image_alloc(tinterlace->black_data[1], tinterlace->black_linesize,
@@ -446,7 +437,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
         out->sample_aspect_ratio = av_mul_q(cur->sample_aspect_ratio, av_make_q(2, 1));
 
         field = (1 + l->frame_count_in) & 1 ? FIELD_UPPER : FIELD_LOWER;
-        full = out->color_range == AVCOL_RANGE_JPEG || ff_fmt_is_in(out->format, full_scale_yuvj_pix_fmts);
+        full = out->color_range == AVCOL_RANGE_JPEG;
         /* copy upper and lower fields */
         copy_picture_field(tinterlace, out->data, out->linesize,
                            (const uint8_t **)cur->data, cur->linesize,

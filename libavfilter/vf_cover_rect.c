@@ -214,7 +214,7 @@ static av_cold int init(AVFilterContext *ctx)
                                 &cover->cover_frame->format, cover->cover_filename, ctx)) < 0)
             return ret;
 
-        if (cover->cover_frame->format != AV_PIX_FMT_YUV420P && cover->cover_frame->format != AV_PIX_FMT_YUVJ420P) {
+        if (cover->cover_frame->format != AV_PIX_FMT_YUV420P) {
             av_log(ctx, AV_LOG_ERROR, "cover image is not a YUV420 image\n");
             return AVERROR(EINVAL);
         }
@@ -240,6 +240,6 @@ const AVFilter ff_vf_cover_rect = {
     .uninit          = uninit,
     FILTER_INPUTS(cover_rect_inputs),
     FILTER_OUTPUTS(ff_video_default_filterpad),
-    FILTER_PIXFMTS(AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUVJ420P),
+    FILTER_PIXFMTS(AV_PIX_FMT_YUV420P),
     .priv_class      = &cover_rect_class,
 };

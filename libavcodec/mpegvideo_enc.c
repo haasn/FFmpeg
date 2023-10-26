@@ -358,15 +358,12 @@ av_cold int ff_mpv_encode_init(AVCodecContext *avctx)
     mpv_encode_defaults(s);
 
     switch (avctx->pix_fmt) {
-    case AV_PIX_FMT_YUVJ444P:
     case AV_PIX_FMT_YUV444P:
         s->chroma_format = CHROMA_444;
         break;
-    case AV_PIX_FMT_YUVJ422P:
     case AV_PIX_FMT_YUV422P:
         s->chroma_format = CHROMA_422;
         break;
-    case AV_PIX_FMT_YUVJ420P:
     case AV_PIX_FMT_YUV420P:
     default:
         s->chroma_format = CHROMA_420;

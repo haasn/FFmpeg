@@ -140,7 +140,6 @@ typedef struct ThreadData {
 
 static const enum AVPixelFormat pix_fmts[] = {
     AV_PIX_FMT_YUVA444P,
-    AV_PIX_FMT_YUVJ444P,
     AV_PIX_FMT_YUV444P,
     AV_PIX_FMT_GBRP, AV_PIX_FMT_GBRAP, AV_PIX_FMT_GRAY8,
     AV_PIX_FMT_YUVA444P9, AV_PIX_FMT_GBRP9,

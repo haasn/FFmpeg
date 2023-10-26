@@ -309,10 +309,8 @@ FF_ENABLE_DEPRECATION_WARNINGS
 #if OPENH264_VER_AT_LEAST(1, 6)
     param.sSpatialLayers[0].uiVideoFormat = VF_UNDEF;
 
-    if (avctx->color_range != AVCOL_RANGE_UNSPECIFIED) {
+    if (avctx->color_range != AVCOL_RANGE_UNSPECIFIED)
         param.sSpatialLayers[0].bFullRange = (avctx->color_range == AVCOL_RANGE_JPEG);
-    }  else if (avctx->pix_fmt == AV_PIX_FMT_YUVJ420P)
-        param.sSpatialLayers[0].bFullRange = 1;
 
     if (avctx->colorspace != AVCOL_SPC_UNSPECIFIED      ||
         avctx->color_primaries != AVCOL_PRI_UNSPECIFIED ||
@@ -443,7 +441,6 @@ const FFCodec ff_libopenh264_encoder = {
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP |
                       FF_CODEC_CAP_AUTO_THREADS,
     .p.pix_fmts     = (const enum AVPixelFormat[]){ AV_PIX_FMT_YUV420P,
-                                                    AV_PIX_FMT_YUVJ420P,
                                                     AV_PIX_FMT_NONE },
     .color_ranges   = AVCOL_RANGE_MPEG | AVCOL_RANGE_JPEG,
     .defaults       = svc_enc_defaults,

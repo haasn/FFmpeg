@@ -103,8 +103,8 @@ static int query_formats(AVFilterContext *ctx)
     AVFilterLink *outlink = ctx->outputs[0];
     static const enum AVSampleFormat sample_fmts[] = { AV_SAMPLE_FMT_FLTP, AV_SAMPLE_FMT_NONE };
     static const enum AVPixelFormat pix_fmts[] = { AV_PIX_FMT_GRAY8, AV_PIX_FMT_GRAY16,
-                                                   AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUVJ444P,
-                                                   AV_PIX_FMT_YUV444P16, AV_PIX_FMT_NONE };
+                                                   AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUV444P16,
+                                                   AV_PIX_FMT_NONE };
     int ret, sample_rates[] = { 48000, -1 };
 
     formats = ff_make_format_list(sample_fmts);
@@ -292,7 +292,6 @@ static void read_fft_data(AVFilterContext *ctx, int x, int h, int ch)
                 read16_fft_bin(s, x, y, f, ch);
             }
             break;
-        case AV_PIX_FMT_YUVJ444P:
         case AV_PIX_FMT_YUV444P:
         case AV_PIX_FMT_GRAY8:
             for (y = start, f = 0; y >= end; y--, f++) {
@@ -309,7 +308,6 @@ static void read_fft_data(AVFilterContext *ctx, int x, int h, int ch)
                 read16_fft_bin(s, y, x, f, ch);
             }
             break;
-        case AV_PIX_FMT_YUVJ444P:
         case AV_PIX_FMT_YUV444P:
         case AV_PIX_FMT_GRAY8:
             for (y = end, f = 0; y <= start; y++, f++) {

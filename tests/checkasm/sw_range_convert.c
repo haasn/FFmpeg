@@ -45,8 +45,7 @@ static void check_lumConvertRange(int from)
     if (sws_init_context(ctx, NULL, NULL) < 0)
         fail();
 
-    ctx->srcFormat = from ? AV_PIX_FMT_YUVJ444P : AV_PIX_FMT_YUV444P;
-    ctx->dstFormat = from ? AV_PIX_FMT_YUV444P : AV_PIX_FMT_YUVJ444P;
+    ctx->srcFormat = ctx->dstFormat = AV_PIX_FMT_YUV444P;
     ctx->srcRange = from;
     ctx->dstRange = !from;
 
@@ -91,8 +90,7 @@ static void check_chrConvertRange(int from)
     if (sws_init_context(ctx, NULL, NULL) < 0)
         fail();
 
-    ctx->srcFormat = from ? AV_PIX_FMT_YUVJ444P : AV_PIX_FMT_YUV444P;
-    ctx->dstFormat = from ? AV_PIX_FMT_YUV444P : AV_PIX_FMT_YUVJ444P;
+    ctx->srcFormat = ctx->dstFormat = AV_PIX_FMT_YUV444P;
     ctx->srcRange = from;
     ctx->dstRange = !from;
 

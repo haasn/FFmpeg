@@ -673,7 +673,6 @@ FFCodec ff_mjpeg_encoder = {
                       AV_CODEC_CAP_ENCODER_REORDERED_OPAQUE,
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP | FF_CODEC_CAP_ICC_PROFILES,
     .p.pix_fmts     = (const enum AVPixelFormat[]) {
-        AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_YUVJ422P, AV_PIX_FMT_YUVJ444P,
         AV_PIX_FMT_YUV420P,  AV_PIX_FMT_YUV422P,  AV_PIX_FMT_YUV444P,
         AV_PIX_FMT_NONE
     },
@@ -702,7 +701,7 @@ const FFCodec ff_amv_encoder = {
     .close          = mjpeg_encode_close,
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
     .p.pix_fmts     = (const enum AVPixelFormat[]) {
-        AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_NONE
+        AV_PIX_FMT_YUV420P, AV_PIX_FMT_NONE
     },
     .color_ranges   = AVCOL_RANGE_JPEG,
     .p.priv_class   = &amv_class,

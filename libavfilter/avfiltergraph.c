@@ -657,17 +657,7 @@ int ff_fmt_is_regular_yuv(enum AVPixelFormat fmt)
     if (desc->flags & (AV_PIX_FMT_FLAG_RGB | AV_PIX_FMT_FLAG_PAL |
                        AV_PIX_FMT_FLAG_XYZ | AV_PIX_FMT_FLAG_FLOAT))
         return 0;
-
-    switch (fmt) {
-    case AV_PIX_FMT_YUVJ420P:
-    case AV_PIX_FMT_YUVJ422P:
-    case AV_PIX_FMT_YUVJ444P:
-    case AV_PIX_FMT_YUVJ440P:
-    case AV_PIX_FMT_YUVJ411P:
-        return 0;
-    default:
-        return 1;
-    }
+    return 1;
 }
 
 static int pick_format(AVFilterLink *link, AVFilterLink *ref)

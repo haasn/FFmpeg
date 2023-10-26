@@ -811,14 +811,11 @@ static int convert_pix_fmt(enum AVPixelFormat pix_fmt)
 {
     switch (pix_fmt) {
     case AV_PIX_FMT_YUV420P:
-    case AV_PIX_FMT_YUVJ420P:
     case AV_PIX_FMT_YUV420P9:
     case AV_PIX_FMT_YUV420P10: return X264_CSP_I420;
     case AV_PIX_FMT_YUV422P:
-    case AV_PIX_FMT_YUVJ422P:
     case AV_PIX_FMT_YUV422P10: return X264_CSP_I422;
     case AV_PIX_FMT_YUV444P:
-    case AV_PIX_FMT_YUVJ444P:
     case AV_PIX_FMT_YUV444P9:
     case AV_PIX_FMT_YUV444P10: return X264_CSP_I444;
     case AV_PIX_FMT_BGR0:
@@ -1340,11 +1337,6 @@ FF_ENABLE_DEPRECATION_WARNINGS
 
     if (avctx->color_range != AVCOL_RANGE_UNSPECIFIED)
         x4->params.vui.b_fullrange = avctx->color_range == AVCOL_RANGE_JPEG;
-    else if (avctx->pix_fmt == AV_PIX_FMT_YUVJ420P ||
-             avctx->pix_fmt == AV_PIX_FMT_YUVJ422P ||
-             avctx->pix_fmt == AV_PIX_FMT_YUVJ444P)
-        x4->params.vui.b_fullrange = 1;
-
     if (avctx->colorspace != AVCOL_SPC_UNSPECIFIED)
         x4->params.vui.i_colmatrix = avctx->colorspace;
     if (avctx->color_primaries != AVCOL_PRI_UNSPECIFIED)
@@ -1443,11 +1435,8 @@ FF_ENABLE_DEPRECATION_WARNINGS
 
 static const enum AVPixelFormat pix_fmts_8bit[] = {
     AV_PIX_FMT_YUV420P,
-    AV_PIX_FMT_YUVJ420P,
     AV_PIX_FMT_YUV422P,
-    AV_PIX_FMT_YUVJ422P,
     AV_PIX_FMT_YUV444P,
-    AV_PIX_FMT_YUVJ444P,
     AV_PIX_FMT_NV12,
     AV_PIX_FMT_NV16,
 #ifdef X264_CSP_NV21
@@ -1469,11 +1458,8 @@ static const enum AVPixelFormat pix_fmts_10bit[] = {
 };
 static const enum AVPixelFormat pix_fmts_all[] = {
     AV_PIX_FMT_YUV420P,
-    AV_PIX_FMT_YUVJ420P,
     AV_PIX_FMT_YUV422P,
-    AV_PIX_FMT_YUVJ422P,
     AV_PIX_FMT_YUV444P,
-    AV_PIX_FMT_YUVJ444P,
     AV_PIX_FMT_NV12,
     AV_PIX_FMT_NV16,
 #ifdef X264_CSP_NV21

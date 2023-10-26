@@ -293,6 +293,6 @@ const AVFilter ff_vf_find_rect = {
     .flags           = AVFILTER_FLAG_METADATA_ONLY,
     FILTER_INPUTS(foc_inputs),
     FILTER_OUTPUTS(ff_video_default_filterpad),
-    FILTER_PIXFMTS(AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUVJ420P),
+    FILTER_PIXFMTS(AV_PIX_FMT_YUV420P),
     .priv_class      = &find_rect_class,
 };

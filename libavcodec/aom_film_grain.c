@@ -94,9 +94,6 @@ int ff_aom_apply_film_grain(AVFrame *out, const AVFrame *in,
     case AV_PIX_FMT_YUV420P:
     case AV_PIX_FMT_YUV422P:
     case AV_PIX_FMT_YUV444P:
-    case AV_PIX_FMT_YUVJ420P:
-    case AV_PIX_FMT_YUVJ422P:
-    case AV_PIX_FMT_YUVJ444P:
         return apply_film_grain_8(out, in, params);
     case AV_PIX_FMT_GRAY9:
     case AV_PIX_FMT_YUV420P9:

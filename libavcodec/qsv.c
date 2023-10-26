@@ -229,7 +229,6 @@ int ff_qsv_map_pixfmt(enum AVPixelFormat format, uint32_t *fourcc, uint16_t *shi
 {
     switch (format) {
     case AV_PIX_FMT_YUV420P:
-    case AV_PIX_FMT_YUVJ420P:
     case AV_PIX_FMT_NV12:
         *fourcc = MFX_FOURCC_NV12;
         *shift = 0;

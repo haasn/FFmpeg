@@ -98,8 +98,6 @@ static void list_remove_head(TiltandshiftContext *s)
 static const enum AVPixelFormat pix_fmts[] = {
     AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV422P, AV_PIX_FMT_YUV444P,
     AV_PIX_FMT_YUV410P,
-    AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_YUVJ422P, AV_PIX_FMT_YUVJ444P,
-    AV_PIX_FMT_YUVJ440P,
     AV_PIX_FMT_NONE
 };
 
@@ -135,11 +133,7 @@ static int config_props(AVFilterLink *outlink)
         if (!desc)
             return AVERROR_BUG;
 
-        if (outlink->format == AV_PIX_FMT_YUVJ420P ||
-            outlink->format == AV_PIX_FMT_YUVJ422P ||
-            outlink->format == AV_PIX_FMT_YUVJ444P ||
-            outlink->format == AV_PIX_FMT_YUVJ440P ||
-            outlink->color_range == AVCOL_RANGE_JPEG)
+        if (outlink->color_range == AVCOL_RANGE_JPEG)
             black_data[0] = black_data[3] = 0;
 
         ret = av_image_alloc(s->black_buffers, s->black_linesizes, 1,

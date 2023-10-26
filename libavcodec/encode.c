@@ -594,12 +594,6 @@ static int encode_preinit_video(AVCodecContext *avctx)
 
             return AVERROR(EINVAL);
         }
-        if (pix_fmts[i] == AV_PIX_FMT_YUVJ420P ||
-            pix_fmts[i] == AV_PIX_FMT_YUVJ411P ||
-            pix_fmts[i] == AV_PIX_FMT_YUVJ422P ||
-            pix_fmts[i] == AV_PIX_FMT_YUVJ440P ||
-            pix_fmts[i] == AV_PIX_FMT_YUVJ444P)
-            avctx->color_range = AVCOL_RANGE_JPEG;
     }
 
     if (    avctx->bits_per_raw_sample < 0

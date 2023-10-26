@@ -90,18 +90,6 @@ static int yuv4_write_header(AVFormatContext *s)
     case AV_PIX_FMT_YUV411P:
         colorspace = " C411 XYSCSS=411";
         break;
-    case AV_PIX_FMT_YUVJ420P:
-        colorspace = " C420jpeg XYSCSS=420JPEG";
-        colorrange = " XCOLORRANGE=FULL";
-        break;
-    case AV_PIX_FMT_YUVJ422P:
-        colorspace = " C422 XYSCSS=422";
-        colorrange = " XCOLORRANGE=FULL";
-        break;
-    case AV_PIX_FMT_YUVJ444P:
-        colorspace = " C444 XYSCSS=444";
-        colorrange = " XCOLORRANGE=FULL";
-        break;
     case AV_PIX_FMT_YUV420P:
         switch (st->codecpar->chroma_location) {
         case AVCHROMA_LOC_TOPLEFT: colorspace = " C420paldv XYSCSS=420PALDV"; break;
@@ -236,10 +224,6 @@ static int yuv4_init(AVFormatContext *s)
     case AV_PIX_FMT_YUV420P:
     case AV_PIX_FMT_YUV422P:
     case AV_PIX_FMT_YUV444P:
-    // TODO: remove YUVJ pixel formats when they are completely removed from the codebase.
-    case AV_PIX_FMT_YUVJ420P:
-    case AV_PIX_FMT_YUVJ422P:
-    case AV_PIX_FMT_YUVJ444P:
         break;
     case AV_PIX_FMT_GRAY9:
     case AV_PIX_FMT_GRAY10:

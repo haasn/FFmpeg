@@ -1260,7 +1260,7 @@ static av_cold int yuvtest_init(AVFilterContext *ctx)
 }
 
 static const enum AVPixelFormat yuvtest_pix_fmts[] = {
-    AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUVJ444P,
+    AV_PIX_FMT_YUV444P,
     AV_PIX_FMT_YUV444P9, AV_PIX_FMT_YUV444P10,
     AV_PIX_FMT_YUV444P12, AV_PIX_FMT_YUV444P14,
     AV_PIX_FMT_YUV444P16,

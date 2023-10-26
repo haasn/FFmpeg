@@ -431,7 +431,6 @@ static enum AVPixelFormat get_format(HEVCContext *s, const HEVCSPS *sps)
 
     switch (sps->pix_fmt) {
     case AV_PIX_FMT_YUV420P:
-    case AV_PIX_FMT_YUVJ420P:
 #if CONFIG_HEVC_DXVA2_HWACCEL
         *fmt++ = AV_PIX_FMT_DXVA2_VLD;
 #endif

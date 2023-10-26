@@ -99,10 +99,7 @@ int ff_draw_init2(FFDrawContext *draw, enum AVPixelFormat format, enum AVColorSp
     if (!(desc->flags & AV_PIX_FMT_FLAG_RGB) && !(luma = av_csp_luma_coeffs_from_avcsp(csp)))
         return AVERROR(EINVAL);
     if (range == AVCOL_RANGE_UNSPECIFIED)
-        range = (format == AV_PIX_FMT_YUVJ420P || format == AV_PIX_FMT_YUVJ422P ||
-                 format == AV_PIX_FMT_YUVJ444P || format == AV_PIX_FMT_YUVJ411P ||
-                 format == AV_PIX_FMT_YUVJ440P || csp == AVCOL_SPC_RGB)
-                ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
+        range = csp == AVCOL_SPC_RGB ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
     if (range != AVCOL_RANGE_JPEG && range != AVCOL_RANGE_MPEG)
         return AVERROR(EINVAL);
     for (i = 0; i < desc->nb_components; i++) {

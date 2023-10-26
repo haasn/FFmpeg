@@ -215,7 +215,7 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *f,
         }
     }
 
-    avctx->pix_fmt = version & 1 ? is_pal ? AV_PIX_FMT_PAL8 : AV_PIX_FMT_BGR24 : AV_PIX_FMT_YUVJ420P;
+    avctx->pix_fmt = version & 1 ? is_pal ? AV_PIX_FMT_PAL8 : AV_PIX_FMT_BGR24 : AV_PIX_FMT_YUV420P;
     avctx->color_range = version & 1 ? AVCOL_RANGE_UNSPECIFIED
                                      : AVCOL_RANGE_JPEG;
     avctx->colorspace = version & 1 ? AVCOL_SPC_UNSPECIFIED : AVCOL_SPC_BT709;

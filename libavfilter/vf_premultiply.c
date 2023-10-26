@@ -68,7 +68,7 @@ static int query_formats(AVFilterContext *ctx)
     PreMultiplyContext *s = ctx->priv;
 
     static const enum AVPixelFormat no_alpha_pix_fmts[] = {
-        AV_PIX_FMT_YUV444P, AV_PIX_FMT_YUVJ444P,
+        AV_PIX_FMT_YUV444P,
         AV_PIX_FMT_YUV444P9, AV_PIX_FMT_YUV444P10,
         AV_PIX_FMT_YUV444P12, AV_PIX_FMT_YUV444P14,
         AV_PIX_FMT_YUV444P16,
@@ -533,10 +533,6 @@ static int filter_frame(AVFilterContext *ctx,
                 s->premultiply[0] = full ? unpremultiply8 : unpremultiply8offset;
                 s->premultiply[1] = s->premultiply[2] = unpremultiply8yuv;
                 break;
-            case AV_PIX_FMT_YUVJ444P:
-                s->premultiply[0] = unpremultiply8;
-                s->premultiply[1] = s->premultiply[2] = unpremultiply8yuv;
-                break;
             case AV_PIX_FMT_GBRP:
             case AV_PIX_FMT_GBRAP:
                 s->premultiply[0] = s->premultiply[1] = s->premultiply[2] = limited ? unpremultiply8offset : unpremultiply8;
@@ -583,10 +579,6 @@ static int filter_frame(AVFilterContext *ctx,
             case AV_PIX_FMT_YUV444P:
             case AV_PIX_FMT_YUVA444P:
                 s->premultiply[0] = full ? premultiply8 : premultiply8offset;
-                s->premultiply[1] = s->premultiply[2] = premultiply8yuv;
-                break;
-            case AV_PIX_FMT_YUVJ444P:
-                s->premultiply[0] = premultiply8;
                 s->premultiply[1] = s->premultiply[2] = premultiply8yuv;
                 break;
             case AV_PIX_FMT_GBRP:

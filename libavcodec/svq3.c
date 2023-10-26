@@ -1144,7 +1144,7 @@ static av_cold int svq3_decode_init(AVCodecContext *avctx)
     ff_hpeldsp_init(&s->hdsp, avctx->flags);
     ff_tpeldsp_init(&s->tdsp);
 
-    avctx->pix_fmt     = AV_PIX_FMT_YUVJ420P;
+    avctx->pix_fmt     = AV_PIX_FMT_YUV420P;
     avctx->color_range = AVCOL_RANGE_JPEG;
 
     s->avctx         = avctx;

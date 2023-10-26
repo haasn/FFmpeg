@@ -224,7 +224,7 @@ static av_cold int decode_init(AVCodecContext *avctx)
     ff_permute_scantable(a->permutated_scantable, ff_zigzag_direct,
                          a->idsp.idct_permutation);
 
-    avctx->pix_fmt  = AV_PIX_FMT_YUVJ420P;
+    avctx->pix_fmt  = AV_PIX_FMT_YUV420P;
     avctx->color_range = AVCOL_RANGE_JPEG;
 
     /* init q matrix */

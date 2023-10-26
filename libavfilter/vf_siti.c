@@ -67,7 +67,6 @@ typedef struct SiTiContext {
 
 static const enum AVPixelFormat pix_fmts[] = {
     AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV422P,
-    AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_YUVJ422P,
     AV_PIX_FMT_YUV420P10, AV_PIX_FMT_YUV422P10,
     AV_PIX_FMT_NONE
 };
@@ -139,15 +138,6 @@ static int config_input(AVFilterLink *inlink)
     }
 
     return 0;
-}
-
-// Determine whether the video is in full or limited range. If not defined, assume limited.
-static int is_full_range(AVFrame* frame)
-{
-    // If color range not specified, fallback to pixel format
-    if (frame->color_range == AVCOL_RANGE_UNSPECIFIED || frame->color_range == AVCOL_RANGE_NB)
-        return frame->format == AV_PIX_FMT_YUVJ420P || frame->format == AV_PIX_FMT_YUVJ422P;
-    return frame->color_range == AVCOL_RANGE_JPEG;
 }
 
 // Check frame's color range and convert to full range if needed
@@ -285,7 +275,7 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
     float si;
     float ti;
 
-    s->full_range = is_full_range(frame);
+    s->full_range = frame->color_range == AVCOL_RANGE_JPEG;
     s->nb_frames++;
 
     // Calculate si and ti

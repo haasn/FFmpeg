@@ -372,18 +372,6 @@ static const AVPixFmtDescriptor av_pix_fmt_descriptors[AV_PIX_FMT_NB] = {
         },
         .flags = AV_PIX_FMT_FLAG_PLANAR,
     },
-    [AV_PIX_FMT_YUVJ411P] = {
-        .name = "yuvj411p",
-        .nb_components = 3,
-        .log2_chroma_w = 2,
-        .log2_chroma_h = 0,
-        .comp = {
-            { 0, 1, 0, 0, 8 },        /* Y */
-            { 1, 1, 0, 0, 8 },        /* U */
-            { 2, 1, 0, 0, 8 },        /* V */
-        },
-        .flags = AV_PIX_FMT_FLAG_PLANAR,
-    },
     [AV_PIX_FMT_GRAY8] = {
         .name = "gray",
         .nb_components = 1,
@@ -423,42 +411,6 @@ static const AVPixFmtDescriptor av_pix_fmt_descriptors[AV_PIX_FMT_NB] = {
             { 0, 1, 0, 0, 8 },
         },
         .flags = AV_PIX_FMT_FLAG_PAL | AV_PIX_FMT_FLAG_ALPHA,
-    },
-    [AV_PIX_FMT_YUVJ420P] = {
-        .name = "yuvj420p",
-        .nb_components = 3,
-        .log2_chroma_w = 1,
-        .log2_chroma_h = 1,
-        .comp = {
-            { 0, 1, 0, 0, 8 },        /* Y */
-            { 1, 1, 0, 0, 8 },        /* U */
-            { 2, 1, 0, 0, 8 },        /* V */
-        },
-        .flags = AV_PIX_FMT_FLAG_PLANAR,
-    },
-    [AV_PIX_FMT_YUVJ422P] = {
-        .name = "yuvj422p",
-        .nb_components = 3,
-        .log2_chroma_w = 1,
-        .log2_chroma_h = 0,
-        .comp = {
-            { 0, 1, 0, 0, 8 },        /* Y */
-            { 1, 1, 0, 0, 8 },        /* U */
-            { 2, 1, 0, 0, 8 },        /* V */
-        },
-        .flags = AV_PIX_FMT_FLAG_PLANAR,
-    },
-    [AV_PIX_FMT_YUVJ444P] = {
-        .name = "yuvj444p",
-        .nb_components = 3,
-        .log2_chroma_w = 0,
-        .log2_chroma_h = 0,
-        .comp = {
-            { 0, 1, 0, 0, 8 },        /* Y */
-            { 1, 1, 0, 0, 8 },        /* U */
-            { 2, 1, 0, 0, 8 },        /* V */
-        },
-        .flags = AV_PIX_FMT_FLAG_PLANAR,
     },
     [AV_PIX_FMT_UYVY422] = {
         .name = "uyvy422",
@@ -785,18 +737,6 @@ static const AVPixFmtDescriptor av_pix_fmt_descriptors[AV_PIX_FMT_NB] = {
     },
     [AV_PIX_FMT_YUV440P] = {
         .name = "yuv440p",
-        .nb_components = 3,
-        .log2_chroma_w = 0,
-        .log2_chroma_h = 1,
-        .comp = {
-            { 0, 1, 0, 0, 8 },        /* Y */
-            { 1, 1, 0, 0, 8 },        /* U */
-            { 2, 1, 0, 0, 8 },        /* V */
-        },
-        .flags = AV_PIX_FMT_FLAG_PLANAR,
-    },
-    [AV_PIX_FMT_YUVJ440P] = {
-        .name = "yuvj440p",
         .nb_components = 3,
         .log2_chroma_w = 0,
         .log2_chroma_h = 1,

@@ -63,15 +63,8 @@ typedef struct FrameData {
     AVBufferRef *frame_opaque_ref;
 } FrameData;
 
-static inline RaPixelRange range_map(enum AVPixelFormat pix_fmt, enum AVColorRange range)
+static inline RaPixelRange range_map(enum AVColorRange range)
 {
-    switch (pix_fmt) {
-    case AV_PIX_FMT_YUVJ420P:
-    case AV_PIX_FMT_YUVJ422P:
-    case AV_PIX_FMT_YUVJ444P:
-        return RA_PIXEL_RANGE_FULL;
-    }
-
     switch (range) {
     case AVCOL_RANGE_JPEG:
         return RA_PIXEL_RANGE_FULL;
@@ -85,17 +78,14 @@ static inline RaChromaSampling pix_fmt_map(enum AVPixelFormat pix_fmt)
 {
     switch (pix_fmt) {
     case AV_PIX_FMT_YUV420P:
-    case AV_PIX_FMT_YUVJ420P:
     case AV_PIX_FMT_YUV420P10:
     case AV_PIX_FMT_YUV420P12:
         return RA_CHROMA_SAMPLING_CS420;
     case AV_PIX_FMT_YUV422P:
-    case AV_PIX_FMT_YUVJ422P:
     case AV_PIX_FMT_YUV422P10:
     case AV_PIX_FMT_YUV422P12:
         return RA_CHROMA_SAMPLING_CS422;
     case AV_PIX_FMT_YUV444P:
-    case AV_PIX_FMT_YUVJ444P:
     case AV_PIX_FMT_YUV444P10:
     case AV_PIX_FMT_YUV444P12:
         return RA_CHROMA_SAMPLING_CS444;
@@ -382,7 +372,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
     rret = rav1e_config_set_pixel_format(cfg, desc->comp[0].depth,
                                          pix_fmt_map(avctx->pix_fmt),
                                          chroma_loc_map(avctx->chroma_sample_location),
-                                         range_map(avctx->pix_fmt, avctx->color_range));
+                                         range_map(avctx->color_range));
     if (rret < 0) {
         av_log(avctx, AV_LOG_ERROR, "Failed to set pixel format properties.\n");
         ret = AVERROR_INVALIDDATA;
@@ -635,15 +625,12 @@ static const FFCodecDefault librav1e_defaults[] = {
 
 const enum AVPixelFormat librav1e_pix_fmts[] = {
     AV_PIX_FMT_YUV420P,
-    AV_PIX_FMT_YUVJ420P,
     AV_PIX_FMT_YUV420P10,
     AV_PIX_FMT_YUV420P12,
     AV_PIX_FMT_YUV422P,
-    AV_PIX_FMT_YUVJ422P,
     AV_PIX_FMT_YUV422P10,
     AV_PIX_FMT_YUV422P12,
     AV_PIX_FMT_YUV444P,
-    AV_PIX_FMT_YUVJ444P,
     AV_PIX_FMT_YUV444P10,
     AV_PIX_FMT_YUV444P12,
     AV_PIX_FMT_NONE

@@ -527,7 +527,7 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
                     || s->component_id[0] == 'R' && s->component_id[1] == 'G' && s->component_id[2] == 'B') {
                     s->avctx->pix_fmt = s->bits <= 8 ? AV_PIX_FMT_GBRP : AV_PIX_FMT_GBRP16;
                 } else {
-                    if (s->bits <= 8) s->avctx->pix_fmt = s->cs_itu601 ? AV_PIX_FMT_YUV444P : AV_PIX_FMT_YUVJ444P;
+                    if (s->bits <= 8) s->avctx->pix_fmt = AV_PIX_FMT_YUV444P;
                     else              s->avctx->pix_fmt = AV_PIX_FMT_YUV444P16;
                 s->avctx->color_range = s->cs_itu601 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
                 }
@@ -591,7 +591,7 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
                     s->component_id[1] == 'G' && s->component_id[2] == 'B') {
                 s->avctx->pix_fmt = AV_PIX_FMT_GBRP;
             } else {
-                s->avctx->pix_fmt = s->cs_itu601 ? AV_PIX_FMT_YUV444P : AV_PIX_FMT_YUVJ444P;
+                s->avctx->pix_fmt = AV_PIX_FMT_YUV444P;
                 s->avctx->color_range = s->cs_itu601 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
             }
             break;
@@ -622,7 +622,7 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
             } else {
                 if (pix_fmt_id == 0x14111100)
                     s->upscale_v[1] = s->upscale_v[2] = 1;
-                if (s->bits <= 8) s->avctx->pix_fmt = s->cs_itu601 ? AV_PIX_FMT_YUV440P : AV_PIX_FMT_YUVJ440P;
+                if (s->bits <= 8) s->avctx->pix_fmt = AV_PIX_FMT_YUV440P;
                 else
                     goto unk_pixfmt;
                 s->avctx->color_range = s->cs_itu601 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
@@ -635,7 +635,7 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
                     goto unk_pixfmt;
                 s->upscale_h[1] = s->upscale_h[2] = 1;
             } else {
-                if (s->bits <= 8) s->avctx->pix_fmt = s->cs_itu601 ? AV_PIX_FMT_YUV422P : AV_PIX_FMT_YUVJ422P;
+                if (s->bits <= 8) s->avctx->pix_fmt = AV_PIX_FMT_YUV422P;
                 else              s->avctx->pix_fmt = AV_PIX_FMT_YUV422P16;
                 s->avctx->color_range = s->cs_itu601 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
             }
@@ -652,14 +652,14 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
         case 0x31111100:
             if (s->bits > 8)
                 goto unk_pixfmt;
-            s->avctx->pix_fmt = s->cs_itu601 ? AV_PIX_FMT_YUV444P : AV_PIX_FMT_YUVJ444P;
+            s->avctx->pix_fmt = AV_PIX_FMT_YUV444P;
             s->avctx->color_range = s->cs_itu601 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
             s->upscale_h[1] = s->upscale_h[2] = 2;
             break;
         case 0x22121100:
         case 0x22111200:
         case 0x41211100:
-            if (s->bits <= 8) s->avctx->pix_fmt = s->cs_itu601 ? AV_PIX_FMT_YUV422P : AV_PIX_FMT_YUVJ422P;
+            if (s->bits <= 8) s->avctx->pix_fmt = AV_PIX_FMT_YUV422P;
             else
                 goto unk_pixfmt;
             s->avctx->color_range = s->cs_itu601 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
@@ -668,7 +668,7 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
         case 0x23111100:
         case 0x42111100:
         case 0x24111100:
-            if (s->bits <= 8) s->avctx->pix_fmt = s->cs_itu601 ? AV_PIX_FMT_YUV420P : AV_PIX_FMT_YUVJ420P;
+            if (s->bits <= 8) s->avctx->pix_fmt = AV_PIX_FMT_YUV420P;
             else              s->avctx->pix_fmt = AV_PIX_FMT_YUV420P16;
             s->avctx->color_range = s->cs_itu601 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
             if (pix_fmt_id == 0x42111100) {
@@ -686,7 +686,7 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
             }
             break;
         case 0x41111100:
-            if (s->bits <= 8) s->avctx->pix_fmt = s->cs_itu601 ? AV_PIX_FMT_YUV411P : AV_PIX_FMT_YUVJ411P;
+            if (s->bits <= 8) s->avctx->pix_fmt = AV_PIX_FMT_YUV411P;
             else
                 goto unk_pixfmt;
             s->avctx->color_range = s->cs_itu601 ? AVCOL_RANGE_MPEG : AVCOL_RANGE_JPEG;
@@ -2624,14 +2624,10 @@ the_end:
 
     if (AV_RB32(s->upscale_h)) {
         int p;
-        av_assert0(avctx->pix_fmt == AV_PIX_FMT_YUVJ444P ||
-                   avctx->pix_fmt == AV_PIX_FMT_YUV444P  ||
-                   avctx->pix_fmt == AV_PIX_FMT_YUVJ440P ||
+        av_assert0(avctx->pix_fmt == AV_PIX_FMT_YUV444P  ||
                    avctx->pix_fmt == AV_PIX_FMT_YUV440P  ||
                    avctx->pix_fmt == AV_PIX_FMT_YUVA444P ||
-                   avctx->pix_fmt == AV_PIX_FMT_YUVJ422P ||
                    avctx->pix_fmt == AV_PIX_FMT_YUV422P  ||
-                   avctx->pix_fmt == AV_PIX_FMT_YUVJ420P ||
                    avctx->pix_fmt == AV_PIX_FMT_YUV420P  ||
                    avctx->pix_fmt == AV_PIX_FMT_YUV420P16||
                    avctx->pix_fmt == AV_PIX_FMT_YUVA420P  ||
@@ -2705,14 +2701,10 @@ the_end:
     }
     if (AV_RB32(s->upscale_v)) {
         int p;
-        av_assert0(avctx->pix_fmt == AV_PIX_FMT_YUVJ444P ||
-                   avctx->pix_fmt == AV_PIX_FMT_YUV444P  ||
-                   avctx->pix_fmt == AV_PIX_FMT_YUVJ422P ||
+        av_assert0(avctx->pix_fmt == AV_PIX_FMT_YUV444P  ||
                    avctx->pix_fmt == AV_PIX_FMT_YUV422P  ||
-                   avctx->pix_fmt == AV_PIX_FMT_YUVJ420P ||
                    avctx->pix_fmt == AV_PIX_FMT_YUV420P  ||
                    avctx->pix_fmt == AV_PIX_FMT_YUV440P  ||
-                   avctx->pix_fmt == AV_PIX_FMT_YUVJ440P ||
                    avctx->pix_fmt == AV_PIX_FMT_YUVA444P ||
                    avctx->pix_fmt == AV_PIX_FMT_YUVA420P  ||
                    avctx->pix_fmt == AV_PIX_FMT_YUVA420P16||

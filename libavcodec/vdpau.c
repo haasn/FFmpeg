@@ -87,7 +87,6 @@ int av_vdpau_get_surface_parameters(AVCodecContext *avctx,
     /* See <vdpau/vdpau.h> for per-type alignment constraints. */
     switch (avctx->sw_pix_fmt) {
     case AV_PIX_FMT_YUV420P:
-    case AV_PIX_FMT_YUVJ420P:
     case AV_PIX_FMT_YUV420P10:
     case AV_PIX_FMT_YUV420P12:
         t = VDP_CHROMA_TYPE_420;
@@ -95,13 +94,11 @@ int av_vdpau_get_surface_parameters(AVCodecContext *avctx,
         h = (h + 3) & ~3;
         break;
     case AV_PIX_FMT_YUV422P:
-    case AV_PIX_FMT_YUVJ422P:
         t = VDP_CHROMA_TYPE_422;
         w = (w + 1) & ~1;
         h = (h + 1) & ~1;
         break;
     case AV_PIX_FMT_YUV444P:
-    case AV_PIX_FMT_YUVJ444P:
     case AV_PIX_FMT_YUV444P10:
     case AV_PIX_FMT_YUV444P12:
         t = VDP_CHROMA_TYPE_444;

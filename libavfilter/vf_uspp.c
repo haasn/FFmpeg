@@ -341,8 +341,6 @@ static const enum AVPixelFormat pix_fmts[] = {
     AV_PIX_FMT_YUV444P,
     AV_PIX_FMT_YUV420P,
     AV_PIX_FMT_YUV410P,
-    AV_PIX_FMT_YUVJ444P,
-    AV_PIX_FMT_YUVJ420P,
     AV_PIX_FMT_GRAY8,
     AV_PIX_FMT_NONE
 };

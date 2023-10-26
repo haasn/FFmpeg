@@ -325,7 +325,6 @@ const FFCodec ff_ljpeg_encoder = {
     .close          = ljpeg_encode_close,
     .p.pix_fmts     = (const enum AVPixelFormat[]){
         AV_PIX_FMT_BGR24   , AV_PIX_FMT_BGRA    , AV_PIX_FMT_BGR0,
-        AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_YUVJ444P, AV_PIX_FMT_YUVJ422P,
         AV_PIX_FMT_YUV420P , AV_PIX_FMT_YUV444P , AV_PIX_FMT_YUV422P,
         AV_PIX_FMT_NONE},
     .color_ranges   = AVCOL_RANGE_MPEG | AVCOL_RANGE_JPEG,
