@@ -275,6 +275,13 @@ FF_DISABLE_DEPRECATION_WARNINGS
 FF_ENABLE_DEPRECATION_WARNINGS
 #endif
 
+    /* Explicitly default unspecified input frames to the configured link
+     * properties, in case a downstream filter is restricting this */
+    if (copy->colorspace == AVCOL_SPC_UNSPECIFIED)
+        copy->colorspace = ctx->outputs[0]->colorspace;
+    if (copy->color_range == AVCOL_RANGE_UNSPECIFIED)
+        copy->color_range = ctx->outputs[0]->color_range;
+
     ret = ff_filter_frame(ctx->outputs[0], copy);
     if (ret < 0)
         return ret;
