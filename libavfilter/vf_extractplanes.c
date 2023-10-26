@@ -128,6 +128,7 @@ AVFILTER_DEFINE_CLASS(extractplanes);
 
 static int query_formats(AVFilterContext *ctx)
 {
+    ExtractPlanesContext *s = ctx->priv;
     static const enum AVPixelFormat in_pixfmts_le[] = {
         EIGHTBIT_FORMATS,
         HIGHDEPTH_FORMATS(LE),
@@ -211,9 +212,15 @@ static int query_formats(AVFilterContext *ctx)
     else
         out_pixfmts = out32le_pixfmts;
 
-    for (i = 0; i < ctx->nb_outputs; i++)
+    for (i = 0; i < ctx->nb_outputs; i++) {
         if ((ret = ff_formats_ref(ff_make_format_list(out_pixfmts), &ctx->outputs[i]->incfg.formats)) < 0)
             return ret;
+        if (s->map[i] == 3 /* alpha */) {
+            if ((ret = ff_formats_ref(ff_make_formats_list_singleton(AVCOL_RANGE_JPEG),
+                                      &ctx->outputs[i]->incfg.color_ranges)) < 0)
+                return ret;
+        }
+    }
     return 0;
 }
 
@@ -309,8 +316,7 @@ static int extract_plane(AVFilterLink *outlink, AVFrame *frame)
     if (!out)
         return AVERROR(ENOMEM);
     av_frame_copy_props(out, frame);
-    if (idx == 3 /* alpha */)
-        out->color_range = AVCOL_RANGE_JPEG;
+    out->color_range = outlink->color_range;
 
     if (s->is_packed) {
         extract_from_packed(out->data[0], out->linesize[0],

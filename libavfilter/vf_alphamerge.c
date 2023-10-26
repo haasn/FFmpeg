@@ -107,6 +107,10 @@ static int query_formats(AVFilterContext *ctx)
         (ret = ff_formats_ref(main_formats, &ctx->outputs[0]->incfg.formats)) < 0)
             return ret;
 
+    if ((ret = ff_formats_ref(ff_make_formats_list_singleton(AVCOL_RANGE_JPEG),
+                              &ctx->inputs[1]->outcfg.color_ranges)) < 0)
+        return ret;
+
     return ff_formats_ref(ff_make_format_list(alpha_fmts),
                           &ctx->inputs[1]->outcfg.formats);
 }
