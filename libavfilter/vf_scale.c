@@ -818,6 +818,9 @@ scale:
     out->width  = outlink->w;
     out->height = outlink->h;
     out->color_range = out_full ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
+    if (scale->out_color_matrix >= 0 &&
+        scale->out_color_matrix != AVCOL_SPC_UNSPECIFIED)
+        out->colorspace = scale->out_color_matrix;
 
     // Sanity checks:
     //   1. If the output is RGB, set the matrix coefficients to RGB.
