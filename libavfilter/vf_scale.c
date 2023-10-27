@@ -687,6 +687,25 @@ static int scale_field(ScaleContext *scale, AVFrame *dst, AVFrame *src,
     return 0;
 }
 
+static int is_regular_yuv(enum AVPixelFormat fmt)
+{
+    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(fmt);
+    if (desc->flags & (AV_PIX_FMT_FLAG_RGB | AV_PIX_FMT_FLAG_PAL | AV_PIX_FMT_FLAG_XYZ))
+        return 0;
+    if (desc->nb_components < 3)
+        return 0; /* grayscale is forced full range inside libswscale */
+    switch (fmt) {
+    case AV_PIX_FMT_YUVJ420P:
+    case AV_PIX_FMT_YUVJ422P:
+    case AV_PIX_FMT_YUVJ444P:
+    case AV_PIX_FMT_YUVJ440P:
+    case AV_PIX_FMT_YUVJ411P:
+        return 0;
+    default:
+        return 1;
+    }
+}
+
 static int scale_frame(AVFilterLink *link, AVFrame *in, AVFrame **frame_out)
 {
     AVFilterContext *ctx = link->dst;
@@ -794,6 +813,8 @@ scale:
         in_full = in->color_range == AVCOL_RANGE_JPEG;
     if (scale->out_range != AVCOL_RANGE_UNSPECIFIED)
         out_full = scale->out_range == AVCOL_RANGE_JPEG;
+    else if (is_regular_yuv(in->format) && is_regular_yuv(outlink->format))
+        out_full = in_full; /* preserve pixel range by default */
 
     if (in->width == outlink->w &&
         in->height == outlink->h &&
