@@ -291,6 +291,18 @@ static av_cold int preinit(AVFilterContext *ctx)
     return 0;
 }
 
+static const int sws_colorspaces[] = {
+    AVCOL_SPC_UNSPECIFIED,
+    AVCOL_SPC_RGB,
+    AVCOL_SPC_BT709,
+    AVCOL_SPC_BT470BG,
+    AVCOL_SPC_SMPTE170M,
+    AVCOL_SPC_FCC,
+    AVCOL_SPC_SMPTE240M,
+    AVCOL_SPC_BT2020_NCL,
+    -1
+};
+
 static av_cold int init(AVFilterContext *ctx)
 {
     ScaleContext *scale = ctx->priv;
@@ -330,6 +342,20 @@ static av_cold int init(AVFilterContext *ctx)
     ret = scale_parse_expr(ctx, NULL, &scale->h_pexpr, "height", scale->h_expr);
     if (ret < 0)
         return ret;
+
+    if (scale->in_color_matrix != -1 &&
+        !ff_fmt_is_in(scale->in_color_matrix, sws_colorspaces)) {
+        av_log(ctx, AV_LOG_ERROR, "Unsupported input color matrix '%s'\n",
+               av_color_space_name(scale->in_color_matrix));
+        return AVERROR(EINVAL);
+    }
+
+    if (scale->out_color_matrix != -1 &&
+        !ff_fmt_is_in(scale->out_color_matrix, sws_colorspaces)) {
+        av_log(ctx, AV_LOG_ERROR, "Unsupported output color matrix '%s'\n",
+               av_color_space_name(scale->out_color_matrix));
+        return AVERROR(EINVAL);
+    }
 
     av_log(ctx, AV_LOG_VERBOSE, "w:%s h:%s flags:'%s' interl:%d\n",
            scale->w_expr, scale->h_expr, (char *)av_x_if_null(scale->flags_str, ""), scale->interlaced);
@@ -373,6 +399,7 @@ static av_cold void uninit(AVFilterContext *ctx)
 
 static int query_formats(AVFilterContext *ctx)
 {
+    ScaleContext *scale = ctx->priv;
     AVFilterFormats *formats;
     const AVPixFmtDescriptor *desc;
     enum AVPixelFormat pix_fmt;
@@ -402,6 +429,28 @@ static int query_formats(AVFilterContext *ctx)
         }
     }
     if ((ret = ff_formats_ref(formats, &ctx->outputs[0]->incfg.formats)) < 0)
+        return ret;
+
+    /* accept all supported inputs, even if user overrides their properties */
+    if ((ret = ff_formats_ref(ff_make_format_list(sws_colorspaces),
+                              &ctx->inputs[0]->outcfg.color_spaces)) < 0)
+        return ret;
+
+    if ((ret = ff_formats_ref(ff_all_color_ranges(),
+                              &ctx->inputs[0]->outcfg.color_ranges)) < 0)
+        return ret;
+
+    /* propagate output properties if overridden */
+    formats = scale->out_color_matrix != AVCOL_SPC_UNSPECIFIED && scale->out_color_matrix > 0
+                ? ff_make_formats_list_singleton(scale->out_color_matrix)
+                : ff_make_format_list(sws_colorspaces);
+    if ((ret = ff_formats_ref(formats, &ctx->outputs[0]->incfg.color_spaces)) < 0)
+        return ret;
+
+    formats = scale->out_range != AVCOL_RANGE_UNSPECIFIED
+                ? ff_make_formats_list_singleton(scale->out_range)
+                : ff_all_color_ranges();
+    if ((ret = ff_formats_ref(formats, &ctx->outputs[0]->incfg.color_ranges)) < 0)
         return ret;
 
     return 0;
@@ -576,10 +625,12 @@ static int config_props(AVFilterLink *outlink)
     if (scale->sws)
         av_opt_get(scale->sws, "sws_flags", 0, &flags_val);
 
-    av_log(ctx, AV_LOG_VERBOSE, "w:%d h:%d fmt:%s sar:%d/%d -> w:%d h:%d fmt:%s sar:%d/%d flags:%s\n",
+    av_log(ctx, AV_LOG_VERBOSE, "w:%d h:%d fmt:%s csp:%s range:%s sar:%d/%d -> w:%d h:%d fmt:%s csp:%s range:%s sar:%d/%d flags:%s\n",
            inlink ->w, inlink ->h, av_get_pix_fmt_name( inlink->format),
+           av_color_space_name(inlink->colorspace), av_color_range_name(inlink->color_range),
            inlink->sample_aspect_ratio.num, inlink->sample_aspect_ratio.den,
            outlink->w, outlink->h, av_get_pix_fmt_name(outlink->format),
+           av_color_space_name(outlink->colorspace), av_color_range_name(outlink->color_range),
            outlink->sample_aspect_ratio.num, outlink->sample_aspect_ratio.den,
            flags_val);
     av_freep(&flags_val);
@@ -599,6 +650,8 @@ static int config_props_ref(AVFilterLink *outlink)
     outlink->sample_aspect_ratio = inlink->sample_aspect_ratio;
     outlink->time_base = inlink->time_base;
     outlink->frame_rate = inlink->frame_rate;
+    outlink->colorspace = inlink->colorspace;
+    outlink->color_range = inlink->color_range;
 
     return 0;
 }
@@ -663,25 +716,6 @@ static int scale_field(ScaleContext *scale, AVFrame *dst, AVFrame *src,
     return 0;
 }
 
-static int is_regular_yuv(enum AVPixelFormat fmt)
-{
-    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(fmt);
-    if (desc->flags & (AV_PIX_FMT_FLAG_RGB | AV_PIX_FMT_FLAG_PAL | AV_PIX_FMT_FLAG_XYZ))
-        return 0;
-    if (desc->nb_components < 3)
-        return 0; /* grayscale is forced full range inside libswscale */
-    switch (fmt) {
-    case AV_PIX_FMT_YUVJ420P:
-    case AV_PIX_FMT_YUVJ422P:
-    case AV_PIX_FMT_YUVJ444P:
-    case AV_PIX_FMT_YUVJ440P:
-    case AV_PIX_FMT_YUVJ411P:
-        return 0;
-    default:
-        return 1;
-    }
-}
-
 static int scale_frame(AVFilterLink *link, AVFrame *in, AVFrame **frame_out)
 {
     AVFilterContext *ctx = link->dst;
@@ -703,7 +737,9 @@ static int scale_frame(AVFilterLink *link, AVFrame *in, AVFrame **frame_out)
                     in->height != link->h ||
                     in->format != link->format ||
                     in->sample_aspect_ratio.den != link->sample_aspect_ratio.den ||
-                    in->sample_aspect_ratio.num != link->sample_aspect_ratio.num;
+                    in->sample_aspect_ratio.num != link->sample_aspect_ratio.num ||
+                    in->colorspace != link->colorspace ||
+                    in->color_range != link->color_range;
 
     if (scale->eval_mode == EVAL_MODE_FRAME || frame_changed) {
         unsigned vars_w[VARS_NB] = { 0 }, vars_h[VARS_NB] = { 0 };
@@ -760,9 +796,11 @@ FF_ENABLE_DEPRECATION_WARNINGS
 #endif
         }
 
-        link->dst->inputs[0]->format = in->format;
-        link->dst->inputs[0]->w      = in->width;
-        link->dst->inputs[0]->h      = in->height;
+        link->dst->inputs[0]->format        = in->format;
+        link->dst->inputs[0]->w             = in->width;
+        link->dst->inputs[0]->h             = in->height;
+        link->dst->inputs[0]->colorspace    = in->colorspace;
+        link->dst->inputs[0]->color_range   = in->color_range;
 
         link->dst->inputs[0]->sample_aspect_ratio.den = in->sample_aspect_ratio.den;
         link->dst->inputs[0]->sample_aspect_ratio.num = in->sample_aspect_ratio.num;
@@ -780,8 +818,8 @@ scale:
         inv_table = sws_getCoefficients(in->colorspace);
     else if (scale->in_color_matrix != AVCOL_SPC_UNSPECIFIED)
         inv_table = sws_getCoefficients(scale->in_color_matrix);
-    if (scale->out_color_matrix != AVCOL_SPC_UNSPECIFIED)
-        table = sws_getCoefficients(scale->out_color_matrix);
+    if (outlink->colorspace != AVCOL_SPC_UNSPECIFIED)
+        table = sws_getCoefficients(outlink->colorspace);
     else if (scale->in_color_matrix != AVCOL_SPC_UNSPECIFIED)
         table = inv_table;
 
@@ -789,9 +827,9 @@ scale:
         in_full = scale->in_range == AVCOL_RANGE_JPEG;
     else if (in->color_range != AVCOL_RANGE_UNSPECIFIED)
         in_full = in->color_range == AVCOL_RANGE_JPEG;
-    if (scale->out_range != AVCOL_RANGE_UNSPECIFIED)
-        out_full = scale->out_range == AVCOL_RANGE_JPEG;
-    else if (is_regular_yuv(in->format) && is_regular_yuv(outlink->format))
+    if (outlink->color_range != AVCOL_RANGE_UNSPECIFIED)
+        out_full = outlink->color_range == AVCOL_RANGE_JPEG;
+    else if (ff_fmt_is_regular_yuv(in->format) && ff_fmt_is_regular_yuv(outlink->format))
         out_full = in_full; /* preserve pixel range by default */
 
     if (in->width == outlink->w &&
@@ -817,10 +855,8 @@ scale:
     av_frame_copy_props(out, in);
     out->width  = outlink->w;
     out->height = outlink->h;
+    out->colorspace = outlink->colorspace;
     out->color_range = out_full ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
-    if (scale->out_color_matrix >= 0 &&
-        scale->out_color_matrix != AVCOL_SPC_UNSPECIFIED)
-        out->colorspace = scale->out_color_matrix;
 
     // Sanity checks:
     //   1. If the output is RGB, set the matrix coefficients to RGB.
@@ -893,7 +929,9 @@ static int filter_frame_ref(AVFilterLink *link, AVFrame *in)
                     in->height != link->h ||
                     in->format != link->format ||
                     in->sample_aspect_ratio.den != link->sample_aspect_ratio.den ||
-                    in->sample_aspect_ratio.num != link->sample_aspect_ratio.num;
+                    in->sample_aspect_ratio.num != link->sample_aspect_ratio.num ||
+                    in->colorspace != link->colorspace ||
+                    in->color_range != link->color_range;
 
     if (frame_changed) {
         link->format = in->format;
@@ -901,6 +939,8 @@ static int filter_frame_ref(AVFilterLink *link, AVFrame *in)
         link->h = in->height;
         link->sample_aspect_ratio.num = in->sample_aspect_ratio.num;
         link->sample_aspect_ratio.den = in->sample_aspect_ratio.den;
+        link->colorspace = in->colorspace;
+        link->color_range = in->color_range;
 
         config_props_ref(outlink);
     }
