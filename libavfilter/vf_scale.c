@@ -143,7 +143,6 @@ typedef struct ScaleContext {
     char *out_color_matrix;
 
     int in_range;
-    int in_frame_range;
     int out_range;
 
     int out_h_chr_pos;
@@ -356,8 +355,6 @@ static av_cold int init(AVFilterContext *ctx)
     if (!threads)
         av_opt_set_int(scale->sws_opts, "threads", ff_filter_get_nb_threads(ctx), 0);
 
-    scale->in_frame_range = AVCOL_RANGE_UNSPECIFIED;
-
     return 0;
 }
 
@@ -520,6 +517,7 @@ static int config_props(AVFilterLink *outlink)
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(inlink->format);
     const AVPixFmtDescriptor *outdesc = av_pix_fmt_desc_get(outfmt);
     ScaleContext *scale = ctx->priv;
+    struct SwsContext **swscs[3] = {&scale->sws, &scale->isws[0], &scale->isws[1]};
     uint8_t *flags_val = NULL;
     int ret;
 
@@ -552,65 +550,46 @@ static int config_props(AVFilterLink *outlink)
     if (scale->isws[1])
         sws_freeContext(scale->isws[1]);
     scale->isws[0] = scale->isws[1] = scale->sws = NULL;
-    if (inlink0->w == outlink->w &&
-        inlink0->h == outlink->h &&
-        !scale->out_color_matrix &&
-        scale->in_range == scale->out_range &&
-        inlink0->format == outlink->format)
-        ;
-    else {
-        struct SwsContext **swscs[3] = {&scale->sws, &scale->isws[0], &scale->isws[1]};
-        int i;
 
-        for (i = 0; i < 3; i++) {
-            int in_v_chr_pos = scale->in_v_chr_pos, out_v_chr_pos = scale->out_v_chr_pos;
-            struct SwsContext *const s = sws_alloc_context();
-            if (!s)
-                return AVERROR(ENOMEM);
-            *swscs[i] = s;
+    for (int i = 0; i < 3; i++) {
+        int in_v_chr_pos = scale->in_v_chr_pos, out_v_chr_pos = scale->out_v_chr_pos;
+        struct SwsContext *const s = sws_alloc_context();
+        if (!s)
+            return AVERROR(ENOMEM);
+        *swscs[i] = s;
 
-            ret = av_opt_copy(s, scale->sws_opts);
-            if (ret < 0)
-                return ret;
+        ret = av_opt_copy(s, scale->sws_opts);
+        if (ret < 0)
+            return ret;
 
-            av_opt_set_int(s, "srcw", inlink0 ->w, 0);
-            av_opt_set_int(s, "srch", inlink0 ->h >> !!i, 0);
-            av_opt_set_int(s, "src_format", inlink0->format, 0);
-            av_opt_set_int(s, "dstw", outlink->w, 0);
-            av_opt_set_int(s, "dsth", outlink->h >> !!i, 0);
-            av_opt_set_int(s, "dst_format", outfmt, 0);
-            if (scale->in_range != AVCOL_RANGE_UNSPECIFIED)
-                av_opt_set_int(s, "src_range",
-                               scale->in_range == AVCOL_RANGE_JPEG, 0);
-            else if (scale->in_frame_range != AVCOL_RANGE_UNSPECIFIED)
-                av_opt_set_int(s, "src_range",
-                               scale->in_frame_range == AVCOL_RANGE_JPEG, 0);
-            if (scale->out_range != AVCOL_RANGE_UNSPECIFIED)
-                av_opt_set_int(s, "dst_range",
-                               scale->out_range == AVCOL_RANGE_JPEG, 0);
+        av_opt_set_int(s, "srcw", inlink0 ->w, 0);
+        av_opt_set_int(s, "srch", inlink0 ->h >> !!i, 0);
+        av_opt_set_int(s, "src_format", inlink0->format, 0);
+        av_opt_set_int(s, "dstw", outlink->w, 0);
+        av_opt_set_int(s, "dsth", outlink->h >> !!i, 0);
+        av_opt_set_int(s, "dst_format", outfmt, 0);
 
-            /* Override chroma location default settings to have the correct
-             * chroma positions. MPEG chroma positions are used by convention.
-             * Note that this works for both MPEG-1/JPEG and MPEG-2/4 chroma
-             * locations, since they share a vertical alignment */
-            if (desc->log2_chroma_h == 1 && scale->in_v_chr_pos == -513) {
-                in_v_chr_pos = (i == 0) ? 128 : (i == 1) ? 64 : 192;
-            }
-
-            if (outdesc->log2_chroma_h == 1 && scale->out_v_chr_pos == -513) {
-                out_v_chr_pos = (i == 0) ? 128 : (i == 1) ? 64 : 192;
-            }
-
-            av_opt_set_int(s, "src_h_chr_pos", scale->in_h_chr_pos, 0);
-            av_opt_set_int(s, "src_v_chr_pos", in_v_chr_pos, 0);
-            av_opt_set_int(s, "dst_h_chr_pos", scale->out_h_chr_pos, 0);
-            av_opt_set_int(s, "dst_v_chr_pos", out_v_chr_pos, 0);
-
-            if ((ret = sws_init_context(s, NULL, NULL)) < 0)
-                return ret;
-            if (!scale->interlaced)
-                break;
+        /* Override chroma location default settings to have the correct
+         * chroma positions. MPEG chroma positions are used by convention.
+         * Note that this works for both MPEG-1/JPEG and MPEG-2/4 chroma
+         * locations, since they share a vertical alignment */
+        if (desc->log2_chroma_h == 1 && scale->in_v_chr_pos == -513) {
+            in_v_chr_pos = (i == 0) ? 128 : (i == 1) ? 64 : 192;
         }
+
+        if (outdesc->log2_chroma_h == 1 && scale->out_v_chr_pos == -513) {
+            out_v_chr_pos = (i == 0) ? 128 : (i == 1) ? 64 : 192;
+        }
+
+        av_opt_set_int(s, "src_h_chr_pos", scale->in_h_chr_pos, 0);
+        av_opt_set_int(s, "src_v_chr_pos", in_v_chr_pos, 0);
+        av_opt_set_int(s, "dst_h_chr_pos", scale->out_h_chr_pos, 0);
+        av_opt_set_int(s, "dst_v_chr_pos", out_v_chr_pos, 0);
+
+        if ((ret = sws_init_context(s, NULL, NULL)) < 0)
+            return ret;
+        if (!scale->interlaced)
+            break;
     }
 
     if (inlink0->sample_aspect_ratio.num){
@@ -716,9 +695,10 @@ static int scale_frame(AVFilterLink *link, AVFrame *in, AVFrame **frame_out)
     AVFrame *out;
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(link->format);
     char buf[32];
-    int ret;
-    int in_range;
+    int in_full, out_full, brightness, contrast, saturation;
+    const int *inv_table, *table;
     int frame_changed;
+    int ret;
 
     *frame_out = NULL;
     if (in->colorspace == AVCOL_SPC_YCGCO)
@@ -729,13 +709,6 @@ static int scale_frame(AVFilterLink *link, AVFrame *in, AVFrame **frame_out)
                     in->format != link->format ||
                     in->sample_aspect_ratio.den != link->sample_aspect_ratio.den ||
                     in->sample_aspect_ratio.num != link->sample_aspect_ratio.num;
-
-    if (in->color_range != AVCOL_RANGE_UNSPECIFIED &&
-        scale->in_range == AVCOL_RANGE_UNSPECIFIED &&
-        in->color_range != scale->in_frame_range) {
-        scale->in_frame_range = in->color_range;
-        frame_changed = 1;
-    }
 
     if (scale->eval_mode == EVAL_MODE_FRAME || frame_changed) {
         unsigned vars_w[VARS_NB] = { 0 }, vars_h[VARS_NB] = { 0 };
@@ -804,7 +777,30 @@ FF_ENABLE_DEPRECATION_WARNINGS
     }
 
 scale:
-    if (!scale->sws) {
+    sws_getColorspaceDetails(scale->sws, (int **)&inv_table, &in_full,
+                             (int **)&table, &out_full,
+                             &brightness, &contrast, &saturation);
+
+    if (scale->in_color_matrix)
+        inv_table = parse_yuv_type(scale->in_color_matrix, in->colorspace);
+    if (scale->out_color_matrix)
+        table     = parse_yuv_type(scale->out_color_matrix, AVCOL_SPC_UNSPECIFIED);
+    else if (scale->in_color_matrix)
+        table = inv_table;
+
+    if (scale->in_range != AVCOL_RANGE_UNSPECIFIED)
+        in_full = scale->in_range == AVCOL_RANGE_JPEG;
+    else if (in->color_range != AVCOL_RANGE_UNSPECIFIED)
+        in_full = in->color_range == AVCOL_RANGE_JPEG;
+    if (scale->out_range != AVCOL_RANGE_UNSPECIFIED)
+        out_full = scale->out_range == AVCOL_RANGE_JPEG;
+
+    if (in->width == outlink->w &&
+        in->height == outlink->h &&
+        in->format == outlink->format &&
+        !memcmp(inv_table, table, sizeof(int) * 4) &&
+        in_full == out_full) {
+        /* no conversion needed */
         *frame_out = in;
         return 0;
     }
@@ -822,6 +818,7 @@ scale:
     av_frame_copy_props(out, in);
     out->width  = outlink->w;
     out->height = outlink->h;
+    out->color_range = out_full ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
 
     // Sanity checks:
     //   1. If the output is RGB, set the matrix coefficients to RGB.
@@ -838,48 +835,17 @@ scale:
     if (scale->output_is_pal)
         avpriv_set_systematic_pal2((uint32_t*)out->data[1], outlink->format == AV_PIX_FMT_PAL8 ? AV_PIX_FMT_BGR8 : outlink->format);
 
-    in_range = in->color_range;
-
-    if (   scale->in_color_matrix
-        || scale->out_color_matrix
-        || scale-> in_range != AVCOL_RANGE_UNSPECIFIED
-        || in_range != AVCOL_RANGE_UNSPECIFIED
-        || scale->out_range != AVCOL_RANGE_UNSPECIFIED) {
-        int in_full, out_full, brightness, contrast, saturation;
-        const int *inv_table, *table;
-
-        sws_getColorspaceDetails(scale->sws, (int **)&inv_table, &in_full,
-                                 (int **)&table, &out_full,
-                                 &brightness, &contrast, &saturation);
-
-        if (scale->in_color_matrix)
-            inv_table = parse_yuv_type(scale->in_color_matrix, in->colorspace);
-        if (scale->out_color_matrix)
-            table     = parse_yuv_type(scale->out_color_matrix, AVCOL_SPC_UNSPECIFIED);
-        else if (scale->in_color_matrix)
-            table = inv_table;
-
-        if (scale-> in_range != AVCOL_RANGE_UNSPECIFIED)
-            in_full  = (scale-> in_range == AVCOL_RANGE_JPEG);
-        else if (in_range != AVCOL_RANGE_UNSPECIFIED)
-            in_full  = (in_range == AVCOL_RANGE_JPEG);
-        if (scale->out_range != AVCOL_RANGE_UNSPECIFIED)
-            out_full = (scale->out_range == AVCOL_RANGE_JPEG);
-
-        sws_setColorspaceDetails(scale->sws, inv_table, in_full,
+    sws_setColorspaceDetails(scale->sws, inv_table, in_full,
+                             table, out_full,
+                             brightness, contrast, saturation);
+    if (scale->isws[0])
+        sws_setColorspaceDetails(scale->isws[0], inv_table, in_full,
                                  table, out_full,
                                  brightness, contrast, saturation);
-        if (scale->isws[0])
-            sws_setColorspaceDetails(scale->isws[0], inv_table, in_full,
-                                     table, out_full,
-                                     brightness, contrast, saturation);
-        if (scale->isws[1])
-            sws_setColorspaceDetails(scale->isws[1], inv_table, in_full,
-                                     table, out_full,
-                                     brightness, contrast, saturation);
-
-        out->color_range = out_full ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
-    }
+    if (scale->isws[1])
+        sws_setColorspaceDetails(scale->isws[1], inv_table, in_full,
+                                 table, out_full,
+                                 brightness, contrast, saturation);
 
     av_reduce(&out->sample_aspect_ratio.num, &out->sample_aspect_ratio.den,
               (int64_t)in->sample_aspect_ratio.num * outlink->h * link->w,
