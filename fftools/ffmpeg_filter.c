@@ -1414,11 +1414,8 @@ static int configure_input_video_filter(FilterGraph *fg, InputFilter *ifilter,
     int ret, pad_idx = 0;
     int64_t tsoffset = 0;
     AVBufferSrcParameters *par = av_buffersrc_parameters_alloc();
-
     if (!par)
         return AVERROR(ENOMEM);
-    memset(par, 0, sizeof(*par));
-    par->format = AV_PIX_FMT_NONE;
 
     if (ist->dec_ctx->codec_type == AVMEDIA_TYPE_AUDIO) {
         av_log(fg, AV_LOG_ERROR, "Cannot connect video filter to audio input\n");
