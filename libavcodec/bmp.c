@@ -184,8 +184,10 @@ static int bmp_decode_frame(AVCodecContext *avctx, AVFrame *p,
     case 8:
         if (hsize - ihsize - 14 > 0)
             avctx->pix_fmt = AV_PIX_FMT_PAL8;
-        else
+        else {
             avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+            avctx->color_range = AVCOL_RANGE_JPEG;
+        }
         break;
     case 1:
     case 4:

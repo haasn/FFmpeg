@@ -51,9 +51,10 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *f,
 
     if (bits_pixel == 24)
         avctx->pix_fmt = AV_PIX_FMT_BGR24;
-    else if (bits_pixel == 8)
+    else if (bits_pixel == 8) {
         avctx->pix_fmt = AV_PIX_FMT_GRAY8;
-    else {
+        avctx->color_range = AVCOL_RANGE_JPEG;
+    } else {
         av_log(avctx, AV_LOG_ERROR, "Invalid pixel format.\n");
         return AVERROR_INVALIDDATA;
     }

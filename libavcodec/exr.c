@@ -2078,6 +2078,7 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *picture,
                 avctx->pix_fmt = AV_PIX_FMT_RGB48;
             } else {
                 avctx->pix_fmt = AV_PIX_FMT_GRAY16;
+                avctx->color_range = AVCOL_RANGE_JPEG;
             }
         }
         break;

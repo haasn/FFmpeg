@@ -1068,10 +1068,16 @@ static int init_image(TiffContext *s, AVFrame *frame)
         }
         break;
     case 81:
-        s->avctx->pix_fmt = s->palette_is_set ? AV_PIX_FMT_PAL8 : AV_PIX_FMT_GRAY8;
+        if (s->palette_is_set)
+            s->avctx->pix_fmt = AV_PIX_FMT_PAL8;
+        else {
+            s->avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+            s->avctx->color_range = AVCOL_RANGE_JPEG;
+        }
         break;
     case 121:
         s->avctx->pix_fmt = AV_PIX_FMT_GRAY12;
+        s->avctx->color_range = AVCOL_RANGE_JPEG;
         break;
     case 100081:
         switch (AV_RL32(s->pattern)) {
@@ -1139,12 +1145,15 @@ static int init_image(TiffContext *s, AVFrame *frame)
         break;
     case 161:
         s->avctx->pix_fmt = s->le ? AV_PIX_FMT_GRAY16LE : AV_PIX_FMT_GRAY16BE;
+        s->avctx->color_range = AVCOL_RANGE_JPEG;
         break;
     case 162:
         s->avctx->pix_fmt = AV_PIX_FMT_YA8;
+        s->avctx->color_range = AVCOL_RANGE_JPEG;
         break;
     case 322:
         s->avctx->pix_fmt = s->le ? AV_PIX_FMT_YA16LE : AV_PIX_FMT_YA16BE;
+        s->avctx->color_range = AVCOL_RANGE_JPEG;
         break;
     case 324:
         s->avctx->pix_fmt = s->photometric == TIFF_PHOTOMETRIC_SEPARATED ? AV_PIX_FMT_RGB0 : AV_PIX_FMT_RGBA;

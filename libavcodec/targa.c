@@ -149,7 +149,12 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *p,
 
     switch (bpp) {
     case 8:
-        avctx->pix_fmt = ((compr & (~TGA_RLE)) == TGA_BW) ? AV_PIX_FMT_GRAY8 : AV_PIX_FMT_PAL8;
+        if ((compr & (~TGA_RLE)) == TGA_BW) {
+            avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+            avctx->color_range = AVCOL_RANGE_JPEG;
+        } else {
+            avctx->pix_fmt = AV_PIX_FMT_PAL8;
+        }
         break;
     case 15:
     case 16:

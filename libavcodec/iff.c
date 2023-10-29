@@ -346,8 +346,12 @@ static av_cold int decode_init(AVCodecContext *avctx)
             palette_size = avctx->extradata_size - AV_RB16(avctx->extradata);
         else
             palette_size = 0;
-        avctx->pix_fmt = (avctx->bits_per_coded_sample < 8) ||
-                         (avctx->extradata_size >= 2 && palette_size) ? AV_PIX_FMT_PAL8 : AV_PIX_FMT_GRAY8;
+        if (avctx->bits_per_coded_sample < 8 || (avctx->extradata_size && palette_size)) {
+            avctx->pix_fmt = AV_PIX_FMT_PAL8;
+        } else {
+            avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+            avctx->color_range = AVCOL_RANGE_JPEG;
+        }
     } else if (avctx->bits_per_coded_sample <= 32) {
         if (avctx->codec_tag == MKTAG('R', 'G', 'B', '8')) {
             avctx->pix_fmt = AV_PIX_FMT_RGB32;

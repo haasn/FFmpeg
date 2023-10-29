@@ -102,6 +102,7 @@ int ff_pnm_decode_header(AVCodecContext *avctx, PNMContext * const s)
             avctx->color_range = AVCOL_RANGE_MPEG;
         } else {
             avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+            avctx->color_range = AVCOL_RANGE_JPEG;
         }
     } else if (s->type==3 || s->type==6) {
         avctx->pix_fmt = AV_PIX_FMT_RGB24;
@@ -152,10 +153,13 @@ int ff_pnm_decode_header(AVCodecContext *avctx, PNMContext * const s)
                 avctx->pix_fmt = AV_PIX_FMT_MONOBLACK;
             } else if (maxval < 256) {
                 avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+                avctx->color_range = AVCOL_RANGE_JPEG;
             } else {
                 avctx->pix_fmt = AV_PIX_FMT_GRAY16;
+                avctx->color_range = AVCOL_RANGE_JPEG;
             }
         } else if (depth == 2) {
+            avctx->color_range = AVCOL_RANGE_JPEG;
             if (maxval < 256) {
                 avctx->pix_fmt = AV_PIX_FMT_GRAY8A;
             } else {

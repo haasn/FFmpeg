@@ -525,10 +525,12 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *p,
     case 6081:
     case 6080:
         avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+        avctx->color_range = AVCOL_RANGE_JPEG;
         break;
     case 6121:
     case 6120:
         avctx->pix_fmt = AV_PIX_FMT_GRAY12;
+        avctx->color_range = AVCOL_RANGE_JPEG;
         break;
     case 1320:
     case 2320:
@@ -575,12 +577,15 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *p,
     case 6100:
     case 6101:
         avctx->pix_fmt = AV_PIX_FMT_GRAY10;
+        avctx->color_range = AVCOL_RANGE_JPEG;
         break;
     case 6161:
         avctx->pix_fmt = AV_PIX_FMT_GRAY16BE;
+        avctx->color_range = AVCOL_RANGE_JPEG;
         break;
     case 6160:
         avctx->pix_fmt = AV_PIX_FMT_GRAY16LE;
+        avctx->color_range = AVCOL_RANGE_JPEG;
         break;
     case 50161:
         avctx->pix_fmt = AV_PIX_FMT_RGB48BE;

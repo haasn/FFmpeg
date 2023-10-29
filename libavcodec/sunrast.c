@@ -90,7 +90,12 @@ static int sunrast_decode_frame(AVCodecContext *avctx, AVFrame *p,
             avctx->pix_fmt = maplength ? AV_PIX_FMT_PAL8 : AV_PIX_FMT_NONE;
             break;
         case 8:
-            avctx->pix_fmt = maplength ? AV_PIX_FMT_PAL8 : AV_PIX_FMT_GRAY8;
+            if (maplength)
+                avctx->pix_fmt = AV_PIX_FMT_PAL8;
+            else {
+                avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+                avctx->color_range = AVCOL_RANGE_JPEG;
+            }
             break;
         case 24:
             avctx->pix_fmt = (type == RT_FORMAT_RGB) ? AV_PIX_FMT_RGB24 : AV_PIX_FMT_BGR24;

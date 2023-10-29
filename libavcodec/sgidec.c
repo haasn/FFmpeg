@@ -216,6 +216,7 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *p,
 
     if (nb_components == SGI_GRAYSCALE) {
         avctx->pix_fmt = bytes_per_channel == 2 ? AV_PIX_FMT_GRAY16BE : AV_PIX_FMT_GRAY8;
+        avctx->color_range = AVCOL_RANGE_JPEG;
     } else if (nb_components == SGI_RGB) {
         avctx->pix_fmt = bytes_per_channel == 2 ? AV_PIX_FMT_GBRP16BE : AV_PIX_FMT_GBRP;
     } else if (nb_components == SGI_RGBA) {

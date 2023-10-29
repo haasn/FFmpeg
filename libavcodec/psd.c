@@ -385,6 +385,7 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *picture,
     case PSD_DUOTONE:
         av_log(avctx, AV_LOG_WARNING, "ignoring unknown duotone specification.\n");
     case PSD_GRAYSCALE:
+        avctx->color_range = AVCOL_RANGE_JPEG;
         if (s->channel_count == 1) {
             if (s->channel_depth == 8) {
                 avctx->pix_fmt = AV_PIX_FMT_GRAY8;

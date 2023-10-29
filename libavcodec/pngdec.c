@@ -751,6 +751,10 @@ static int decode_idat_chunk(AVCodecContext *avctx, PNGDecContext *s,
         s->bpp            = (s->bits_per_pixel + 7) >> 3;
         s->row_size       = (s->cur_w * s->bits_per_pixel + 7) >> 3;
 
+        if (s->color_type == PNG_COLOR_TYPE_GRAY ||
+            s->color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+            avctx->color_range = AVCOL_RANGE_JPEG;
+
         if ((s->bit_depth == 2 || s->bit_depth == 4 || s->bit_depth == 8) &&
                 s->color_type == PNG_COLOR_TYPE_RGB) {
             avctx->pix_fmt = AV_PIX_FMT_RGB24;

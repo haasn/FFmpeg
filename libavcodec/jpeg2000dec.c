@@ -330,6 +330,7 @@ static int get_siz(Jpeg2000DecoderContext *s)
         case 17:
             possible_fmts = gray_pix_fmts;
             possible_fmts_nb = FF_ARRAY_ELEMS(gray_pix_fmts);
+            s->avctx->color_range = AVCOL_RANGE_JPEG;
             break;
         case 18:
             possible_fmts = yuv_pix_fmts;
@@ -373,13 +374,16 @@ static int get_siz(Jpeg2000DecoderContext *s)
         } else if (ncomponents == 2 && s->precision == 8 &&
                    s->cdx[0] == s->cdx[1] && s->cdy[0] == s->cdy[1]) {
             s->avctx->pix_fmt = AV_PIX_FMT_YA8;
+            s->avctx->color_range = AVCOL_RANGE_JPEG;
             i = 0;
         } else if (ncomponents == 2 && s->precision == 16 &&
                    s->cdx[0] == s->cdx[1] && s->cdy[0] == s->cdy[1]) {
             s->avctx->pix_fmt = AV_PIX_FMT_YA16;
+            s->avctx->color_range = AVCOL_RANGE_JPEG;
             i = 0;
         } else if (ncomponents == 1 && s->precision == 8) {
             s->avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+            s->avctx->color_range = AVCOL_RANGE_JPEG;
             i = 0;
         }
     }

@@ -426,6 +426,8 @@ static int libjxl_receive_frame(AVCodecContext *avctx, AVFrame *frame)
                 av_log(avctx, AV_LOG_ERROR, "Bad libjxl pixel format\n");
                 return AVERROR_EXTERNAL;
             }
+            if (!(av_pix_fmt_desc_get(avctx->pix_fmt)->flags & AV_PIX_FMT_FLAG_RGB))
+                avctx->color_range = AVCOL_RANGE_JPEG;
             if ((ret = ff_set_dimensions(avctx, ctx->basic_info.xsize, ctx->basic_info.ysize)) < 0)
                 return ret;
             if (ctx->basic_info.have_animation)

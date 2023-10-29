@@ -382,6 +382,7 @@ static av_cold int hap_init(AVCodecContext *avctx)
         ctx->dec[0].tex_funct = ctx->dxtc.rgtc1u_gray_block;
         ctx->dec[0].raw_ratio = 4;
         avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+        avctx->color_range = AVCOL_RANGE_JPEG;
         break;
     case MKTAG('H','a','p','M'):
         texture_name  = "DXT5-YCoCg-scaled / RGTC1";

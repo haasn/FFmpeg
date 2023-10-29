@@ -1039,6 +1039,7 @@ static void populate_fields(AVCodecParserContext *s, AVCodecContext *avctx, cons
     }
 
     if (meta->csp == JPEGXL_CS_GRAY) {
+        avctx->color_range = AVCOL_RANGE_JPEG;
         if (meta->bit_depth <= 8)
             s->format = meta->have_alpha ? AV_PIX_FMT_YA8 : AV_PIX_FMT_GRAY8;
         else if (meta->bit_depth <= 16)

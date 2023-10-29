@@ -518,6 +518,7 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
             if (!s->bayer)
                 goto unk_pixfmt;
             s->avctx->pix_fmt = AV_PIX_FMT_GRAY16LE;
+            s->avctx->color_range = AVCOL_RANGE_JPEG;
             break;
         case 0x11111100:
             if (s->rgb)
@@ -604,10 +605,17 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
         case 0x41000000:
         case 0x43000000:
         case 0x44000000:
-            if(s->bits <= 8)
-                s->avctx->pix_fmt = s->force_pal8 ? AV_PIX_FMT_PAL8 : AV_PIX_FMT_GRAY8;
-            else
+            if(s->bits <= 8) {
+                if (s->force_pal8)
+                    s->avctx->pix_fmt = AV_PIX_FMT_PAL8;
+                else {
+                    s->avctx->pix_fmt = AV_PIX_FMT_GRAY8;
+                    s->avctx->color_range = AVCOL_RANGE_JPEG;
+                }
+            } else {
                 s->avctx->pix_fmt = AV_PIX_FMT_GRAY16;
+                s->avctx->color_range = AVCOL_RANGE_JPEG;
+            }
             break;
         case 0x12111100:
         case 0x14121200:
@@ -712,10 +720,13 @@ int ff_mjpeg_decode_sof(MJpegDecodeContext *s)
                 return AVERROR_PATCHWELCOME;
             } else if ((s->palette_index || s->force_pal8) && s->bits <= 8)
                 s->avctx->pix_fmt = AV_PIX_FMT_PAL8;
-            else if (s->bits <= 8)
+            else if (s->bits <= 8) {
                 s->avctx->pix_fmt = AV_PIX_FMT_GRAY8;
-            else
+                s->avctx->color_range = AVCOL_RANGE_JPEG;
+            } else {
                 s->avctx->pix_fmt = AV_PIX_FMT_GRAY16;
+                s->avctx->color_range = AVCOL_RANGE_JPEG;
+            }
         }
 
         s->pix_desc = av_pix_fmt_desc_get(s->avctx->pix_fmt);

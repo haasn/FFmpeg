@@ -388,6 +388,7 @@ static int parse_pixel_format(AVCodecContext *avctx)
                    "[bpp %d r 0x%x g 0x%x b 0x%x a 0x%x].\n", bpp, r, g, b, a);
             return AVERROR_INVALIDDATA;
         }
+        avctx->color_range = AVCOL_RANGE_JPEG;
     }
 
     /* Set any remaining post-proc that should happen before frame is ready. */

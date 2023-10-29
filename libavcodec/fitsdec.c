@@ -223,6 +223,7 @@ static int fits_decode_frame(AVCodecContext *avctx, AVFrame *p,
             return AVERROR_INVALIDDATA;
         }
     } else {
+        avctx->color_range = AVCOL_RANGE_JPEG;
         if (header.bitpix == 8) {
             avctx->pix_fmt = AV_PIX_FMT_GRAY8;
         } else {
