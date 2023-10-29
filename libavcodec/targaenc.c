@@ -216,4 +216,7 @@ const FFCodec ff_targa_encoder = {
         AV_PIX_FMT_BGR24, AV_PIX_FMT_BGRA, AV_PIX_FMT_RGB555LE, AV_PIX_FMT_GRAY8, AV_PIX_FMT_PAL8,
         AV_PIX_FMT_NONE
     },
+    .p.color_ranges = (const enum AVColorRange[]) {
+        AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED
+    },
 };

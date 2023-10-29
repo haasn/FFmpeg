@@ -124,4 +124,6 @@ const FFCodec ff_fits_encoder = {
                                                      AV_PIX_FMT_GRAY16BE,
                                                      AV_PIX_FMT_GRAY8,
                                                      AV_PIX_FMT_NONE },
+    .p.color_ranges = (const enum AVColorRange[]) { AVCOL_RANGE_JPEG,
+                                                    AVCOL_RANGE_UNSPECIFIED },
 };

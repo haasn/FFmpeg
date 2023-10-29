@@ -206,4 +206,7 @@ const FFCodec ff_pcx_encoder = {
         AV_PIX_FMT_MONOBLACK,
         AV_PIX_FMT_NONE
     },
+    .p.color_ranges = (const enum AVColorRange[]) {
+        AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED
+    },
 };

@@ -111,4 +111,7 @@ const FFCodec ff_alias_pix_encoder = {
     .p.pix_fmts = (const enum AVPixelFormat[]) {
         AV_PIX_FMT_BGR24, AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE
     },
+    .p.color_ranges = (const enum AVColorRange[]) {
+        AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED
+    },
 };

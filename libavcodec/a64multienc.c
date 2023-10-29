@@ -404,6 +404,7 @@ const FFCodec ff_a64multi_encoder = {
     FF_CODEC_ENCODE_CB(a64multi_encode_frame),
     .close          = a64multi_close_encoder,
     .p.pix_fmts     = (const enum AVPixelFormat[]) {AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE},
+    .p.color_ranges = (const enum AVColorRange[]) {AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED},
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
 };
 #endif
@@ -419,6 +420,7 @@ const FFCodec ff_a64multi5_encoder = {
     FF_CODEC_ENCODE_CB(a64multi_encode_frame),
     .close          = a64multi_close_encoder,
     .p.pix_fmts     = (const enum AVPixelFormat[]) {AV_PIX_FMT_GRAY8, AV_PIX_FMT_NONE},
+    .p.color_ranges = (const enum AVColorRange[]) {AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED},
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
 };
 #endif

@@ -292,4 +292,6 @@ const FFCodec ff_dpx_encoder = {
         AV_PIX_FMT_GBRP10LE, AV_PIX_FMT_GBRP10BE,
         AV_PIX_FMT_GBRP12LE, AV_PIX_FMT_GBRP12BE,
         AV_PIX_FMT_NONE},
+    .p.color_ranges = (const enum AVColorRange[]){
+        AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED},
 };

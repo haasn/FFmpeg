@@ -557,4 +557,7 @@ const FFCodec ff_exr_encoder = {
                                                  AV_PIX_FMT_GBRPF32,
                                                  AV_PIX_FMT_GBRAPF32,
                                                  AV_PIX_FMT_NONE },
+    .p.color_ranges = (const enum AVColorRange[]) {
+                                                 AVCOL_RANGE_JPEG,
+                                                 AVCOL_RANGE_UNSPECIFIED },
 };

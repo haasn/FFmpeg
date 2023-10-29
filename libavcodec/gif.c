@@ -561,6 +561,9 @@ const FFCodec ff_gif_encoder = {
         AV_PIX_FMT_RGB8, AV_PIX_FMT_BGR8, AV_PIX_FMT_RGB4_BYTE, AV_PIX_FMT_BGR4_BYTE,
         AV_PIX_FMT_GRAY8, AV_PIX_FMT_PAL8, AV_PIX_FMT_NONE
     },
+    .p.color_ranges = (const enum AVColorRange[]) {
+        AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED
+    },
     .p.priv_class   = &gif_class,
     .caps_internal  = FF_CODEC_CAP_INIT_CLEANUP,
 };

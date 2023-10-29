@@ -498,6 +498,9 @@ const FFCodec ff_libjxl_encoder = {
         AV_PIX_FMT_GRAYF32,
         AV_PIX_FMT_NONE
     },
+    .p.color_ranges = (const enum AVColorRange[]) {
+        AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED
+    },
     .p.priv_class     = &libjxl_encode_class,
     .p.wrapper_name   = "libjxl",
 };

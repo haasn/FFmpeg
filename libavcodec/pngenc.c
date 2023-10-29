@@ -1213,6 +1213,9 @@ const FFCodec ff_png_encoder = {
         AV_PIX_FMT_GRAY16BE, AV_PIX_FMT_YA16BE,
         AV_PIX_FMT_MONOBLACK, AV_PIX_FMT_NONE
     },
+    .p.color_ranges = (const enum AVColorRange[]) {
+        AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED
+    },
     .p.priv_class   = &pngenc_class,
     .caps_internal  = FF_CODEC_CAP_ICC_PROFILES,
 };
@@ -1235,6 +1238,9 @@ const FFCodec ff_apng_encoder = {
         AV_PIX_FMT_GRAY8, AV_PIX_FMT_GRAY8A,
         AV_PIX_FMT_GRAY16BE, AV_PIX_FMT_YA16BE,
         AV_PIX_FMT_NONE
+    },
+    .p.color_ranges = (const enum AVColorRange[]) {
+        AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED
     },
     .p.priv_class   = &pngenc_class,
     .caps_internal  = FF_CODEC_CAP_ICC_PROFILES,
