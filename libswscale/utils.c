@@ -920,29 +920,6 @@ static void fill_xyztables(struct SwsContext *c)
     }
 }
 
-static int is_luma_only(enum AVPixelFormat *format)
-{
-    switch (*format) {
-    case AV_PIX_FMT_GRAY8:
-    case AV_PIX_FMT_YA8:
-    case AV_PIX_FMT_GRAY9LE:
-    case AV_PIX_FMT_GRAY9BE:
-    case AV_PIX_FMT_GRAY10LE:
-    case AV_PIX_FMT_GRAY10BE:
-    case AV_PIX_FMT_GRAY12LE:
-    case AV_PIX_FMT_GRAY12BE:
-    case AV_PIX_FMT_GRAY14LE:
-    case AV_PIX_FMT_GRAY14BE:
-    case AV_PIX_FMT_GRAY16LE:
-    case AV_PIX_FMT_GRAY16BE:
-    case AV_PIX_FMT_YA16BE:
-    case AV_PIX_FMT_YA16LE:
-        return 1;
-    default:
-        return 0;
-    }
-}
-
 static int handle_0alpha(enum AVPixelFormat *format)
 {
     switch (*format) {
@@ -2021,9 +1998,6 @@ av_cold int sws_init_context(SwsContext *c, SwsFilter *srcFilter,
 
     if (ff_thread_once(&rgb2rgb_once, ff_sws_rgb2rgb_init) != 0)
         return AVERROR_UNKNOWN;
-
-    c->srcRange |= is_luma_only(&c->srcFormat);
-    c->dstRange |= is_luma_only(&c->dstFormat);
 
     if (c->nb_threads != 1) {
         ret = context_init_threaded(c, srcFilter, dstFilter);

@@ -607,8 +607,6 @@ int ff_fmt_is_regular_yuv(enum AVPixelFormat fmt)
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(fmt);
     if (!desc)
         return 0;
-    if (desc->nb_components < 3)
-        return 0; /* Grayscale is explicitly full-range in swscale */
     if (desc->flags & (AV_PIX_FMT_FLAG_RGB | AV_PIX_FMT_FLAG_PAL |
                        AV_PIX_FMT_FLAG_XYZ | AV_PIX_FMT_FLAG_FLOAT))
         return 0;
