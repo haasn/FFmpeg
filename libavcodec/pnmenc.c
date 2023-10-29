@@ -234,6 +234,9 @@ const FFCodec ff_pgm_encoder = {
     .p.pix_fmts     = (const enum AVPixelFormat[]){
         AV_PIX_FMT_GRAY8, AV_PIX_FMT_GRAY16BE, AV_PIX_FMT_NONE
     },
+    .p.color_ranges = (const enum AVColorRange[]) {
+        AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED,
+    },
 };
 #endif
 
@@ -247,6 +250,9 @@ const FFCodec ff_pgmyuv_encoder = {
     FF_CODEC_ENCODE_CB(pnm_encode_frame),
     .p.pix_fmts     = (const enum AVPixelFormat[]){
         AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P16BE, AV_PIX_FMT_NONE
+    },
+    .p.color_ranges = (const enum AVColorRange[]) {
+        AVCOL_RANGE_MPEG, AVCOL_RANGE_UNSPECIFIED,
     },
 };
 #endif
