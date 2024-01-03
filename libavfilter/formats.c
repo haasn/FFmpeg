@@ -352,6 +352,11 @@ static const AVFilterFormatsMerger mergers_video[] = {
         .can_merge  = can_merge_pix_fmts,
     },
     {
+        .offset     = offsetof(AVFilterFormatsConfig, sw_formats),
+        .merge      = merge_pix_fmts,
+        .can_merge  = can_merge_pix_fmts,
+    },
+    {
         .offset     = offsetof(AVFilterFormatsConfig, color_spaces),
         .merge      = merge_generic,
         .can_merge  = can_merge_generic,
@@ -871,6 +876,12 @@ int ff_set_common_formats(AVFilterContext *ctx, AVFilterFormats *formats)
                        ff_formats_ref, ff_formats_unref);
 }
 
+int ff_set_common_sw_formats(AVFilterContext *ctx, AVFilterFormats *sw_formats)
+{
+    SET_COMMON_FORMATS(ctx, sw_formats, AVMEDIA_TYPE_VIDEO,
+                       ff_formats_ref, ff_formats_unref);
+}
+
 int ff_set_common_formats_from_list(AVFilterContext *ctx, const int *fmts)
 {
     return ff_set_common_formats(ctx, ff_make_format_list(fmts));
@@ -916,6 +927,10 @@ int ff_default_query_formats(AVFilterContext *ctx)
     if (ret < 0)
         return ret;
     if (type != AVMEDIA_TYPE_AUDIO) {
+        formats = ff_formats_pixdesc_filter(0, AV_PIX_FMT_FLAG_HWACCEL);
+        ret = ff_set_common_sw_formats(ctx, formats);
+        if (ret < 0)
+            return ret;
         ret = ff_set_common_all_color_spaces(ctx);
         if (ret < 0)
             return ret;

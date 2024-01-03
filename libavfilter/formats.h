@@ -220,6 +220,12 @@ av_warn_unused_result
 int ff_set_common_formats(AVFilterContext *ctx, AVFilterFormats *formats);
 
 /**
+ * Similar to ff_set_common_formats(), but for AVFilterFormatsConfig.sw_formats
+ **/
+av_warn_unused_result
+int ff_set_common_sw_formats(AVFilterContext *ctx, AVFilterFormats *formats);
+
+/**
  * Equivalent to ff_set_common_formats(ctx, ff_make_format_list(fmts))
  */
 av_warn_unused_result
