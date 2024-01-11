@@ -60,6 +60,8 @@ typedef struct DecodeContext {
      * The caller has submitted a NULL packet on input.
      */
     int draining_started;
+
+    uint64_t side_data_pref_mask;
 } DecodeContext;
 
 static DecodeContext *decode_ctx(AVCodecInternal *avci)
@@ -1744,6 +1746,7 @@ int ff_reget_buffer(AVCodecContext *avctx, AVFrame *frame, int flags)
 int ff_decode_preinit(AVCodecContext *avctx)
 {
     AVCodecInternal *avci = avctx->internal;
+    DecodeContext     *dc = decode_ctx(avci);
     int ret = 0;
 
     /* if the decoder init function was already called previously,
@@ -1802,6 +1805,23 @@ int ff_decode_preinit(AVCodecContext *avctx)
                "gray decoding requested but not enabled at configuration time\n");
     if (avctx->flags2 & AV_CODEC_FLAG2_EXPORT_MVS) {
         avctx->export_side_data |= AV_CODEC_EXPORT_DATA_MVS;
+    }
+
+    // the following assumes there are fewer than 64 side data types, so
+    // we can build a bitmask from them;
+    av_assert0(AV_PKT_DATA_NB < 64);
+    if (avctx->nb_side_data_prefer_bytestream == 1 &&
+        avctx->side_data_prefer_bytestream[0] == -1)
+        dc->side_data_pref_mask = ~0ULL;
+    else {
+        for (unsigned i = 0; i < avctx->nb_side_data_prefer_bytestream; i++) {
+            int val = avctx->side_data_prefer_bytestream[i];
+            if (val < 0 || val >= AV_PKT_DATA_NB) {
+                av_log(avctx, AV_LOG_ERROR, "Invalid side data type: %d\n", val);
+                return AVERROR(EINVAL);
+            }
+            dc->side_data_pref_mask |= 1ULL << val;
+        }
     }
 
     avci->in_pkt         = av_packet_alloc();

@@ -2116,6 +2116,25 @@ typedef struct AVCodecContext {
      *   an error.
      */
     int64_t frame_num;
+
+    /**
+     * Decoding only. May be set by the caller before avcodec_open2() to an
+     * av_malloc()'ed array. Owned and freed by the decoder afterwards.
+     *
+     * By default, when some side data type is present both in global
+     * user-supplied coded_side_data and inside the coded bitstream, avcodec
+     * will propagate the former to the decoded frame.
+     *
+     * This array contains a list of AVPacketSideDataType for which this
+     * preference should be switched, i.e. avcodec will prefer codec-level side
+     * data over those in coded_side_data. It may also contain a single -1, in
+     * which case the preference is switched for all side data types.
+     */
+    int        *side_data_prefer_bytestream;
+    /**
+     * Number of entries in side_data_prefer_bytestream.
+     */
+    unsigned nb_side_data_prefer_bytestream;
 } AVCodecContext;
 
 /**
