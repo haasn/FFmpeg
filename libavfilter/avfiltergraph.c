@@ -300,6 +300,7 @@ static int filter_link_check_formats(void *log, AVFilterLink *link, AVFilterForm
 
     case AVMEDIA_TYPE_VIDEO:
         if ((ret = ff_formats_check_pixel_formats(log, cfg->formats)) < 0 ||
+            (ret = ff_formats_check_pixel_formats(log, cfg->sw_formats)) < 0 ||
             (ret = ff_formats_check_color_spaces(log, cfg->color_spaces)) < 0 ||
             (ret = ff_formats_check_color_ranges(log, cfg->color_ranges)) < 0)
             return ret;
@@ -370,7 +371,8 @@ static int formats_declared(AVFilterContext *f)
             return 0;
         if (f->inputs[i]->type == AVMEDIA_TYPE_VIDEO &&
             !(f->inputs[i]->outcfg.color_ranges &&
-              f->inputs[i]->outcfg.color_spaces))
+              f->inputs[i]->outcfg.color_spaces &&
+              f->inputs[i]->outcfg.sw_formats))
             return 0;
         if (f->inputs[i]->type == AVMEDIA_TYPE_AUDIO &&
             !(f->inputs[i]->outcfg.samplerates &&
@@ -382,7 +384,8 @@ static int formats_declared(AVFilterContext *f)
             return 0;
         if (f->outputs[i]->type == AVMEDIA_TYPE_VIDEO &&
             !(f->outputs[i]->incfg.color_ranges &&
-              f->outputs[i]->incfg.color_spaces))
+              f->outputs[i]->incfg.color_spaces &&
+              f->outputs[i]->incfg.sw_formats))
             return 0;
         if (f->outputs[i]->type == AVMEDIA_TYPE_AUDIO &&
             !(f->outputs[i]->incfg.samplerates &&
@@ -505,6 +508,10 @@ static int query_formats(AVFilterGraph *graph, void *log_ctx)
                 av_assert0(outlink->incfg.formats->refcount > 0);
                 av_assert0(outlink->outcfg.formats->refcount > 0);
                 if (outlink->type == AVMEDIA_TYPE_VIDEO) {
+                    av_assert0( inlink-> incfg.sw_formats->refcount > 0);
+                    av_assert0( inlink->outcfg.sw_formats->refcount > 0);
+                    av_assert0(outlink-> incfg.sw_formats->refcount > 0);
+                    av_assert0(outlink->outcfg.sw_formats->refcount > 0);
                     av_assert0( inlink-> incfg.color_spaces->refcount > 0);
                     av_assert0( inlink->outcfg.color_spaces->refcount > 0);
                     av_assert0(outlink-> incfg.color_spaces->refcount > 0);
@@ -666,18 +673,15 @@ static int pick_format(AVFilterLink *link, AVFilterLink *ref)
     link->format = link->incfg.formats->formats[0];
 
     if (link->type == AVMEDIA_TYPE_VIDEO) {
-        enum AVPixelFormat swfmt = link->format;
-        if (av_pix_fmt_desc_get(swfmt)->flags & AV_PIX_FMT_FLAG_HWACCEL) {
-            // FIXME: this is a hack - we'd like to use the sw_format of
-            // link->hw_frames_ctx here, but it is not yet available.
-            // To make this work properly we will need to either reorder
-            // things so that it is available here or somehow negotiate
-            // sw_format separately.
-            swfmt = AV_PIX_FMT_YUV420P;
+        if (av_pix_fmt_desc_get(link->format)->flags & AV_PIX_FMT_FLAG_HWACCEL) {
+            link->incfg.sw_formats->nb_formats = 1;
+            link->sw_format = link->incfg.sw_formats->formats[0];
+        } else {
+            link->sw_format = link->format;
         }
 
-        if (!ff_fmt_is_regular_yuv(swfmt)) {
-            const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(swfmt);
+        if (!ff_fmt_is_regular_yuv(link->sw_format)) {
+            const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(link->sw_format);
             /* These fields are explicitly documented as affecting YUV only,
              * so set them to sane values for other formats. */
             if (desc->flags & AV_PIX_FMT_FLAG_FLOAT)
@@ -800,6 +804,8 @@ static int reduce_formats_on_filter(AVFilterContext *filter)
     int i, j, k, ret = 0;
 
     REDUCE_FORMATS(int,      AVFilterFormats,        formats,         formats,
+                   nb_formats, ff_add_format);
+    REDUCE_FORMATS(int,      AVFilterFormats,        sw_formats,      formats,
                    nb_formats, ff_add_format);
     REDUCE_FORMATS(int,      AVFilterFormats,        samplerates,     formats,
                    nb_formats, ff_add_format);
@@ -1196,6 +1202,21 @@ static void swap_sample_fmts(AVFilterGraph *graph)
 
 }
 
+static int formats_complete(enum AVMediaType type,
+                            const AVFilterFormatsConfig *cfg)
+{
+    if (!cfg->formats || cfg->formats->nb_formats != 1)
+        return 0;
+
+    if (type == AVMEDIA_TYPE_VIDEO) {
+        int pix_fmt = cfg->formats->formats[0];
+        if (av_pix_fmt_desc_get(pix_fmt)->flags & AV_PIX_FMT_FLAG_HWACCEL)
+            return cfg->sw_formats && cfg->sw_formats->nb_formats == 1;
+    }
+
+    return 1;
+}
+
 static int pick_formats(AVFilterGraph *graph)
 {
     int i, j, ret;
@@ -1207,7 +1228,7 @@ static int pick_formats(AVFilterGraph *graph)
             AVFilterContext *filter = graph->filters[i];
             if (filter->nb_inputs){
                 for (j = 0; j < filter->nb_inputs; j++){
-                    if (filter->inputs[j]->incfg.formats && filter->inputs[j]->incfg.formats->nb_formats == 1) {
+                    if (formats_complete(filter->inputs[j]->type, &filter->inputs[j]->incfg)) {
                         if ((ret = pick_format(filter->inputs[j], NULL)) < 0)
                             return ret;
                         change = 1;
@@ -1216,7 +1237,7 @@ static int pick_formats(AVFilterGraph *graph)
             }
             if (filter->nb_outputs){
                 for (j = 0; j < filter->nb_outputs; j++){
-                    if (filter->outputs[j]->incfg.formats && filter->outputs[j]->incfg.formats->nb_formats == 1) {
+                    if (formats_complete(filter->outputs[j]->type, &filter->outputs[j]->incfg)) {
                         if ((ret = pick_format(filter->outputs[j], NULL)) < 0)
                             return ret;
                         change = 1;

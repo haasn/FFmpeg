@@ -353,6 +353,11 @@ static const AVFilterFormatsMerger mergers_video[] = {
         .can_merge  = can_merge_pix_fmts,
     },
     {
+        .offset     = offsetof(AVFilterFormatsConfig, sw_formats),
+        .merge      = merge_pix_fmts,
+        .can_merge  = can_merge_pix_fmts,
+    },
+    {
         .offset     = offsetof(AVFilterFormatsConfig, color_spaces),
         .merge      = merge_generic,
         .can_merge  = can_merge_generic,
