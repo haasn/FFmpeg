@@ -81,8 +81,9 @@ static int hwupload_query_formats(AVFilterContext *avctx)
         goto fail;
     }
 
-    input_formats = ff_make_format_list(output_pix_fmts);
+    input_formats = ff_make_format_list(input_pix_fmts);
     if ((err = ff_formats_ref(input_formats, &avctx->inputs[0]->outcfg.formats)) < 0 ||
+        (err = ff_formats_ref(input_formats, &avctx->outputs[0]->incfg.sw_formats)) < 0 ||
         (err = ff_formats_ref(ff_make_format_list(output_pix_fmts),
                               &avctx->outputs[0]->incfg.formats)) < 0)
         goto fail;
