@@ -744,6 +744,8 @@ FF_ENABLE_DEPRECATION_WARNINGS
 
     ff_formats_unref(&link->incfg.formats);
     ff_formats_unref(&link->outcfg.formats);
+    ff_formats_unref(&link->incfg.sw_formats);
+    ff_formats_unref(&link->outcfg.sw_formats);
     ff_formats_unref(&link->incfg.samplerates);
     ff_formats_unref(&link->outcfg.samplerates);
     ff_channel_layouts_unref(&link->incfg.channel_layouts);

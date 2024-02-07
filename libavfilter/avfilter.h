@@ -302,6 +302,9 @@ typedef struct AVFilter {
          * on every output link to a list of pixel/sample formats that the filter
          * supports on that link.
          * For video links, this filter may also set
+         * @ref AVFilterFormatsConfig.sw_formats "incfg.sw_formats"
+         *  /
+         * @ref AVFilterFormatsConfig.sw_formats "outcfg.sw_formats",
          * @ref AVFilterFormatsConfig.color_spaces "incfg.color_spaces"
          *  /
          * @ref AVFilterFormatsConfig.color_spaces "outcfg.color_spaces"
@@ -517,6 +520,11 @@ typedef struct AVFilterFormatsConfig {
     AVFilterFormats *formats;
 
     /**
+     * List of supported underlying pixel formats, only for hwframes.
+     */
+    AVFilterFormats *sw_formats;
+
+    /**
      * Lists of supported sample rates, only for audio.
      */
     AVFilterFormats  *samplerates;
@@ -571,6 +579,7 @@ struct AVFilterLink {
     int sample_rate;            ///< samples per second
 
     int format;                 ///< agreed upon media format
+    enum AVPixelFormat sw_format; ///< agreed upon sw_format (for hwframes)
 
     /**
      * Define the time base used by the PTS of the frames/samples

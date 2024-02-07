@@ -185,6 +185,7 @@ int avfilter_link(AVFilterContext *src, unsigned srcpad,
     link->type    = src->output_pads[srcpad].type;
     av_assert0(AV_PIX_FMT_NONE == -1 && AV_SAMPLE_FMT_NONE == -1);
     link->format  = -1;
+    link->sw_format = AV_PIX_FMT_NONE;
     link->colorspace = AVCOL_SPC_UNSPECIFIED;
     ff_framequeue_init(&link->fifo, &src->graph->internal->frame_queues);
 
@@ -287,6 +288,9 @@ int avfilter_insert_filter(AVFilterLink *link, AVFilterContext *filt,
     if (link->outcfg.formats)
         ff_formats_changeref(&link->outcfg.formats,
                              &filt->outputs[filt_dstpad_idx]->outcfg.formats);
+    if (link->outcfg.sw_formats)
+        ff_formats_changeref(&link->outcfg.sw_formats,
+                             &filt->outputs[filt_dstpad_idx]->outcfg.sw_formats);
     if (link->outcfg.color_spaces)
         ff_formats_changeref(&link->outcfg.color_spaces,
                              &filt->outputs[filt_dstpad_idx]->outcfg.color_spaces);
@@ -737,6 +741,8 @@ static void free_link(AVFilterLink *link)
 
     ff_formats_unref(&link->incfg.formats);
     ff_formats_unref(&link->outcfg.formats);
+    ff_formats_unref(&link->incfg.sw_formats);
+    ff_formats_unref(&link->outcfg.sw_formats);
     ff_formats_unref(&link->incfg.color_spaces);
     ff_formats_unref(&link->outcfg.color_spaces);
     ff_formats_unref(&link->incfg.color_ranges);
