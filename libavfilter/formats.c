@@ -23,6 +23,7 @@
 #include "libavutil/channel_layout.h"
 #include "libavutil/common.h"
 #include "libavutil/eval.h"
+#include "libavutil/hwcontext.h"
 #include "libavutil/pixdesc.h"
 #include "avfilter.h"
 #include "internal.h"
@@ -922,6 +923,18 @@ int ff_default_query_formats(AVFilterContext *ctx)
     if (ret < 0)
         return ret;
     if (type != AVMEDIA_TYPE_AUDIO) {
+        AVHWFramesConstraints *constraints = NULL;
+        if (ctx->hw_device_ctx)
+            constraints = av_hwdevice_get_hwframe_constraints(ctx->hw_device_ctx, NULL);
+        if (constraints) {
+            formats = ff_make_format_list(constraints->valid_sw_formats);
+            av_hwframe_constraints_free(&constraints);
+        } else {
+            formats = ff_formats_pixdesc_filter(0, AV_PIX_FMT_FLAG_HWACCEL);
+        }
+        ret = ff_set_common_sw_formats(ctx, formats);
+        if (ret < 0)
+            return ret;
         ret = ff_set_common_all_color_spaces(ctx);
         if (ret < 0)
             return ret;

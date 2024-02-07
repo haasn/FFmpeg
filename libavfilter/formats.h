@@ -249,7 +249,9 @@ void ff_channel_layouts_changeref(AVFilterChannelLayouts **oldref,
 
 /**
  * Sets all remaining unset filter lists for all inputs/outputs to their
- * corresponding `ff_all_*()` lists.
+ * corresponding `ff_all_*()` lists, with the exception of `sw_formats`,
+ * which is set to the set of supported SW formats if a hardware device
+ * context is available, and the set of all non-HWACCEL formats otherwise.
  */
 av_warn_unused_result
 int ff_default_query_formats(AVFilterContext *ctx);
