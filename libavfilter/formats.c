@@ -871,6 +871,12 @@ int ff_set_common_formats(AVFilterContext *ctx, AVFilterFormats *formats)
                        ff_formats_ref, ff_formats_unref);
 }
 
+int ff_set_common_sw_formats(AVFilterContext *ctx, AVFilterFormats *sw_formats)
+{
+    SET_COMMON_FORMATS(ctx, sw_formats, AVMEDIA_TYPE_VIDEO,
+                       ff_formats_ref, ff_formats_unref);
+}
+
 int ff_set_common_formats_from_list(AVFilterContext *ctx, const int *fmts)
 {
     return ff_set_common_formats(ctx, ff_make_format_list(fmts));

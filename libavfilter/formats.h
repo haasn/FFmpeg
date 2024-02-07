@@ -226,6 +226,9 @@ av_warn_unused_result
 int ff_set_common_formats_from_list(AVFilterContext *ctx, const int *fmts);
 
 av_warn_unused_result
+int ff_set_common_sw_formats(AVFilterContext *ctx, AVFilterFormats *formats);
+
+av_warn_unused_result
 int ff_add_channel_layout(AVFilterChannelLayouts **l,
                           const AVChannelLayout *channel_layout);
 
