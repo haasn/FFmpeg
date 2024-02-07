@@ -476,7 +476,7 @@ static int query_formats(AVFilterContext *ctx)
 {
     BufferSourceContext *c = ctx->priv;
     AVFilterChannelLayouts *channel_layouts = NULL;
-    AVFilterFormats *formats = NULL;
+    AVFilterFormats *formats = NULL, *swfmts = NULL;
     AVFilterFormats *samplerates = NULL;
     AVFilterFormats *color_spaces = NULL;
     AVFilterFormats *color_ranges = NULL;
@@ -492,6 +492,9 @@ static int query_formats(AVFilterContext *ctx)
                 return AVERROR(EINVAL);
             }
             swfmt = ((AVHWFramesContext *) c->hw_frames_ctx->data)->sw_format;
+            if ((ret = ff_add_format            (&swfmts, swfmt )) < 0 ||
+                (ret = ff_set_common_sw_formats (ctx    , swfmts)) < 0)
+                return ret;
         }
         if ((ret = ff_add_format         (&formats, c->pix_fmt)) < 0 ||
             (ret = ff_set_common_formats (ctx     , formats   )) < 0)
