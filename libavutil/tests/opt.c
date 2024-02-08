@@ -57,6 +57,12 @@ typedef struct TestContext {
     int bool3;
     AVDictionary *dict1;
     AVDictionary *dict2;
+
+    char          **array_str;
+    unsigned     nb_array_str;
+
+    AVDictionary  **array_dict;
+    unsigned     nb_array_dict;
 } TestContext;
 
 #define OFFSET(x) offsetof(TestContext, x)
@@ -93,6 +99,9 @@ static const AVOption test_options[]= {
     {"bool3",      "set boolean value",  OFFSET(bool3),          AV_OPT_TYPE_BOOL,           { .i64 = 0 },                      0,         1, 1 },
     {"dict1",      "set dictionary value", OFFSET(dict1),        AV_OPT_TYPE_DICT,           { .str = NULL},                    0,         0, 1 },
     {"dict2",      "set dictionary value", OFFSET(dict2),        AV_OPT_TYPE_DICT,           { .str = "happy=':-)'"},           0,         0, 1 },
+    {"array_str",  "array of strings",     OFFSET(array_str),    AV_OPT_TYPE_STRING,         { .str = "|str0|str\\|1|str\\\\2" }, .flags = AV_OPT_FLAG_ARRAY },
+    // there are three levels of escaping - C string, array option, dict - so 8 backslashes are needed to get a literal one inside a dict key/val
+    {"array_dict", "array of dicts",       OFFSET(array_dict),   AV_OPT_TYPE_DICT,           { .str = ",k00=v\\\\\\\\00:k01=v\\,01,k10=v\\\\=1\\\\:0" }, .flags = AV_OPT_FLAG_ARRAY },
     { NULL },
 };
 
@@ -146,6 +155,17 @@ int main(void)
         printf("flt=%.6f\n", test_ctx.flt);
         printf("dbl=%.6f\n", test_ctx.dbl);
 
+        for (unsigned i = 0; i < test_ctx.nb_array_str; i++)
+            printf("array_str[%u]=%s\n", i, test_ctx.array_str[i]);
+
+        for (unsigned i = 0; i < test_ctx.nb_array_dict; i++) {
+            AVDictionary            *d = test_ctx.array_dict[i];
+            const AVDictionaryEntry *e = NULL;
+
+            while ((e = av_dict_iterate(d, e)))
+                printf("array_dict[%u]: %s\t%s\n", i, e->key, e->value);
+        }
+
         av_opt_show2(&test_ctx, NULL, -1, 0);
 
         av_opt_free(&test_ctx);
@@ -177,6 +197,9 @@ int main(void)
         TestContext test_ctx = { 0 };
         TestContext test2_ctx = { 0 };
         const AVOption *o = NULL;
+        char *val = NULL;
+        int ret;
+
         test_ctx.class = &test_class;
         test2_ctx.class = &test_class;
 
@@ -209,6 +232,17 @@ int main(void)
             av_free(value1);
             av_free(value2);
         }
+
+        // av_opt_set(NULL) with an array option resets it
+        ret = av_opt_set(&test_ctx, "array_dict", NULL, 0);
+        printf("av_opt_set(\"array_dict\", NULL) -> %d\n", ret);
+        printf("array_dict=%sNULL; nb_array_dict=%u\n",
+               test_ctx.array_dict ? "non-" : "", test_ctx.nb_array_dict);
+
+        // av_opt_get() on an empty array should return a NULL string
+        ret = av_opt_get(&test_ctx, "array_dict", AV_OPT_ALLOW_NULL, (uint8_t**)&val);
+        printf("av_opt_get(\"array_dict\") -> %s\n", val ? val : "NULL");
+
         av_opt_free(&test_ctx);
         av_opt_free(&test2_ctx);
     }

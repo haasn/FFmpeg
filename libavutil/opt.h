@@ -289,6 +289,16 @@ enum AVOptionType{
 #define AV_OPT_FLAG_CHILD_CONSTS    (1 << 18)
 
 /**
+ * The option is an array.
+ *
+ * When adding array options to an object, @ref AVOption.offset should refer to
+ * a pointer corresponding to the option type. The pointer should be immediately
+ * followed by an unsigned int that will store the number of elements in the
+ * array.
+ */
+#define AV_OPT_FLAG_ARRAY           (1 << 19)
+
+/**
  * AVOption
  */
 typedef struct AVOption {
@@ -313,6 +323,16 @@ typedef struct AVOption {
     union {
         int64_t i64;
         double dbl;
+
+        /**
+         * This member is always used for AV_OPT_FLAG_ARRAY options. When
+         * non-NULL, the first character of the string must be the separator to
+         * be used for (de)serializing lists to/from strings with av_opt_get(),
+         * av_opt_set(), and similar. The separator must not conflict with valid
+         * option names or be a backslash. When the value is null, comma is used
+         * as the separator. The rest of the string is parsed as for
+         * av_opt_set().
+         */
         const char *str;
         /* TODO those are unused now */
         AVRational q;
@@ -324,6 +344,12 @@ typedef struct AVOption {
      * A combination of AV_OPT_FLAG_*.
      */
     int flags;
+
+    /**
+     * For options flagged with AV_OPT_FLAG_ARRAY, this specifies the maximum
+     * number of elements that can be added to it.
+     */
+    unsigned array_max_size;
 
     /**
      * The logical unit to which the option belongs. Non-constant
