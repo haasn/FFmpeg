@@ -45,7 +45,7 @@ static int hwupload_query_formats(AVFilterContext *avctx)
     AVHWFramesConstraints *constraints = NULL;
     const enum AVPixelFormat *input_pix_fmts, *output_pix_fmts;
     AVFilterFormats *input_formats = NULL;
-    int err, i;
+    int err;
 
     if (ctx->hwdevice_ref) {
         /* We already have a specified device. */
@@ -76,20 +76,12 @@ static int hwupload_query_formats(AVFilterContext *avctx)
 
     input_pix_fmts  = constraints->valid_sw_formats;
     output_pix_fmts = constraints->valid_hw_formats;
-
-    input_formats = ff_make_format_list(output_pix_fmts);
-    if (!input_formats) {
-        err = AVERROR(ENOMEM);
+    if (!input_pix_fmts) {
+        err = AVERROR(EINVAL);
         goto fail;
     }
-    if (input_pix_fmts) {
-        for (i = 0; input_pix_fmts[i] != AV_PIX_FMT_NONE; i++) {
-            err = ff_add_format(&input_formats, input_pix_fmts[i]);
-            if (err < 0)
-                goto fail;
-        }
-    }
 
+    input_formats = ff_make_format_list(output_pix_fmts);
     if ((err = ff_formats_ref(input_formats, &avctx->inputs[0]->outcfg.formats)) < 0 ||
         (err = ff_formats_ref(ff_make_format_list(output_pix_fmts),
                               &avctx->outputs[0]->incfg.formats)) < 0)
@@ -112,21 +104,6 @@ static int hwupload_config_output(AVFilterLink *outlink)
     int err;
 
     av_buffer_unref(&ctx->hwframes_ref);
-
-    if (inlink->format == outlink->format) {
-        // The input is already a hardware format, so we just want to
-        // pass through the input frames in their own hardware context.
-        if (!inlink->hw_frames_ctx) {
-            av_log(ctx, AV_LOG_ERROR, "No input hwframe context.\n");
-            return AVERROR(EINVAL);
-        }
-
-        outlink->hw_frames_ctx = av_buffer_ref(inlink->hw_frames_ctx);
-        if (!outlink->hw_frames_ctx)
-            return AVERROR(ENOMEM);
-
-        return 0;
-    }
 
     ctx->hwframes_ref = av_hwframe_ctx_alloc(ctx->hwdevice_ref);
     if (!ctx->hwframes_ref)
@@ -175,9 +152,6 @@ static int hwupload_filter_frame(AVFilterLink *link, AVFrame *input)
     HWUploadContext   *ctx = avctx->priv;
     AVFrame *output = NULL;
     int err;
-
-    if (input->format == outlink->format)
-        return ff_filter_frame(outlink, input);
 
     output = ff_get_video_buffer(outlink, outlink->w, outlink->h);
     if (!output) {
