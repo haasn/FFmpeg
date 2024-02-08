@@ -1007,6 +1007,10 @@ int ff_filter_frame(AVFilterLink *link, AVFrame *frame)
             av_assert1(frame->format        == link->format);
             av_assert1(frame->width         == link->w);
             av_assert1(frame->height        == link->h);
+            if (av_pix_fmt_desc_get(link->format)->flags & AV_PIX_FMT_FLAG_HWACCEL) {
+                const AVHWFramesContext *hwfc = (void *) frame->hw_frames_ctx->data;
+                av_assert1(hwfc->sw_format == link->sw_format);
+            }
         }
 
         frame->sample_aspect_ratio = link->sample_aspect_ratio;
