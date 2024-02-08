@@ -38,11 +38,14 @@ typedef struct HWDownloadContext {
 static int hwdownload_query_formats(AVFilterContext *avctx)
 {
     int err;
+    AVFilterFormats *hwfmts, *swfmts;
+    hwfmts = ff_formats_pixdesc_filter(AV_PIX_FMT_FLAG_HWACCEL, 0);
+    if ((err = ff_formats_ref(hwfmts, &avctx->inputs[0]->outcfg.formats)))
+        return err;
 
-    if ((err = ff_formats_ref(ff_formats_pixdesc_filter(AV_PIX_FMT_FLAG_HWACCEL, 0),
-                              &avctx->inputs[0]->outcfg.formats))  ||
-        (err = ff_formats_ref(ff_formats_pixdesc_filter(0, AV_PIX_FMT_FLAG_HWACCEL),
-                              &avctx->outputs[0]->incfg.formats)))
+    swfmts = ff_formats_pixdesc_filter(0, AV_PIX_FMT_FLAG_HWACCEL);
+    if ((err = ff_formats_ref(swfmts, &avctx->inputs[0]->outcfg.sw_formats)) ||
+        (err = ff_formats_ref(swfmts, &avctx->outputs[0]->incfg.formats)))
         return err;
 
     return 0;
