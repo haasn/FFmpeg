@@ -955,7 +955,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
     return *out_val ? 0 : AVERROR(ENOMEM);
 }
 
-static int get_number(void *obj, const char *name, const AVOption **o_out, double *num, int *den, int64_t *intnum,
+static int get_number(void *obj, const char *name, double *num, int *den, int64_t *intnum,
                       int search_flags)
 {
     void *dst, *target_obj;
@@ -964,8 +964,6 @@ static int get_number(void *obj, const char *name, const AVOption **o_out, doubl
         goto error;
 
     dst = ((uint8_t *)target_obj) + o->offset;
-
-    if (o_out) *o_out= o;
 
     return read_number(o, dst, num, den, intnum);
 
@@ -981,7 +979,7 @@ int av_opt_get_int(void *obj, const char *name, int search_flags, int64_t *out_v
     double num = 1;
     int ret, den = 1;
 
-    if ((ret = get_number(obj, name, NULL, &num, &den, &intnum, search_flags)) < 0)
+    if ((ret = get_number(obj, name, &num, &den, &intnum, search_flags)) < 0)
         return ret;
     if (num == den)
         *out_val = intnum;
@@ -996,7 +994,7 @@ int av_opt_get_double(void *obj, const char *name, int search_flags, double *out
     double num = 1;
     int ret, den = 1;
 
-    if ((ret = get_number(obj, name, NULL, &num, &den, &intnum, search_flags)) < 0)
+    if ((ret = get_number(obj, name, &num, &den, &intnum, search_flags)) < 0)
         return ret;
     *out_val = num * intnum / den;
     return 0;
@@ -1008,7 +1006,7 @@ int av_opt_get_q(void *obj, const char *name, int search_flags, AVRational *out_
     double num = 1;
     int ret, den = 1;
 
-    if ((ret = get_number(obj, name, NULL, &num, &den, &intnum, search_flags)) < 0)
+    if ((ret = get_number(obj, name, &num, &den, &intnum, search_flags)) < 0)
         return ret;
 
     if (num == 1.0 && (int)intnum == intnum)
@@ -1042,7 +1040,7 @@ int av_opt_get_video_rate(void *obj, const char *name, int search_flags, AVRatio
     double     num = 1;
     int   ret, den = 1;
 
-    if ((ret = get_number(obj, name, NULL, &num, &den, &intnum, search_flags)) < 0)
+    if ((ret = get_number(obj, name, &num, &den, &intnum, search_flags)) < 0)
         return ret;
 
     if (num == 1.0 && (int)intnum == intnum)
