@@ -42,6 +42,7 @@
 #include "libavutil/hwcontext_d3d11va.h"
 #include "compat/w32dlfcn.h"
 #include "avfilter.h"
+#include "formats.h"
 #include "internal.h"
 #include "video.h"
 
@@ -762,6 +763,7 @@ static int probe_output_format(AVFilterContext *avctx)
 
 static av_cold int init_hwframes_ctx(AVFilterContext *avctx)
 {
+    const AVFilterLink *outlink = avctx->outputs[0];
     DdagrabContext *dda = avctx->priv;
     int ret = 0;
 
@@ -771,27 +773,10 @@ static av_cold int init_hwframes_ctx(AVFilterContext *avctx)
     dda->frames_ctx = (AVHWFramesContext*)dda->frames_ref->data;
     dda->frames_hwctx = (AVD3D11VAFramesContext*)dda->frames_ctx->hwctx;
 
-    dda->frames_ctx->format    = AV_PIX_FMT_D3D11;
+    dda->frames_ctx->format    = outlink->format;
+    dda->frames_ctx->sw_format = outlink->sw_format;
     dda->frames_ctx->width     = dda->width;
     dda->frames_ctx->height    = dda->height;
-
-    switch (dda->raw_format) {
-    case DXGI_FORMAT_B8G8R8A8_UNORM:
-        av_log(avctx, AV_LOG_VERBOSE, "Probed 8 bit RGB frame format\n");
-        dda->frames_ctx->sw_format = AV_PIX_FMT_BGRA;
-        break;
-    case DXGI_FORMAT_R10G10B10A2_UNORM:
-        av_log(avctx, AV_LOG_VERBOSE, "Probed 10 bit RGB frame format\n");
-        dda->frames_ctx->sw_format = AV_PIX_FMT_X2BGR10;
-        break;
-    case DXGI_FORMAT_R16G16B16A16_FLOAT:
-        av_log(avctx, AV_LOG_VERBOSE, "Probed 16 bit float RGB frame format\n");
-        dda->frames_ctx->sw_format = AV_PIX_FMT_RGBAF16;
-        break;
-    default:
-        av_log(avctx, AV_LOG_ERROR, "Unexpected texture output format!\n");
-        return AVERROR_BUG;
-    }
 
     if (dda->draw_mouse)
         dda->frames_hwctx->BindFlags |= D3D11_BIND_RENDER_TARGET;
@@ -808,46 +793,77 @@ fail:
     return ret;
 }
 
+static int ddagrab_query_formats(AVFilterContext *avctx)
+{
+    DdagrabContext *dda = avctx->priv;
+    AVFilterFormats *formats = NULL;
+    int ret;
+
+    if (!dda->device_ctx) {
+        if (avctx->hw_device_ctx) {
+            dda->device_ctx = (AVHWDeviceContext*)avctx->hw_device_ctx->data;
+
+            if (dda->device_ctx->type != AV_HWDEVICE_TYPE_D3D11VA) {
+                av_log(avctx, AV_LOG_ERROR, "Non-D3D11VA input hw_device_ctx\n");
+                return AVERROR(EINVAL);
+            }
+
+            dda->device_ref = av_buffer_ref(avctx->hw_device_ctx);
+            if (!dda->device_ref)
+                return AVERROR(ENOMEM);
+
+            av_log(avctx, AV_LOG_VERBOSE, "Using provided hw_device_ctx\n");
+        } else {
+            ret = av_hwdevice_ctx_create(&dda->device_ref, AV_HWDEVICE_TYPE_D3D11VA, NULL, NULL, 0);
+            if (ret < 0) {
+                av_log(avctx, AV_LOG_ERROR, "Failed to create D3D11VA device.\n");
+                return ret;
+            }
+
+            dda->device_ctx = (AVHWDeviceContext*)dda->device_ref->data;
+
+            av_log(avctx, AV_LOG_VERBOSE, "Created internal hw_device_ctx\n");
+        }
+
+        dda->device_hwctx = (AVD3D11VADeviceContext*)dda->device_ctx->hwctx;
+
+        ret = init_dxgi_dda(avctx);
+        if (ret < 0)
+            return ret;
+
+        ret = probe_output_format(avctx);
+        if (ret < 0)
+            return ret;
+    }
+
+    switch (dda->raw_format) {
+    case DXGI_FORMAT_B8G8R8A8_UNORM:
+        formats = ff_make_formats_list_singleton(AV_PIX_FMT_BGRA);
+        break;
+    case DXGI_FORMAT_R10G10B10A2_UNORM:
+        formats = ff_make_formats_list_singleton(AV_PIX_FMT_X2BGR10);
+        break;
+    case DXGI_FORMAT_R16G16B16A16_FLOAT:
+        formats = ff_make_formats_list_singleton(AV_PIX_FMT_RGBAF16);
+        break;
+    default:
+        av_log(avctx, AV_LOG_ERROR, "Unexpected texture output format!\n");
+        return AVERROR_BUG;
+    }
+
+    ret = ff_set_common_sw_formats(avctx, formats);
+    if (ret < 0)
+        return ret;
+
+    formats = ff_make_formats_list_singleton(AV_PIX_FMT_D3D11);
+    return ff_set_common_formats(avctx, formats);
+}
+
 static int ddagrab_config_props(AVFilterLink *outlink)
 {
     AVFilterContext *avctx = outlink->src;
     DdagrabContext *dda = avctx->priv;
     int ret;
-
-    if (avctx->hw_device_ctx) {
-        dda->device_ctx = (AVHWDeviceContext*)avctx->hw_device_ctx->data;
-
-        if (dda->device_ctx->type != AV_HWDEVICE_TYPE_D3D11VA) {
-            av_log(avctx, AV_LOG_ERROR, "Non-D3D11VA input hw_device_ctx\n");
-            return AVERROR(EINVAL);
-        }
-
-        dda->device_ref = av_buffer_ref(avctx->hw_device_ctx);
-        if (!dda->device_ref)
-            return AVERROR(ENOMEM);
-
-        av_log(avctx, AV_LOG_VERBOSE, "Using provided hw_device_ctx\n");
-    } else {
-        ret = av_hwdevice_ctx_create(&dda->device_ref, AV_HWDEVICE_TYPE_D3D11VA, NULL, NULL, 0);
-        if (ret < 0) {
-            av_log(avctx, AV_LOG_ERROR, "Failed to create D3D11VA device.\n");
-            return ret;
-        }
-
-        dda->device_ctx = (AVHWDeviceContext*)dda->device_ref->data;
-
-        av_log(avctx, AV_LOG_VERBOSE, "Created internal hw_device_ctx\n");
-    }
-
-    dda->device_hwctx = (AVD3D11VADeviceContext*)dda->device_ctx->hwctx;
-
-    ret = init_dxgi_dda(avctx);
-    if (ret < 0)
-        return ret;
-
-    ret = probe_output_format(avctx);
-    if (ret < 0)
-        return ret;
 
     if (dda->out_fmt && dda->raw_format != dda->out_fmt && (!dda->allow_fallback || dda->force_fmt)) {
         av_log(avctx, AV_LOG_ERROR, "Requested output format unavailable.\n");
@@ -1207,7 +1223,7 @@ const AVFilter ff_vsrc_ddagrab = {
     .uninit        = ddagrab_uninit,
     .inputs        = NULL,
     FILTER_OUTPUTS(ddagrab_outputs),
-    FILTER_SINGLE_PIXFMT(AV_PIX_FMT_D3D11),
+    FILTER_QUERY_FUNC(ddagrab_query_formats),
     .flags_internal = FF_FILTER_FLAG_HWFRAME_AWARE,
     .flags          = AVFILTER_FLAG_HWDEVICE,
 };
