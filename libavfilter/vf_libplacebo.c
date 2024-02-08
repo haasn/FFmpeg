@@ -1130,6 +1130,7 @@ static int libplacebo_query_format(AVFilterContext *ctx)
     const AVVulkanDeviceContext *vkhwctx = NULL;
     const AVPixFmtDescriptor *desc = NULL;
     AVFilterFormats *infmts = NULL, *outfmts = NULL;
+    AVFilterFormats *inswfmts = NULL, *outswfmts = NULL;
 
     if (ctx->hw_device_ctx) {
         const AVHWDeviceContext *avhwctx = (void *) ctx->hw_device_ctx->data;
@@ -1158,6 +1159,8 @@ static int libplacebo_query_format(AVFilterContext *ctx)
             continue;
 
         RET(ff_add_format(&infmts, pixfmt));
+        if (pixfmt != AV_PIX_FMT_VULKAN)
+            RET(ff_add_format(&inswfmts, pixfmt));
 
         /* Filter for supported output pixel formats */
         if (desc->flags & AV_PIX_FMT_FLAG_BE)
@@ -1180,6 +1183,8 @@ static int libplacebo_query_format(AVFilterContext *ctx)
 #endif
 
         RET(ff_add_format(&outfmts, pixfmt));
+        if (pixfmt != AV_PIX_FMT_VULKAN)
+            RET(ff_add_format(&outswfmts, pixfmt));
     }
 
     if (!infmts || !outfmts) {
@@ -1191,9 +1196,12 @@ static int libplacebo_query_format(AVFilterContext *ctx)
         goto fail;
     }
 
-    for (int i = 0; i < s->nb_inputs; i++)
+    for (int i = 0; i < s->nb_inputs; i++) {
         RET(ff_formats_ref(infmts, &ctx->inputs[i]->outcfg.formats));
+        RET(ff_formats_ref(inswfmts, &ctx->inputs[i]->outcfg.sw_formats));
+    }
     RET(ff_formats_ref(outfmts, &ctx->outputs[0]->incfg.formats));
+    RET(ff_formats_ref(outswfmts, &ctx->outputs[0]->incfg.sw_formats));
 
     /* Set colorspace properties */
     RET(ff_formats_ref(ff_all_color_spaces(), &ctx->inputs[0]->outcfg.color_spaces));
@@ -1211,8 +1219,12 @@ static int libplacebo_query_format(AVFilterContext *ctx)
 fail:
     if (infmts && !infmts->refcount)
         ff_formats_unref(&infmts);
+    if (inswfmts && !inswfmts->refcount)
+        ff_formats_unref(&inswfmts);
     if (outfmts && !outfmts->refcount)
         ff_formats_unref(&outfmts);
+    if (outswfmts && !outswfmts->refcount)
+        ff_formats_unref(&outswfmts);
     return err;
 }
 
