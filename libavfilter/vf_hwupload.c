@@ -116,13 +116,7 @@ static int hwupload_config_output(AVFilterLink *outlink)
            av_get_pix_fmt_name(inlink->format));
 
     ctx->hwframes->format    = outlink->format;
-    if (inlink->hw_frames_ctx) {
-        AVHWFramesContext *in_hwframe_ctx =
-            (AVHWFramesContext*)inlink->hw_frames_ctx->data;
-        ctx->hwframes->sw_format = in_hwframe_ctx->sw_format;
-    } else {
-        ctx->hwframes->sw_format = inlink->format;
-    }
+    ctx->hwframes->sw_format = outlink->sw_format;
     ctx->hwframes->width     = inlink->w;
     ctx->hwframes->height    = inlink->h;
 
