@@ -483,9 +483,9 @@ static int libjxl_receive_frame(AVCodecContext *avctx, AVFrame *frame)
             /* full image is one frame, even if animated */
             av_log(avctx, AV_LOG_DEBUG, "FULL_IMAGE event emitted\n");
             if (ctx->iccp) {
-                AVFrameSideData *sd = av_frame_new_side_data_from_buf(ctx->frame, AV_FRAME_DATA_ICC_PROFILE, ctx->iccp);
+                AVFrameSideData *sd = ff_frame_new_side_data_from_buf(ctx->frame, AV_FRAME_DATA_ICC_PROFILE, ctx->iccp);
                 if (!sd)
-                    return AVERROR(ENOMEM);
+                    av_buffer_unref(&ctx->iccp);
                 /* ownership is transfered, and it is not ref-ed */
                 ctx->iccp = NULL;
             }
