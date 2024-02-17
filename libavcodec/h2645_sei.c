@@ -35,6 +35,7 @@
 
 #include "atsc_a53.h"
 #include "avcodec.h"
+#include "decode.h"
 #include "dynamic_hdr_vivid.h"
 #include "get_bits.h"
 #include "golomb.h"
@@ -515,6 +516,7 @@ int ff_h2645_sei_to_frame(AVFrame *frame, H2645SEI *sei,
                           int seed)
 {
     H2645SEIFramePacking *fp = &sei->frame_packing;
+    int ret;
 
     if (fp->present &&
         is_frame_packing_type_valid(fp->arrangement_type, codec_id) &&
@@ -573,29 +575,31 @@ int ff_h2645_sei_to_frame(AVFrame *frame, H2645SEI *sei,
          sei->display_orientation.vflip)) {
         H2645SEIDisplayOrientation *o = &sei->display_orientation;
         double angle = o->anticlockwise_rotation * 360 / (double) (1 << 16);
-        AVFrameSideData *rotation = av_frame_new_side_data(frame,
-                                                           AV_FRAME_DATA_DISPLAYMATRIX,
-                                                           sizeof(int32_t) * 9);
-        if (!rotation)
-            return AVERROR(ENOMEM);
+        AVFrameSideData *rotation;
+        ret = ff_frame_new_side_data(avctx, frame, AV_FRAME_DATA_DISPLAYMATRIX,
+                                     sizeof(int32_t) * 9, &rotation);
+        if (ret < 0)
+            return ret;
 
-        /* av_display_rotation_set() expects the angle in the clockwise
-         * direction, hence the first minus.
-         * The below code applies the flips after the rotation, yet
-         * the H.2645 specs require flipping to be applied first.
-         * Because of R O(phi) = O(-phi) R (where R is flipping around
-         * an arbitatry axis and O(phi) is the proper rotation by phi)
-         * we can create display matrices as desired by negating
-         * the degree once for every flip applied. */
-        angle = -angle * (1 - 2 * !!o->hflip) * (1 - 2 * !!o->vflip);
-        av_display_rotation_set((int32_t *)rotation->data, angle);
-        av_display_matrix_flip((int32_t *)rotation->data,
-                                o->hflip, o->vflip);
+        if (rotation) {
+            /* av_display_rotation_set() expects the angle in the clockwise
+             * direction, hence the first minus.
+             * The below code applies the flips after the rotation, yet
+             * the H.2645 specs require flipping to be applied first.
+             * Because of R O(phi) = O(-phi) R (where R is flipping around
+             * an arbitatry axis and O(phi) is the proper rotation by phi)
+             * we can create display matrices as desired by negating
+             * the degree once for every flip applied. */
+            angle = -angle * (1 - 2 * !!o->hflip) * (1 - 2 * !!o->vflip);
+            av_display_rotation_set((int32_t *)rotation->data, angle);
+            av_display_matrix_flip((int32_t *)rotation->data,
+                                    o->hflip, o->vflip);
+        }
     }
 
     if (sei->a53_caption.buf_ref) {
         H2645SEIA53Caption *a53 = &sei->a53_caption;
-        AVFrameSideData *sd = av_frame_new_side_data_from_buf(frame, AV_FRAME_DATA_A53_CC, a53->buf_ref);
+        AVFrameSideData *sd = ff_frame_new_side_data_from_buf(avctx, frame, AV_FRAME_DATA_A53_CC, a53->buf_ref);
         if (!sd)
             av_buffer_unref(&a53->buf_ref);
         a53->buf_ref = NULL;
@@ -618,9 +622,8 @@ int ff_h2645_sei_to_frame(AVFrame *frame, H2645SEI *sei,
     sei->unregistered.nb_buf_ref = 0;
 
     if (sei->afd.present) {
-        AVFrameSideData *sd = av_frame_new_side_data(frame, AV_FRAME_DATA_AFD,
-                                                     sizeof(uint8_t));
-
+        AVFrameSideData *sd;
+        ff_frame_new_side_data(avctx, frame, AV_FRAME_DATA_AFD, sizeof(uint8_t), &sd);
         if (sd) {
             *sd->data = sei->afd.active_format_description;
             sei->afd.present = 0;
