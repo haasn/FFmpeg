@@ -1841,6 +1841,46 @@ int ff_decode_preinit(AVCodecContext *avctx)
     return 0;
 }
 
+int ff_frame_new_side_data(const AVCodecContext *avctx, AVFrame *frame,
+                           enum AVFrameSideDataType type, size_t size,
+                           AVFrameSideData **sd)
+{
+    AVCodecInternal *avci = avctx->internal;
+    DecodeContext     *dc = decode_ctx(avci);
+
+    // Note: could be skipped for `type` without corresponding packet sd
+    if (av_frame_get_side_data(frame, type)) {
+        if (dc->side_data_pref_mask & (1ULL << type)) {
+            av_frame_remove_side_data(frame, type);
+        } else {
+            *sd = NULL;
+            return 0;
+        }
+    }
+
+    *sd = av_frame_new_side_data(frame, type, size);
+    return *sd ? 0 : AVERROR(ENOMEM);
+}
+
+AVFrameSideData *ff_frame_new_side_data_from_buf(const AVCodecContext *avctx,
+                                                 AVFrame *frame,
+                                                 enum AVFrameSideDataType type,
+                                                 AVBufferRef *buf)
+{
+    AVCodecInternal *avci = avctx->internal;
+    DecodeContext     *dc = decode_ctx(avci);
+
+    if (av_frame_get_side_data(frame, type)) {
+        if (dc->side_data_pref_mask & (1ULL << type)) {
+            av_frame_remove_side_data(frame, type);
+        } else {
+            return NULL;
+        }
+    }
+
+    return av_frame_new_side_data_from_buf(frame, type, buf);
+}
+
 int ff_copy_palette(void *dst, const AVPacket *src, void *logctx)
 {
     size_t size;
