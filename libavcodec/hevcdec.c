@@ -2824,10 +2824,8 @@ static int set_side_data(HEVCContext *s)
     }
 
     if (s->rpu_buf) {
-        AVFrameSideData *rpu = av_frame_new_side_data_from_buf(out, AV_FRAME_DATA_DOVI_RPU_BUFFER, s->rpu_buf);
-        if (!rpu)
-            return AVERROR(ENOMEM);
-
+        if (!ff_frame_new_side_data_from_buf(s->avctx, out, AV_FRAME_DATA_DOVI_RPU_BUFFER, s->rpu_buf))
+            av_buffer_unref(&s->rpu_buf);
         s->rpu_buf = NULL;
     }
 
@@ -2839,10 +2837,8 @@ static int set_side_data(HEVCContext *s)
         if (!info_ref)
             return AVERROR(ENOMEM);
 
-        if (!av_frame_new_side_data_from_buf(out, AV_FRAME_DATA_DYNAMIC_HDR_VIVID, info_ref)) {
+        if (!ff_frame_new_side_data_from_buf(s->avctx, out, AV_FRAME_DATA_DYNAMIC_HDR_VIVID, info_ref))
             av_buffer_unref(&info_ref);
-            return AVERROR(ENOMEM);
-        }
     }
 
     return 0;
