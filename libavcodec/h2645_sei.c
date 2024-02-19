@@ -611,7 +611,7 @@ int ff_h2645_sei_to_frame(AVFrame *frame, H2645SEI *sei,
         H2645SEIUnregistered *unreg = &sei->unregistered;
 
         if (unreg->buf_ref[i]) {
-            AVFrameSideData *sd = av_frame_new_side_data_from_buf(frame,
+            AVFrameSideData *sd = ff_frame_new_side_data_from_buf(avctx, frame,
                     AV_FRAME_DATA_SEI_UNREGISTERED,
                     unreg->buf_ref[i]);
             if (!sd)
