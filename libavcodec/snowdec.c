@@ -787,11 +787,10 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *picture,
         res = av_frame_ref(picture, s->mconly_picture);
     if (res >= 0 && s->avmv_index) {
         AVFrameSideData *sd;
-
-        sd = av_frame_new_side_data(picture, AV_FRAME_DATA_MOTION_VECTORS, s->avmv_index * sizeof(AVMotionVector));
-        if (!sd)
-            return AVERROR(ENOMEM);
-        memcpy(sd->data, s->avmv, s->avmv_index * sizeof(AVMotionVector));
+        res = ff_frame_new_side_data(s->avctx, picture, AV_FRAME_DATA_MOTION_VECTORS,
+                                     s->avmv_index * sizeof(AVMotionVector), &sd);
+        if (sd)
+            memcpy(sd->data, s->avmv, s->avmv_index * sizeof(AVMotionVector));
     }
 
     if (res < 0)
