@@ -561,7 +561,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
                 if (!res)
                     break;
 
-                if (!av_frame_new_side_data_from_buf(frame, AV_FRAME_DATA_A53_CC, buf))
+                if (!ff_frame_new_side_data_from_buf(c, frame, AV_FRAME_DATA_A53_CC, buf))
                     av_buffer_unref(&buf);
 
                 c->properties |= FF_CODEC_PROPERTY_CLOSED_CAPTIONS;
