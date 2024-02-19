@@ -2532,15 +2532,17 @@ static int mpeg_decode_frame(AVCodecContext *avctx, AVFrame *picture,
 
         if (s->timecode_frame_start != -1 && *got_output) {
             char tcbuf[AV_TIMECODE_STR_SIZE];
-            AVFrameSideData *tcside = av_frame_new_side_data(picture,
-                                                             AV_FRAME_DATA_GOP_TIMECODE,
-                                                             sizeof(int64_t));
-            if (!tcside)
-                return AVERROR(ENOMEM);
-            memcpy(tcside->data, &s->timecode_frame_start, sizeof(int64_t));
+            AVFrameSideData *tcside;
+            ret = ff_frame_new_side_data(avctx, picture, AV_FRAME_DATA_GOP_TIMECODE,
+                                         sizeof(int64_t), &tcside);
+            if (ret < 0)
+                return ret;
+            if (tcside) {
+                memcpy(tcside->data, &s->timecode_frame_start, sizeof(int64_t));
 
-            av_timecode_make_mpeg_tc_string(tcbuf, s->timecode_frame_start);
-            av_dict_set(&picture->metadata, "timecode", tcbuf, 0);
+                av_timecode_make_mpeg_tc_string(tcbuf, s->timecode_frame_start);
+                av_dict_set(&picture->metadata, "timecode", tcbuf, 0);
+            }
 
             s->timecode_frame_start = -1;
         }
