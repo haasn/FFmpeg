@@ -1,0 +1,690 @@
+[FRAME]
+media_type=video
+stream_index=0
+key_frame=1
+pts=0
+pts_time=0.000000
+pkt_dts=0
+pkt_dts_time=0.000000
+best_effort_timestamp=0
+best_effort_timestamp_time=0.000000
+pkt_duration=1
+pkt_duration_time=0.040000
+duration=1
+duration_time=0.040000
+pkt_pos=32
+pkt_size=4485
+width=320
+height=240
+crop_top=0
+crop_bottom=0
+crop_left=0
+crop_right=0
+pix_fmt=yuv420p10le
+sample_aspect_ratio=1:1
+pict_type=I
+coded_picture_number=0
+display_picture_number=0
+interlaced_frame=0
+top_field_first=0
+repeat_pict=0
+color_range=tv
+color_space=unknown
+color_primaries=unknown
+color_transfer=unknown
+chroma_location=unspecified
+[SIDE_DATA]
+side_data_type=Film grain parameters
+type=av1
+seed=7391
+chroma_scaling_from_luma=0
+scaling_shift=11
+ar_coeff_lag=3
+ar_coeff_shift=7
+grain_scale_shift=0
+overlap_flag=1
+limit_output_range=0
+[COMPONENT]
+y_points_value=0 108 188 255
+y_points_scaling=86 88 80 80
+ar_coeffs_y=0 3 0 -5 -3 -1 2 1 0 0 -4 -4 -1 0 2 -1 -68 86 -16 -9 -8 -3 3 78
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 121 162 255
+uv_points_scaling=67 67 74 71 72
+ar_coeffs_uv=0 -4 -8 18 0 2 -3 2 2 7 -11 -7 -2 9 0 -7 -45 59 -5 -8 -11 -1 11 47 -104
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 108 135 148 162 202 255
+uv_points_scaling=154 154 162 162 157 145 100 100
+ar_coeffs_uv=1 3 -1 1 -1 2 2 4 2 11 -36 6 3 2 0 2 -18 5 -18 -1 -2 5 2 13 -12
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[/SIDE_DATA]
+[/FRAME]
+[FRAME]
+media_type=video
+stream_index=0
+key_frame=0
+pts=1
+pts_time=0.040000
+pkt_dts=1
+pkt_dts_time=0.040000
+best_effort_timestamp=1
+best_effort_timestamp_time=0.040000
+pkt_duration=1
+pkt_duration_time=0.040000
+duration=1
+duration_time=0.040000
+pkt_pos=4529
+pkt_size=1310
+width=320
+height=240
+crop_top=0
+crop_bottom=0
+crop_left=0
+crop_right=0
+pix_fmt=yuv420p10le
+sample_aspect_ratio=1:1
+pict_type=P
+coded_picture_number=0
+display_picture_number=0
+interlaced_frame=0
+top_field_first=0
+repeat_pict=0
+color_range=tv
+color_space=unknown
+color_primaries=unknown
+color_transfer=unknown
+chroma_location=unspecified
+[SIDE_DATA]
+side_data_type=Film grain parameters
+type=av1
+seed=10772
+chroma_scaling_from_luma=0
+scaling_shift=11
+ar_coeff_lag=3
+ar_coeff_shift=7
+grain_scale_shift=0
+overlap_flag=1
+limit_output_range=0
+[COMPONENT]
+y_points_value=0 135 255
+y_points_scaling=93 93 80
+ar_coeffs_y=1 2 0 -6 -2 -1 0 0 1 -1 -2 -5 -2 1 3 -2 -67 87 -17 -10 -7 -3 4 75
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 81 135 162 202 255
+uv_points_scaling=77 77 65 70 63 70 70
+ar_coeffs_uv=1 -4 -9 19 0 2 -4 1 1 10 -14 -5 -1 10 0 -7 -48 64 -4 -7 -10 0 13 53 -121
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 135 148 175 202 255
+uv_points_scaling=155 155 158 153 117 96 96
+ar_coeffs_uv=1 3 -2 3 -2 2 2 3 1 12 -40 8 2 2 -1 1 -22 13 -20 -3 -3 4 2 13 21
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[/SIDE_DATA]
+[/FRAME]
+[FRAME]
+media_type=video
+stream_index=0
+key_frame=0
+pts=2
+pts_time=0.080000
+pkt_dts=2
+pkt_dts_time=0.080000
+best_effort_timestamp=2
+best_effort_timestamp_time=0.080000
+pkt_duration=1
+pkt_duration_time=0.040000
+duration=1
+duration_time=0.040000
+pkt_pos=5851
+pkt_size=5
+width=320
+height=240
+crop_top=0
+crop_bottom=0
+crop_left=0
+crop_right=0
+pix_fmt=yuv420p10le
+sample_aspect_ratio=1:1
+pict_type=P
+coded_picture_number=0
+display_picture_number=0
+interlaced_frame=0
+top_field_first=0
+repeat_pict=0
+color_range=tv
+color_space=unknown
+color_primaries=unknown
+color_transfer=unknown
+chroma_location=unspecified
+[SIDE_DATA]
+side_data_type=Film grain parameters
+type=av1
+seed=14153
+chroma_scaling_from_luma=0
+scaling_shift=11
+ar_coeff_lag=3
+ar_coeff_shift=7
+grain_scale_shift=0
+overlap_flag=1
+limit_output_range=0
+[COMPONENT]
+y_points_value=0 121 175 188 202 215 229 255
+y_points_scaling=94 93 80 79 79 79 79 79
+ar_coeffs_y=1 2 -1 -4 -2 0 0 0 1 -2 -2 -4 -2 1 2 -2 -68 89 -17 -9 -7 -3 3 75
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 135 188 202 255
+uv_points_scaling=83 83 70 75 77 77
+ar_coeffs_uv=1 -4 -11 21 1 0 -4 1 0 10 -15 -7 -2 10 0 -7 -48 61 -2 -6 -11 1 15 53 -114
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 121 175 188 202 255
+uv_points_scaling=147 146 102 83 80 80
+ar_coeffs_uv=0 2 -4 2 -2 1 1 3 -1 10 -37 5 0 1 -3 1 -27 18 -19 -4 -4 5 1 16 49
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[/SIDE_DATA]
+[/FRAME]
+[FRAME]
+media_type=video
+stream_index=0
+key_frame=0
+pts=3
+pts_time=0.120000
+pkt_dts=3
+pkt_dts_time=0.120000
+best_effort_timestamp=3
+best_effort_timestamp_time=0.120000
+pkt_duration=1
+pkt_duration_time=0.040000
+duration=1
+duration_time=0.040000
+pkt_pos=5868
+pkt_size=147
+width=320
+height=240
+crop_top=0
+crop_bottom=0
+crop_left=0
+crop_right=0
+pix_fmt=yuv420p10le
+sample_aspect_ratio=1:1
+pict_type=P
+coded_picture_number=0
+display_picture_number=0
+interlaced_frame=0
+top_field_first=0
+repeat_pict=0
+color_range=tv
+color_space=unknown
+color_primaries=unknown
+color_transfer=unknown
+chroma_location=unspecified
+[SIDE_DATA]
+side_data_type=Film grain parameters
+type=av1
+seed=17534
+chroma_scaling_from_luma=0
+scaling_shift=11
+ar_coeff_lag=3
+ar_coeff_shift=7
+grain_scale_shift=0
+overlap_flag=1
+limit_output_range=0
+[COMPONENT]
+y_points_value=0 121 175 255
+y_points_scaling=94 93 81 80
+ar_coeffs_y=0 2 0 -5 -2 0 0 0 0 -2 -1 -5 -2 1 1 -2 -67 89 -17 -10 -7 -2 3 74
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 135 148 162 188 255
+uv_points_scaling=83 83 70 67 65 83 85
+ar_coeffs_uv=0 -4 -10 20 0 1 -4 1 0 9 -14 -6 -2 11 1 -8 -46 61 -3 -6 -11 1 16 53 -113
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 121 175 188 202 255
+uv_points_scaling=149 148 100 82 79 79
+ar_coeffs_uv=1 2 -4 1 -3 0 1 3 -1 8 -37 4 0 0 -3 -1 -27 17 -20 -5 -4 5 2 16 47
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[/SIDE_DATA]
+[/FRAME]
+[FRAME]
+media_type=video
+stream_index=0
+key_frame=0
+pts=4
+pts_time=0.160000
+pkt_dts=4
+pkt_dts_time=0.160000
+best_effort_timestamp=4
+best_effort_timestamp_time=0.160000
+pkt_duration=1
+pkt_duration_time=0.040000
+duration=1
+duration_time=0.040000
+pkt_pos=6027
+pkt_size=5
+width=320
+height=240
+crop_top=0
+crop_bottom=0
+crop_left=0
+crop_right=0
+pix_fmt=yuv420p10le
+sample_aspect_ratio=1:1
+pict_type=P
+coded_picture_number=0
+display_picture_number=0
+interlaced_frame=0
+top_field_first=0
+repeat_pict=0
+color_range=tv
+color_space=unknown
+color_primaries=unknown
+color_transfer=unknown
+chroma_location=unspecified
+[SIDE_DATA]
+side_data_type=Film grain parameters
+type=av1
+seed=20915
+chroma_scaling_from_luma=0
+scaling_shift=11
+ar_coeff_lag=3
+ar_coeff_shift=7
+grain_scale_shift=0
+overlap_flag=1
+limit_output_range=0
+[COMPONENT]
+y_points_value=0 121 175 255
+y_points_scaling=93 93 80 80
+ar_coeffs_y=0 2 -1 -5 -2 -1 0 0 0 -2 -2 -5 -1 1 2 -3 -67 89 -17 -10 -7 -2 3 74
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 148 255
+uv_points_scaling=83 83 66 87
+ar_coeffs_uv=0 -4 -10 20 1 1 -4 1 0 9 -14 -7 -1 10 1 -7 -48 62 -2 -8 -11 2 17 54 -111
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 121 148 188 215 229 242 255
+uv_points_scaling=149 149 141 81 79 79 79 79
+ar_coeffs_uv=1 3 -4 1 -2 0 1 3 0 8 -36 4 0 0 -3 -1 -27 16 -20 -6 -5 5 3 16 46
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[/SIDE_DATA]
+[/FRAME]
+[FRAME]
+media_type=video
+stream_index=0
+key_frame=0
+pts=5
+pts_time=0.200000
+pkt_dts=5
+pkt_dts_time=0.200000
+best_effort_timestamp=5
+best_effort_timestamp_time=0.200000
+pkt_duration=1
+pkt_duration_time=0.040000
+duration=1
+duration_time=0.040000
+pkt_pos=6044
+pkt_size=303
+width=320
+height=240
+crop_top=0
+crop_bottom=0
+crop_left=0
+crop_right=0
+pix_fmt=yuv420p10le
+sample_aspect_ratio=1:1
+pict_type=P
+coded_picture_number=0
+display_picture_number=0
+interlaced_frame=0
+top_field_first=0
+repeat_pict=0
+color_range=tv
+color_space=unknown
+color_primaries=unknown
+color_transfer=unknown
+chroma_location=unspecified
+[SIDE_DATA]
+side_data_type=Film grain parameters
+type=av1
+seed=24296
+chroma_scaling_from_luma=0
+scaling_shift=11
+ar_coeff_lag=3
+ar_coeff_shift=7
+grain_scale_shift=0
+overlap_flag=1
+limit_output_range=0
+[COMPONENT]
+y_points_value=0 121 175 188 202 229 255
+y_points_scaling=92 91 83 90 90 90 90
+ar_coeffs_y=2 -4 4 -6 -1 -1 0 -2 5 -7 1 -7 -1 1 1 -1 -69 88 -16 -10 -7 -1 2 78
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 135 148 175 255
+uv_points_scaling=87 87 69 66 78 87
+ar_coeffs_uv=0 -5 -8 21 -1 1 -4 1 4 10 -19 -6 -4 12 -1 -5 -53 69 -4 -8 -14 2 9 55 -99
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 121 175 188 202 255
+uv_points_scaling=152 150 102 103 100 100
+ar_coeffs_uv=0 3 -3 3 -2 1 2 4 0 9 -36 5 0 0 -4 0 -27 19 -21 -5 -5 4 -1 13 43
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[/SIDE_DATA]
+[/FRAME]
+[FRAME]
+media_type=video
+stream_index=0
+key_frame=0
+pts=6
+pts_time=0.240000
+pkt_dts=6
+pkt_dts_time=0.240000
+best_effort_timestamp=6
+best_effort_timestamp_time=0.240000
+pkt_duration=1
+pkt_duration_time=0.040000
+duration=1
+duration_time=0.040000
+pkt_pos=6359
+pkt_size=5
+width=320
+height=240
+crop_top=0
+crop_bottom=0
+crop_left=0
+crop_right=0
+pix_fmt=yuv420p10le
+sample_aspect_ratio=1:1
+pict_type=P
+coded_picture_number=0
+display_picture_number=0
+interlaced_frame=0
+top_field_first=0
+repeat_pict=0
+color_range=tv
+color_space=unknown
+color_primaries=unknown
+color_transfer=unknown
+chroma_location=unspecified
+[SIDE_DATA]
+side_data_type=Film grain parameters
+type=av1
+seed=27677
+chroma_scaling_from_luma=0
+scaling_shift=11
+ar_coeff_lag=3
+ar_coeff_shift=7
+grain_scale_shift=0
+overlap_flag=1
+limit_output_range=0
+[COMPONENT]
+y_points_value=0 121 162 202 255
+y_points_scaling=92 91 83 92 92
+ar_coeffs_y=2 -4 4 -5 -1 -1 0 -1 5 -7 1 -6 -1 1 1 -1 -69 88 -16 -11 -7 0 2 78
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 135 202 255
+uv_points_scaling=87 87 70 86 86
+ar_coeffs_uv=0 -4 -8 20 -1 3 -6 1 3 11 -20 -6 -6 14 -1 -5 -53 70 -4 -7 -15 2 10 54 -98
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 121 162 188 202 255
+uv_points_scaling=152 152 149 120 103 106 106
+ar_coeffs_uv=0 3 -2 2 -2 2 2 4 0 9 -36 5 0 1 -4 0 -27 18 -20 -5 -5 4 -2 14 44
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[/SIDE_DATA]
+[/FRAME]
+[FRAME]
+media_type=video
+stream_index=0
+key_frame=0
+pts=7
+pts_time=0.280000
+pkt_dts=7
+pkt_dts_time=0.280000
+best_effort_timestamp=7
+best_effort_timestamp_time=0.280000
+pkt_duration=1
+pkt_duration_time=0.040000
+duration=1
+duration_time=0.040000
+pkt_pos=6376
+pkt_size=154
+width=320
+height=240
+crop_top=0
+crop_bottom=0
+crop_left=0
+crop_right=0
+pix_fmt=yuv420p10le
+sample_aspect_ratio=1:1
+pict_type=P
+coded_picture_number=0
+display_picture_number=0
+interlaced_frame=0
+top_field_first=0
+repeat_pict=0
+color_range=tv
+color_space=unknown
+color_primaries=unknown
+color_transfer=unknown
+chroma_location=unspecified
+[SIDE_DATA]
+side_data_type=Film grain parameters
+type=av1
+seed=31058
+chroma_scaling_from_luma=0
+scaling_shift=11
+ar_coeff_lag=3
+ar_coeff_shift=7
+grain_scale_shift=0
+overlap_flag=1
+limit_output_range=0
+[COMPONENT]
+y_points_value=0 121 135 188 202 255
+y_points_scaling=92 91 88 91 94 94
+ar_coeffs_y=2 -4 4 -6 -1 -1 0 -2 5 -7 1 -6 -1 1 1 -1 -69 88 -16 -10 -7 -1 2 78
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 121 135 162 175 255
+uv_points_scaling=88 88 73 70 72 80 87
+ar_coeffs_uv=0 -4 -8 21 -1 2 -5 0 4 11 -21 -6 -4 14 -1 -5 -54 71 -5 -8 -15 3 8 54 -97
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 108 162 175 188 202 255
+uv_points_scaling=152 152 117 98 104 109 109
+ar_coeffs_uv=0 3 -3 2 -2 1 2 4 1 9 -36 5 1 1 -4 0 -26 18 -20 -6 -5 4 0 13 44
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[/SIDE_DATA]
+[/FRAME]
+[FRAME]
+media_type=video
+stream_index=0
+key_frame=0
+pts=8
+pts_time=0.320000
+pkt_dts=8
+pkt_dts_time=0.320000
+best_effort_timestamp=8
+best_effort_timestamp_time=0.320000
+pkt_duration=1
+pkt_duration_time=0.040000
+duration=1
+duration_time=0.040000
+pkt_pos=6542
+pkt_size=5
+width=320
+height=240
+crop_top=0
+crop_bottom=0
+crop_left=0
+crop_right=0
+pix_fmt=yuv420p10le
+sample_aspect_ratio=1:1
+pict_type=P
+coded_picture_number=0
+display_picture_number=0
+interlaced_frame=0
+top_field_first=0
+repeat_pict=0
+color_range=tv
+color_space=unknown
+color_primaries=unknown
+color_transfer=unknown
+chroma_location=unspecified
+[SIDE_DATA]
+side_data_type=Film grain parameters
+type=av1
+seed=34439
+chroma_scaling_from_luma=0
+scaling_shift=11
+ar_coeff_lag=3
+ar_coeff_shift=7
+grain_scale_shift=0
+overlap_flag=1
+limit_output_range=0
+[COMPONENT]
+y_points_value=0 54 162 202 255
+y_points_scaling=92 92 83 95 95
+ar_coeffs_y=2 -4 5 -6 -2 -1 0 -1 6 -8 0 -6 -1 1 1 0 -68 86 -16 -10 -7 -1 3 79
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 121 135 162 188 255
+uv_points_scaling=93 93 83 76 75 89 89
+ar_coeffs_uv=0 -6 -6 17 0 1 -3 0 7 9 -20 -6 -5 13 -1 -4 -56 72 -6 -6 -15 0 5 54 -87
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 121 135 162 188 229 255
+uv_points_scaling=154 154 141 139 117 110 115 115
+ar_coeffs_uv=0 4 -3 1 -1 2 2 4 2 9 -34 6 2 2 -3 3 -25 11 -20 -4 -5 5 1 13 40
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[/SIDE_DATA]
+[/FRAME]
+[FRAME]
+media_type=video
+stream_index=0
+key_frame=0
+pts=9
+pts_time=0.360000
+pkt_dts=9
+pkt_dts_time=0.360000
+best_effort_timestamp=9
+best_effort_timestamp_time=0.360000
+pkt_duration=1
+pkt_duration_time=0.040000
+duration=1
+duration_time=0.040000
+pkt_pos=6559
+pkt_size=256
+width=320
+height=240
+crop_top=0
+crop_bottom=0
+crop_left=0
+crop_right=0
+pix_fmt=yuv420p10le
+sample_aspect_ratio=1:1
+pict_type=P
+coded_picture_number=0
+display_picture_number=0
+interlaced_frame=0
+top_field_first=0
+repeat_pict=0
+color_range=tv
+color_space=unknown
+color_primaries=unknown
+color_transfer=unknown
+chroma_location=unspecified
+[SIDE_DATA]
+side_data_type=Film grain parameters
+type=av1
+seed=37820
+chroma_scaling_from_luma=0
+scaling_shift=11
+ar_coeff_lag=3
+ar_coeff_shift=7
+grain_scale_shift=0
+overlap_flag=1
+limit_output_range=0
+[COMPONENT]
+y_points_value=0 54 108 162 175 202 255
+y_points_scaling=92 92 90 87 91 106 106
+ar_coeffs_y=3 -3 0 -8 23 -29 9 -1 1 -9 32 -67 36 -3 -3 -2 -53 52 23 -22 -10 3 8 63
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 121 135 162 188 229 255
+uv_points_scaling=90 90 79 74 73 80 80 80
+ar_coeffs_uv=0 -8 -2 6 30 -33 9 1 10 -2 12 -66 44 3 0 -16 -40 50 26 -22 -15 -1 14 41 -91
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[COMPONENT]
+uv_points_value=0 54 81 108 121 162 175 188 255
+uv_points_scaling=145 145 150 146 147 123 120 138 140
+ar_coeffs_uv=1 4 -2 -4 8 -10 5 5 4 3 -25 -8 12 -1 -3 -2 -23 5 -10 -11 -3 2 1 5 30
+uv_mult=0
+uv_mult_luma=64
+uv_offset=0
+[/COMPONENT]
+[/SIDE_DATA]
+[/FRAME]

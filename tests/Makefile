@@ -190,6 +190,7 @@ include $(SRC_PATH)/tests/fate/enc_external.mak
 include $(SRC_PATH)/tests/fate/ffmpeg.mak
 include $(SRC_PATH)/tests/fate/ffprobe.mak
 include $(SRC_PATH)/tests/fate/fifo-muxer.mak
+include $(SRC_PATH)/tests/fate/film_grain.mak
 include $(SRC_PATH)/tests/fate/filter-audio.mak
 # Must be included after vcodec.mak
 include $(SRC_PATH)/tests/fate/filter-video.mak
