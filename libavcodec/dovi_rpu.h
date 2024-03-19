@@ -84,4 +84,14 @@ int ff_dovi_rpu_parse(DOVIContext *s, const uint8_t *rpu, size_t rpu_size);
  */
 int ff_dovi_attach_side_data(DOVIContext *s, AVFrame *frame);
 
+/**
+ * Generate a T.35 payload (including country and provider code) from a given
+ * AV_FRAME_DATA_DOVI_RPU_BUFFER, and set *out_t35 to a new reference on
+ * success.
+ *
+ * Returns 0 or a negative error code.
+ */
+int ff_dovi_rpu_to_t35(void *logctx, const uint8_t *raw_rpu, int raw_rpu_size,
+                       AVBufferRef **out_t35);
+
 #endif /* AVCODEC_DOVI_RPU_H */

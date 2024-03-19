@@ -23,9 +23,13 @@
 
 #include "libavutil/buffer.h"
 
+#include "avcodec.h"
 #include "dovi_rpu.h"
 #include "golomb.h"
 #include "get_bits.h"
+#include "h2645_parse.h"
+#include "itut35.h"
+#include "put_bits.h"
 #include "refstruct.h"
 
 enum {
@@ -477,4 +481,91 @@ int ff_dovi_rpu_parse(DOVIContext *s, const uint8_t *rpu, size_t rpu_size)
 fail:
     ff_dovi_ctx_unref(s); /* don't leak potentially invalid state */
     return AVERROR(EINVAL);
+}
+
+int ff_dovi_rpu_to_t35(void *logctx, const uint8_t *raw_rpu, int raw_rpu_size,
+                       AVBufferRef **out_t35)
+{
+    PutBitContext *pb = &(PutBitContext){0};
+    H2645RBSP rbsp = {0};
+    H2645NAL nal = {0};
+    AVBufferRef *t35 = NULL;
+    int ret = AVERROR_INVALIDDATA;
+    const uint8_t *rpu;
+    int rpu_size, pad;
+
+    av_fast_padded_malloc(&rbsp.rbsp_buffer, &rbsp.rbsp_buffer_alloc_size,
+                          raw_rpu_size);
+    if (!rbsp.rbsp_buffer)
+        return AVERROR(ENOMEM);
+
+    ret = ff_h2645_extract_rbsp(raw_rpu, raw_rpu_size, &rbsp, &nal, 1);
+    if (ret < 0)
+        goto error;
+
+    rpu = rbsp.rbsp_buffer;
+    rpu_size = rbsp.rbsp_buffer_size;
+    if (rpu_size < 2 || rpu_size > 512) {
+        av_log(logctx, AV_LOG_ERROR, "Invalid DOVI RPU size: %d\n", rpu_size);
+        goto error;
+    }
+
+    /* Skip NAL prefix */
+    if (rpu[0] != 25) {
+        av_log(logctx, AV_LOG_ERROR, "Invalid NAL prefix: %d\n", rpu[0]);
+        goto error;
+    }
+    rpu++;
+    rpu_size--;
+
+    /* Skip trailing NUL bytes */
+    while (rpu_size && rpu[rpu_size - 1] == 0)
+        rpu_size--;
+
+    /* Validate trailing byte is the expected 0x80 */
+    if (!rpu_size || rpu[rpu_size - 1] != 0x80) {
+        av_log(logctx, AV_LOG_ERROR, "Missing RPU RBSP terminator, "
+               "possibly truncated?\n");
+        goto error;
+    }
+
+    /* Fixed T.35+EMDF header is 11 bytes, EMDF payload size is up to 3 bytes,
+     * and trailing footer is up to 4 bytes */
+    t35 = av_buffer_alloc(rpu_size + 18);
+    if (!t35) {
+        ret = AVERROR(ENOMEM);
+        goto error;
+    }
+
+    init_put_bits(pb, t35->data, t35->size);
+    put_bits(pb,  8, ITU_T_T35_COUNTRY_CODE_US);
+    put_bits(pb, 16, ITU_T_T35_PROVIDER_CODE_DOLBY);
+    put_bits32(pb, 0x800); /* provider_oriented_code */
+    put_bits(pb, 27, 0x01be6841u); /* EMDF header, see above */
+    if (rpu_size > 0xFF) {
+        av_assert2(rpu_size <= 0x10000);
+        put_bits(pb, 8, (rpu_size >> 8) - 1);
+        put_bits(pb, 1, 1); /* read_more */
+        put_bits(pb, 8, rpu_size & 0xFF);
+        put_bits(pb, 1, 0);
+    } else {
+        put_bits(pb, 8, rpu_size);
+        put_bits(pb, 1, 0);
+    }
+    ff_copy_bits(pb, rpu, rpu_size * 8); /* rpu rbsp payload */
+    put_bits(pb, 17, 0x400); /* emdf payload id + emdf_protection */
+
+    pad = pb->bit_left & 7;
+    put_bits(pb, pad, (1 << pad) - 1); /* pad to next byte with 1 bits */
+    t35->size -= put_bytes_left(pb, 0); /* trim unused space */
+    flush_put_bits(pb);
+
+    *out_t35 = t35;
+    ret = 0;
+
+error:
+    av_freep(&rbsp.rbsp_buffer);
+    if (ret)
+        av_buffer_unref(&t35);
+    return ret;
 }
