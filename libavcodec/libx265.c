@@ -560,6 +560,7 @@ static av_cold int libx265_encode_set_roi(libx265Context *ctx, const AVFrame *fr
 static void free_picture(libx265Context *ctx, x265_picture *pic)
 {
     x265_sei *sei = &pic->userSEI;
+    av_free(pic->rpu.payload);
     for (int i = 0; i < sei->numPayloads; i++)
         av_free(sei->payloads[i].payload);
 
@@ -594,6 +595,7 @@ static int libx265_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     sei->numPayloads = 0;
 
     if (pic) {
+        AVFrameSideData *sd;
         ReorderedData *rd;
         int rd_idx;
 
@@ -693,6 +695,15 @@ static int libx265_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                 sei_payload->payloadType = SEI_TYPE_USER_DATA_UNREGISTERED;
                 sei->numPayloads++;
             }
+        }
+
+        if ((sd = av_frame_get_side_data(pic, AV_FRAME_DATA_DOVI_RPU_BUFFER))) {
+            x265pic.rpu.payload = av_memdup(sd->data, sd->size);
+            if (!x265pic.rpu.payload) {
+                free_picture(ctx, &x265pic);
+                return AVERROR(ENOMEM);
+            }
+            x265pic.rpu.payloadSize = sd->size;
         }
     }
 
