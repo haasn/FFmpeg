@@ -42,6 +42,7 @@
 #include "avcodec.h"
 #include "bsf.h"
 #include "codec_internal.h"
+#include "dovi_rpu.h"
 #include "encode.h"
 #include "internal.h"
 #include "libaom.h"
@@ -1283,6 +1284,7 @@ static int aom_encode(AVCodecContext *avctx, AVPacket *pkt,
     aom_enc_frame_flags_t flags = 0;
 
     if (frame) {
+        AVFrameSideData *sd;
         rawimg                      = &ctx->rawimg;
         rawimg->planes[AOM_PLANE_Y] = frame->data[0];
         rawimg->planes[AOM_PLANE_U] = frame->data[1];
@@ -1316,6 +1318,17 @@ FF_ENABLE_DEPRECATION_WARNINGS
         case AVCOL_RANGE_JPEG:
             rawimg->range = AOM_CR_FULL_RANGE;
             break;
+        }
+
+        if ((sd = av_frame_get_side_data(frame, AV_FRAME_DATA_DOVI_RPU_BUFFER))) {
+            AVBufferRef *t35;
+            if ((res = ff_dovi_rpu_to_t35(avctx, sd->data, sd->size, &t35)) < 0)
+                return res;
+            res = aom_img_add_metadata(rawimg, OBU_METADATA_TYPE_ITUT_T35,
+                                       t35->data, t35->size, AOM_MIF_ANY_FRAME);
+            av_buffer_unref(&t35);
+            if (res != AOM_CODEC_OK)
+                return AVERROR(ENOMEM);
         }
 
         if (frame->pict_type == AV_PICTURE_TYPE_I)
