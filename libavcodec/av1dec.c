@@ -983,7 +983,8 @@ static int export_itut_t35(AVCodecContext *avctx, AVFrame *frame,
         if (itut_t35->itu_t_t35_country_code != 0xB5 || provider_oriented_code != 0x800)
             break;
 
-        ret = ff_dovi_rpu_parse(&s->dovi, gb.buffer, gb.buffer_end - gb.buffer);
+        ret = ff_dovi_rpu_parse(&s->dovi, gb.buffer, gb.buffer_end - gb.buffer,
+                                avctx->err_recognition);
         if (ret < 0) {
             av_log(avctx, AV_LOG_WARNING, "Error parsing DOVI OBU.\n");
             break; // ignore

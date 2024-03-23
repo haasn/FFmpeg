@@ -22,6 +22,7 @@
  */
 
 #include "libavutil/buffer.h"
+#include "libavutil/crc.h"
 
 #include "avcodec.h"
 #include "dovi_rpu.h"
@@ -200,7 +201,8 @@ static inline unsigned get_variable_bits(GetBitContext *gb, int n)
         }                                                                       \
     } while (0)
 
-int ff_dovi_rpu_parse(DOVIContext *s, const uint8_t *rpu, size_t rpu_size)
+int ff_dovi_rpu_parse(DOVIContext *s, const uint8_t *rpu, size_t rpu_size,
+                      int err_recognition)
 {
     AVDOVIRpuDataHeader *hdr = &s->header;
     GetBitContext *gb = &(GetBitContext){0};
@@ -266,6 +268,19 @@ int ff_dovi_rpu_parse(DOVIContext *s, const uint8_t *rpu, size_t rpu_size)
         /* Strip trailing padding bytes */
         while (rpu_size && rpu[rpu_size - 1] == 0)
             rpu_size--;
+    }
+
+    if (!rpu_size || rpu[rpu_size - 1] != 0x80)
+        goto fail;
+
+    if (err_recognition & AV_EF_CRCCHECK) {
+        uint32_t crc = av_bswap32(av_crc(av_crc_get_table(AV_CRC_32_IEEE),
+                                  -1, rpu, rpu_size - 1)); /* exclude 0x80 */
+        if (crc) {
+            av_log(s->logctx, AV_LOG_ERROR, "RPU CRC mismatch: %X\n", crc);
+            if (err_recognition & AV_EF_EXPLODE)
+                goto fail;
+        }
     }
 
     if ((ret = init_get_bits8(gb, rpu, rpu_size)) < 0)
@@ -508,7 +523,6 @@ int ff_dovi_rpu_parse(DOVIContext *s, const uint8_t *rpu, size_t rpu_size)
         color->source_diagonal = get_bits(gb, 10);
     }
 
-    /* FIXME: verify CRC32, requires implementation of AV_CRC_32_MPEG_2 */
     return 0;
 
 fail:

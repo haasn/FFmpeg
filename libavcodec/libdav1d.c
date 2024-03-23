@@ -606,7 +606,8 @@ FF_ENABLE_DEPRECATION_WARNINGS
             if (itut_t35->country_code != 0xB5 || provider_oriented_code != 0x800)
                 break;
 
-            res = ff_dovi_rpu_parse(&dav1d->dovi, gb.buffer, gb.buffer_end - gb.buffer);
+            res = ff_dovi_rpu_parse(&dav1d->dovi, gb.buffer, gb.buffer_end - gb.buffer,
+                                    c->err_recognition);
             if (res < 0) {
                 av_log(c, AV_LOG_WARNING, "Error parsing DOVI OBU.\n");
                 break; // ignore
