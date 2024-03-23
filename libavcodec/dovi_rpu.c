@@ -47,6 +47,7 @@ void ff_dovi_ctx_unref(DOVIContext *s)
 {
     for (int i = 0; i < FF_ARRAY_ELEMS(s->vdr); i++)
         ff_refstruct_unref(&s->vdr[i]);
+    ff_refstruct_unref(&s->ext_blocks);
     av_free(s->rpu_buf);
 
     *s = (DOVIContext) {
@@ -58,6 +59,7 @@ void ff_dovi_ctx_flush(DOVIContext *s)
 {
     for (int i = 0; i < FF_ARRAY_ELEMS(s->vdr); i++)
         ff_refstruct_unref(&s->vdr[i]);
+    ff_refstruct_unref(&s->ext_blocks);
 
     *s = (DOVIContext) {
         .logctx = s->logctx,
@@ -76,6 +78,7 @@ void ff_dovi_ctx_replace(DOVIContext *s, const DOVIContext *s0)
     s->dv_profile = s0->dv_profile;
     for (int i = 0; i <= DOVI_MAX_DM_ID; i++)
         ff_refstruct_replace(&s->vdr[i], s0->vdr[i]);
+    ff_refstruct_replace(&s->ext_blocks, s0->ext_blocks);
 }
 
 void ff_dovi_update_cfg(DOVIContext *s, const AVDOVIDecoderConfigurationRecord *cfg)
