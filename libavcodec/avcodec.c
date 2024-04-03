@@ -700,3 +700,78 @@ int attribute_align_arg avcodec_receive_frame(AVCodecContext *avctx, AVFrame *fr
         return ff_decode_receive_frame(avctx, frame);
     return ff_encode_receive_frame(avctx, frame);
 }
+
+#define WRAP_CONFIG(allowed_type, field)    \
+    do {                                    \
+        if (codec->type != (allowed_type))  \
+            return AVERROR(EINVAL);         \
+        *out_configs = (field);             \
+        return 0;                           \
+    } while (0)
+
+static const enum AVColorRange color_range_jpeg[] = {
+    AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED
+};
+
+static const enum AVColorRange color_range_mpeg[] = {
+    AVCOL_RANGE_MPEG, AVCOL_RANGE_UNSPECIFIED
+};
+
+static const enum AVColorRange color_range_all[] = {
+    AVCOL_RANGE_MPEG, AVCOL_RANGE_JPEG, AVCOL_RANGE_UNSPECIFIED
+};
+
+static const enum AVColorRange *color_range_table[] = {
+    [AVCOL_RANGE_MPEG] = color_range_mpeg,
+    [AVCOL_RANGE_JPEG] = color_range_jpeg,
+    [AVCOL_RANGE_MPEG | AVCOL_RANGE_JPEG] = color_range_all,
+};
+
+int ff_default_get_supported_config(const AVCodecContext *avctx,
+                                    const AVCodec *codec,
+                                    enum AVCodecConfig config,
+                                    unsigned flags,
+                                    const void **out_configs)
+{
+    switch (config) {
+FF_DISABLE_DEPRECATION_WARNINGS
+    case AV_CODEC_CONFIG_PIX_FORMAT:
+        WRAP_CONFIG(AVMEDIA_TYPE_VIDEO, codec->pix_fmts);
+    case AV_CODEC_CONFIG_FRAME_RATE:
+        WRAP_CONFIG(AVMEDIA_TYPE_VIDEO, codec->supported_framerates);
+    case AV_CODEC_CONFIG_SAMPLE_RATE:
+        WRAP_CONFIG(AVMEDIA_TYPE_AUDIO, codec->supported_samplerates);
+    case AV_CODEC_CONFIG_SAMPLE_FORMAT:
+        WRAP_CONFIG(AVMEDIA_TYPE_AUDIO, codec->sample_fmts);
+    case AV_CODEC_CONFIG_CHANNEL_LAYOUT:
+        WRAP_CONFIG(AVMEDIA_TYPE_AUDIO, codec->ch_layouts);
+FF_ENABLE_DEPRECATION_WARNINGS
+
+    case AV_CODEC_CONFIG_COLOR_RANGE:
+        if (codec->type != AVMEDIA_TYPE_VIDEO)
+            return AVERROR(EINVAL);
+        *out_configs = color_range_table[ffcodec(codec)->color_ranges];
+        return 0;
+
+    case AV_CODEC_CONFIG_COLOR_SPACE:
+        *out_configs = NULL;
+        return 0;
+    default:
+        return AVERROR(EINVAL);
+    }
+}
+
+int avcodec_get_supported_config(const AVCodecContext *avctx, const AVCodec *codec,
+                                 enum AVCodecConfig config, unsigned flags,
+                                 const void **out)
+{
+    const FFCodec *codec2;
+    if (!codec)
+        codec = avctx->codec;
+    codec2 = ffcodec(codec);
+    if (codec2->get_supported_config) {
+        return codec2->get_supported_config(avctx, codec, config, flags, out);
+    } else {
+        return ff_default_get_supported_config(avctx, codec, config, flags, out);
+    }
+}

@@ -2,6 +2,11 @@ The last version increases of all libraries were on 2024-03-07
 
 API changes, most recent first:
 
+2024-04-xx - xxxxxxxxxx - lavc 59.6.100 - avcodec.h
+  Add avcodec_get_supported_config() and enum AVCodecConfig; deprecate
+  AVCodec.pix_fmts, AVCodec.sample_fmts, AVCodec.supported_framerates,
+  AVCodec.supported_samplerates and AVCodec.ch_layouts.
+
 2024-04-03 - xxxxxxxxxx - lavu 59.13.100 - pixfmt.h
   Add AVCOL_SPC_IPT_C2, AVCOL_SPC_YCGCO_RE and AVCOL_SPC_YCGCO_RO
   to map new matrix coefficients defined by H.273 v3.
