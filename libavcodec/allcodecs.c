@@ -916,13 +916,8 @@ static AVOnce av_codec_static_init = AV_ONCE_INIT;
 static void av_codec_init_static(void)
 {
     for (int i = 0; codec_list[i]; i++) {
-        const FFCodec *codec = codec_list[i];
-        if (codec->init_static_data) {
-            codec->init_static_data((FFCodec*) codec);
-            continue;
-        }
-
         /* Backward compatibility with deprecated public fields */
+        const FFCodec *codec = codec_list[i];
         if (!codec->get_supported_config)
             continue;
 
