@@ -694,7 +694,7 @@ static int ifilter_bind_dec(InputFilterPriv *ifp, Decoder *dec)
 
 static int set_channel_layout(OutputFilterPriv *f, OutputStream *ost)
 {
-    const AVCodec *c = ost->enc_ctx->codec;
+    const AVChannelLayout *ch_layouts;
     int i, err;
 
     if (ost->enc_ctx->ch_layout.order != AV_CHANNEL_ORDER_UNSPEC) {
@@ -705,8 +705,14 @@ static int set_channel_layout(OutputFilterPriv *f, OutputStream *ost)
         return 0;
     }
 
+    err = avcodec_get_supported_config(ost->enc_ctx, NULL,
+                                       AV_CODEC_CONFIG_CHANNEL_LAYOUT, 0,
+                                       (const void **) &ch_layouts);
+    if (err < 0)
+        return err;
+
     /* Requested layout is of order UNSPEC */
-    if (!c->ch_layouts) {
+    if (!ch_layouts) {
         /* Use the default native layout for the requested amount of channels when the
            encoder doesn't have a list of supported layouts */
         av_channel_layout_default(&f->ch_layout, ost->enc_ctx->ch_layout.nb_channels);
@@ -714,13 +720,13 @@ static int set_channel_layout(OutputFilterPriv *f, OutputStream *ost)
     }
     /* Encoder has a list of supported layouts. Pick the first layout in it with the
        same amount of channels as the requested layout */
-    for (i = 0; c->ch_layouts[i].nb_channels; i++) {
-        if (c->ch_layouts[i].nb_channels == ost->enc_ctx->ch_layout.nb_channels)
+    for (i = 0; ch_layouts[i].nb_channels; i++) {
+        if (ch_layouts[i].nb_channels == ost->enc_ctx->ch_layout.nb_channels)
             break;
     }
-    if (c->ch_layouts[i].nb_channels) {
+    if (ch_layouts[i].nb_channels) {
         /* Use it if one is found */
-        err = av_channel_layout_copy(&f->ch_layout, &c->ch_layouts[i]);
+        err = av_channel_layout_copy(&f->ch_layout, &ch_layouts[i]);
         if (err < 0)
             return err;
         return 0;
@@ -762,7 +768,11 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost,
         if (ost->enc_ctx->pix_fmt != AV_PIX_FMT_NONE) {
             ofp->format = ost->enc_ctx->pix_fmt;
         } else if (!ost->keep_pix_fmt) {
-            ofp->formats = c->pix_fmts;
+            ret = avcodec_get_supported_config(ost->enc_ctx, NULL,
+                                               AV_CODEC_CONFIG_PIX_FORMAT, 0,
+                                               (const void **) &ofp->formats);
+            if (ret < 0)
+                return ret;
 
             // MJPEG encoder exports a full list of supported pixel formats,
             // but the full-range ones are experimental-only.
@@ -788,8 +798,16 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost,
 
         ofp->fps.framerate           = ost->frame_rate;
         ofp->fps.framerate_max       = ost->max_frame_rate;
-        ofp->fps.framerate_supported = ost->force_fps ?
-                                       NULL : c->supported_framerates;
+
+        if (ost->force_fps) {
+            ofp->fps.framerate_supported = NULL;
+        } else {
+            ret = avcodec_get_supported_config(ost->enc_ctx, NULL,
+                                               AV_CODEC_CONFIG_FRAME_RATE, 0,
+                                               (const void **) &ofp->fps.framerate_supported);
+            if (ret < 0)
+                return ret;
+        }
 
         // reduce frame rate for mpeg4 to be within the spec limits
         if (c->id == AV_CODEC_ID_MPEG4)
@@ -802,19 +820,34 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost,
         if (ost->enc_ctx->sample_fmt != AV_SAMPLE_FMT_NONE) {
             ofp->format = ost->enc_ctx->sample_fmt;
         } else {
-            ofp->formats = c->sample_fmts;
+            ret = avcodec_get_supported_config(ost->enc_ctx, NULL,
+                                               AV_CODEC_CONFIG_SAMPLE_FORMAT, 0,
+                                               (const void **) &ofp->formats);
+            if (ret < 0)
+                return ret;
         }
         if (ost->enc_ctx->sample_rate) {
             ofp->sample_rate = ost->enc_ctx->sample_rate;
         } else {
-            ofp->sample_rates = c->supported_samplerates;
+            ret = avcodec_get_supported_config(ost->enc_ctx, NULL,
+                                               AV_CODEC_CONFIG_SAMPLE_RATE, 0,
+                                               (const void **) &ofp->sample_rates);
+            if (ret < 0)
+                return ret;
         }
         if (ost->enc_ctx->ch_layout.nb_channels) {
             int ret = set_channel_layout(ofp, ost);
             if (ret < 0)
                 return ret;
-        } else if (c->ch_layouts) {
-            ofp->ch_layouts = c->ch_layouts;
+        } else {
+            const AVChannelLayout *ch_layouts;
+            ret = avcodec_get_supported_config(ost->enc_ctx, NULL,
+                                               AV_CODEC_CONFIG_CHANNEL_LAYOUT, 0,
+                                               (const void **) &ch_layouts);
+            if (ret < 0)
+                return ret;
+            if (ch_layouts)
+                ofp->ch_layouts = ch_layouts;
         }
         break;
     }
