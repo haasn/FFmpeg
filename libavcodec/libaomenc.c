@@ -1398,16 +1398,24 @@ static const enum AVPixelFormat av1_pix_fmts_highbd_with_gray[] = {
     AV_PIX_FMT_NONE
 };
 
-static av_cold void av1_init_static(FFCodec *codec)
+static int av1_get_supported_config(const AVCodecContext *avctx,
+                                    const AVCodec *codec,
+                                    enum AVCodecConfig config,
+                                    unsigned flags, const void **out)
 {
-    int supports_monochrome = aom_codec_version() >= 20001;
-    aom_codec_caps_t codec_caps = aom_codec_get_caps(aom_codec_av1_cx());
-    if (codec_caps & AOM_CODEC_CAP_HIGHBITDEPTH)
-        codec->p.pix_fmts = supports_monochrome ? av1_pix_fmts_highbd_with_gray :
-                                                  av1_pix_fmts_highbd;
-    else
-        codec->p.pix_fmts = supports_monochrome ? av1_pix_fmts_with_gray :
-                                                  av1_pix_fmts;
+    if (config == AV_CODEC_CONFIG_PIX_FORMAT) {
+        int supports_monochrome = aom_codec_version() >= 20001;
+        aom_codec_caps_t codec_caps = aom_codec_get_caps(aom_codec_av1_cx());
+        if (codec_caps & AOM_CODEC_CAP_HIGHBITDEPTH)
+            *out = supports_monochrome ? av1_pix_fmts_highbd_with_gray :
+                                         av1_pix_fmts_highbd;
+        else
+            *out = supports_monochrome ? av1_pix_fmts_with_gray :
+                                         av1_pix_fmts;
+        return 0;
+    }
+
+    return ff_default_get_supported_config(avctx, codec, config, flags, out);
 }
 
 static av_cold int av1_init(AVCodecContext *avctx)
@@ -1529,5 +1537,5 @@ FFCodec ff_libaom_av1_encoder = {
                       FF_CODEC_CAP_INIT_CLEANUP |
                       FF_CODEC_CAP_AUTO_THREADS,
     .defaults       = defaults,
-    .init_static_data = av1_init_static,
+    .get_supported_config = av1_get_supported_config,
 };
