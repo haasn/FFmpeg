@@ -892,14 +892,24 @@ static const enum AVPixelFormat x265_csp_twelve[] = {
     AV_PIX_FMT_NONE
 };
 
-static av_cold void libx265_encode_init_csp(FFCodec *codec)
+static int libx265_get_supported_config(const AVCodecContext *avctx,
+                                        const AVCodec *codec,
+                                        enum AVCodecConfig config,
+                                        unsigned flags, const void **out)
 {
-    if (x265_api_get(12))
-        codec->p.pix_fmts = x265_csp_twelve;
-    else if (x265_api_get(10))
-        codec->p.pix_fmts = x265_csp_ten;
-    else if (x265_api_get(8))
-        codec->p.pix_fmts = x265_csp_eight;
+    if (config == AV_CODEC_CONFIG_PIX_FORMAT) {
+        if (x265_api_get(12))
+            *out = x265_csp_twelve;
+        else if (x265_api_get(10))
+            *out = x265_csp_ten;
+        else if (x265_api_get(8))
+            *out = x265_csp_eight;
+        else
+            return AVERROR_EXTERNAL;
+        return 0;
+    }
+
+    return ff_default_get_supported_config(avctx, codec, config, flags, out);
 }
 
 #define OFFSET(x) offsetof(libx265Context, x)
@@ -952,7 +962,7 @@ FFCodec ff_libx265_encoder = {
     .p.priv_class     = &class,
     .p.wrapper_name   = "libx265",
     .init             = libx265_encode_init,
-    .init_static_data = libx265_encode_init_csp,
+    .get_supported_config = libx265_get_supported_config,
     FF_CODEC_ENCODE_CB(libx265_encode_frame),
     .close            = libx265_encode_close,
     .priv_data_size   = sizeof(libx265Context),
