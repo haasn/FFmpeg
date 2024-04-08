@@ -770,6 +770,7 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost,
     FilterGraph  *fg = ofilter->graph;
     FilterGraphPriv *fgp = fgp_from_fg(fg);
     const AVCodec *c = ost->enc_ctx->codec;
+    const AVDictionaryEntry *strict = av_dict_get(ost->encoder_opts, "strict", NULL, 0);
     int ret;
 
     av_assert0(!ofilter->ost);
@@ -779,6 +780,10 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost,
 
     ofp->ts_offset     = of->start_time == AV_NOPTS_VALUE ? 0 : of->start_time;
     ofp->enc_timebase = ost->enc_timebase;
+
+    /* Ensure this is up-to-date for avcodefc_get_supported_config() */
+    if (strict)
+        av_opt_set(ost->enc_ctx, strict->key, strict->value, 0);
 
     switch (ost->enc_ctx->codec_type) {
     case AVMEDIA_TYPE_VIDEO:
@@ -800,16 +805,7 @@ int ofilter_bind_ost(OutputFilter *ofilter, OutputStream *ost,
                     { AV_PIX_FMT_YUVJ420P, AV_PIX_FMT_YUVJ422P, AV_PIX_FMT_YUVJ444P,
                       AV_PIX_FMT_NONE };
 
-                const AVDictionaryEntry *strict = av_dict_get(ost->encoder_opts, "strict", NULL, 0);
-                int strict_val = ost->enc_ctx->strict_std_compliance;
-
-                if (strict) {
-                    const AVOption *o = av_opt_find(ost->enc_ctx, strict->key, NULL, 0, 0);
-                    av_assert0(o);
-                    av_opt_eval_int(ost->enc_ctx, o, strict->value, &strict_val);
-                }
-
-                if (strict_val > FF_COMPLIANCE_UNOFFICIAL)
+                if (ost->enc_ctx->strict_std_compliance > FF_COMPLIANCE_UNOFFICIAL)
                     ofp->formats = mjpeg_formats;
             }
         }
