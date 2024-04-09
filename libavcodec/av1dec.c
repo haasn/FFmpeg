@@ -1551,6 +1551,7 @@ static void av1_decode_flush(AVCodecContext *avctx)
 static const AVOption av1_options[] = {
     { "operating_point",  "Select an operating point of the scalable bitstream",
                           OFFSET(operating_point), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, AV1_MAX_OPERATING_POINTS - 1, VD },
+    { "dolbyvision", "Decode Dolby Vision RPUs", OFFSET(dovi.enable), AV_OPT_TYPE_BOOL, {.i64 = 1 }, 0, 1, VD },
     { NULL }
 };
 

@@ -674,6 +674,7 @@ static const AVOption libdav1d_options[] = {
     { "filmgrain", "Apply Film Grain", OFFSET(apply_grain), AV_OPT_TYPE_BOOL, { .i64 = -1 }, -1, 1, VD | AV_OPT_FLAG_DEPRECATED },
     { "oppoint",  "Select an operating point of the scalable bitstream", OFFSET(operating_point), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, 31, VD },
     { "alllayers", "Output all spatial layers", OFFSET(all_layers), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, VD },
+    { "dolbyvision", "Decode Dolby Vision RPUs", OFFSET(dovi.enable), AV_OPT_TYPE_BOOL, {.i64 = 1 }, 0, 1, VD },
     { NULL }
 };
 

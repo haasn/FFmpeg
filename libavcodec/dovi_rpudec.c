@@ -37,6 +37,9 @@ int ff_dovi_attach_side_data(DOVIContext *s, AVFrame *frame)
     AVDOVIMetadata *dovi;
     size_t dovi_size, ext_sz;
 
+    if (!s->enable)
+        return 0;
+
     if (!s->mapping || !s->color)
         return 0; /* incomplete dovi metadata */
 
@@ -305,6 +308,9 @@ int ff_dovi_rpu_parse(DOVIContext *s, const uint8_t *rpu, size_t rpu_size,
     uint8_t use_prev_vdr_rpu;
     uint8_t use_nlq;
     uint8_t profile;
+
+    if (!s->enable)
+        return 0;
 
     if (rpu_size < 5)
         goto fail;

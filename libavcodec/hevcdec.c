@@ -3694,6 +3694,7 @@ static const AVOption options[] = {
         AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, PAR },
     { "strict-displaywin", "stricly apply default display window size", OFFSET(apply_defdispwin),
         AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, PAR },
+    { "dolbyvision", "Decode Dolby Vision RPUs", OFFSET(dovi_ctx.enable), AV_OPT_TYPE_BOOL, {.i64 = 1 }, 0, 1, PAR },
     { NULL },
 };
 

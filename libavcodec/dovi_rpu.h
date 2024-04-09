@@ -37,6 +37,8 @@ typedef struct DOVIContext {
      *
      * For encoding, FF_DOVI_AUTOMATIC enables Dolby Vision only if
      * avctx->decoded_side_data contains an AVDOVIMetadata.
+     *
+     * For decoding, FF_DOVI_AUTOMATIC has the same meaning as 1.
      */
 #define FF_DOVI_AUTOMATIC -1
     int enable;
