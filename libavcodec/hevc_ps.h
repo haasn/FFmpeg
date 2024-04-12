@@ -151,9 +151,20 @@ typedef struct PTL {
     uint8_t sub_layer_level_present_flag[HEVC_MAX_SUB_LAYERS];
 } PTL;
 
+enum HEVCScalabilityType {
+    HEVC_SCALABILITY_TEXTURE_DEPTH      = 0, ///< Texture or depth
+    HEVC_SCALABILITY_MULTIVIEW          = 1, ///< Multiview
+    HEVC_SCALABILITY_SPATIAL_QUALITY    = 2, ///< Spatial/quality scalability
+    HEVC_SCALABILITY_AUXILIARY          = 3, ///< Auxiliary
+    // F.7.4.3.1: scalability_mask_flag[ i ] is reserved for i > 3
+    HEVC_MAX_SCALABILITY_TYPES          = 4,
+};
+
 typedef struct HEVCVPS {
     unsigned int vps_id;
 
+    uint8_t vps_base_layer_internal_flag;
+    uint8_t vps_base_layer_available_flag;
     uint8_t vps_temporal_id_nesting_flag;
     int vps_max_layers;
     int vps_max_sub_layers; ///< vps_max_temporal_layers_minus1 + 1
@@ -171,8 +182,14 @@ typedef struct HEVCVPS {
     uint8_t vps_poc_proportional_to_timing_flag;
     int vps_num_ticks_poc_diff_one; ///< vps_num_ticks_poc_diff_one_minus1 + 1
     int vps_num_hrd_parameters;
-
     HEVCHdrParams *hdr;
+
+    PTL ptl_ext;
+    uint8_t vps_extension_flag;
+    uint8_t scalability_mask;
+    uint8_t scalability_id[HEVC_MAX_LAYERS][HEVC_MAX_SCALABILITY_TYPES];
+    uint8_t num_views;
+    uint8_t view_id_val[HEVC_MAX_VIEWS];
 
     uint8_t *data;
     int data_size;

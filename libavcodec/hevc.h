@@ -105,6 +105,8 @@ enum {
     HEVC_MAX_SUB_LAYERS = 7,
     // 7.4.3.1: vps_num_layer_sets_minus1 is in [0, 1023].
     HEVC_MAX_LAYER_SETS = 1024,
+    // F.7.4.3.1.1: NumViews is constrained by 1 + MaxLayersMinus1
+    HEVC_MAX_VIEWS      = HEVC_MAX_LAYERS,
 
     // 7.4.2.1: vps_video_parameter_set_id is u(4).
     HEVC_MAX_VPS_COUNT = 16,
