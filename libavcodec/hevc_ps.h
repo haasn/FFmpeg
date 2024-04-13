@@ -151,14 +151,71 @@ typedef struct PTL {
     uint8_t sub_layer_level_present_flag[HEVC_MAX_SUB_LAYERS];
 } PTL;
 
+typedef struct HEVCRepFormat {
+    uint8_t XXX; // TODO
+} HEVCRepFormat;
+
+typedef struct HEVCVPSVui {
+    uint8_t XXX; // TODO
+} HEVCVPSVui;
+
 enum HEVCScalabilityType {
     HEVC_SCALABILITY_TEXTURE_DEPTH      = 0, ///< Texture or depth
     HEVC_SCALABILITY_MULTIVIEW          = 1, ///< Multiview
     HEVC_SCALABILITY_SPATIAL_QUALITY    = 2, ///< Spatial/quality scalability
     HEVC_SCALABILITY_AUXILIARY          = 3, ///< Auxiliary
     // F.7.4.3.1: scalability_mask_flag[ i ] is reserved for i > 3
-    HEVC_MAX_SCALABILITY_TYPES          = 4,
+    HEVC_MAX_SCALABILITY_TYPES,
 };
+
+typedef struct HEVCVPSExt {
+    PTL ptl[HEVC_MAX_PTL];
+
+    /* Flags */
+    unsigned splitting_flag : 1;
+    unsigned vps_nuh_layer_id_present_flag : 1;
+    unsigned max_tid_ref_present_flag : 1;
+    unsigned default_ref_layers_active_flag : 1;
+    unsigned rep_format_idx_present_flag : 1;
+    unsigned max_one_active_layer_flag : 1;
+    unsigned vps_poc_lsb_aligned_flag : 1;
+    unsigned direct_dependency_all_layers_flag : 1;
+    unsigned vps_vui_present_flag : 1;
+
+    /* Bitstream elements */
+    uint8_t scalability_mask_flag[HEVC_MAX_SCALABILITY_TYPES];
+    uint8_t dimension_id_len[HEVC_MAX_SCALABILITY_TYPES];
+    uint8_t layer_id_in_nuh[HEVC_MAX_LAYERS];
+    uint8_t dimension_id[HEVC_MAX_LAYERS][HEVC_MAX_SCALABILITY_TYPES];
+    uint8_t view_id_len;
+    uint8_t view_id_val[HEVC_MAX_LAYERS];
+    uint8_t direct_dependency_flag[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    uint16_t num_add_layer_sets;
+    int8_t highest_layer_idx[HEVC_MAX_LAYER_SETS][HEVC_MAX_LAYERS]; ///< highest_layer_idx_plus1 - 1
+    uint8_t sub_layers_vps_max[HEVC_MAX_LAYERS]; ///< sub_layers_vps_max_minus_1 + 1
+    int8_t max_tid_il_ref_pics[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS]; ///< max_tid_il_ref_pics_plus1 - 1
+    uint8_t vps_num_ptl; ///< vps_num_profile_tier_level_minus1 + 1
+    uint8_t vps_profile_present_flag[HEVC_MAX_PTL];
+    uint16_t num_add_olss;
+    uint8_t default_output_layer_idc;
+    uint16_t layer_set_idx_for_ols[HEVC_MAX_OUTPUT_LAYER_SETS];
+    uint8_t output_layer_flag[HEVC_MAX_OUTPUT_LAYER_SETS][HEVC_MAX_LAYERS];
+    uint8_t ptl_index[HEVC_MAX_OUTPUT_LAYER_SETS][HEVC_MAX_LAYERS];
+    uint8_t alt_output_layer_flag[HEVC_MAX_OUTPUT_LAYER_SETS];
+    uint16_t vps_num_rep_formats; 
+    HEVCRepFormat vps_rep_formats[HEVC_MAX_REP_FORMATS];
+    uint8_t vps_rep_format_idx[HEVC_MAX_LAYERS];
+    uint8_t poc_lsb_not_present_flag[HEVC_MAX_LAYERS];
+    /* TODO: dpb_size() */
+    uint8_t direct_dep_type_len; ///< direct_dep_type_len_minus2
+    uint8_t direct_dependency_all_layers_type;
+    uint8_t direct_dependency_type[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    HEVCVPSVui vps_vui;
+
+    /* Semantic (derived) elements */
+    uint8_t num_scalability_types;
+    uint8_t dim_bit_offset[HEVC_MAX_SCALABILITY_TYPES];
+} HEVCVPSExt;
 
 typedef struct HEVCVPS {
     unsigned int vps_id;
@@ -184,12 +241,18 @@ typedef struct HEVCVPS {
     int vps_num_hrd_parameters;
     HEVCHdrParams *hdr;
 
+    HEVCVPSExt vps_extension;
+
     PTL ptl_ext;
     uint8_t vps_extension_flag;
-    uint8_t scalability_mask;
     uint8_t scalability_id[HEVC_MAX_LAYERS][HEVC_MAX_SCALABILITY_TYPES];
     uint8_t num_views;
     uint8_t view_id_val[HEVC_MAX_VIEWS];
+    uint64_t layer_dependencies[HEVC_MAX_LAYERS]; ///< bitmask of previous layers
+
+    uint8_t  id_direct_ref_layer[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    uint8_t  id_ref_layer[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    uint8_t  id_predicted_layer[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
 
     uint8_t *data;
     int data_size;

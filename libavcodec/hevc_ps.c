@@ -455,13 +455,154 @@ static void hevc_vps_free(FFRefStructOpaque opaque, void *obj)
     av_freep(&vps->data);
 }
 
+static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx,
+                          HEVCVPS *vps)
+{
+    HEVCVPSExt *ext = &vps->vps_extension;
+    int max_layers;
+
+    align_get_bits(gb);
+    if (vps->vps_max_layers > 1 && vps->vps_base_layer_internal_flag) {
+        if (parse_ptl(gb, avctx, 0, &ext->ptl[0], vps->vps_max_sub_layers) < 0)
+            return AVERROR_INVALIDDATA;
+    }
+
+    ext->splitting_flag = get_bits1(gb);
+    ext->num_scalability_types = 0;
+    for (int i = 0; i < HEVC_MAX_SCALABILITY_TYPES; i++) {
+        ext->scalability_mask_flag[i] = get_bits1(gb);
+        ext->num_scalability_types += ext->scalability_mask_flag[i];
+    }
+    for (int i = HEVC_MAX_SCALABILITY_TYPES; i < 16; i++) {
+        if (get_bits1(gb) != 0) {
+            av_log(avctx, AV_LOG_ERROR, "scalability_mask[ %d ] is reserved\n", i);
+            return AVERROR_INVALIDDATA;
+        }
+    }
+    for (int i = 0; i < ext->num_scalability_types - ext->splitting_flag; i++)
+        ext->dimension_id_len[i] = get_bits(gb, 3) + 1;
+    ext->vps_nuh_layer_id_present_flag = get_bits1(gb);
+    for (int i = 1; i < vps->vps_max_layers; i++) {
+        if (ext->vps_nuh_layer_id_present_flag)
+            ext->layer_id_in_nuh[i] = get_bits(gb, 6);
+        if (!ext->splitting_flag) {
+            for (int j = 0; j < ext->num_scalability_types; j++)
+                ext->dimension_id[i][j] = get_bits(gb, ext->dimension_id_len[j]);
+        }
+    }
+
+    if (ext->splitting_flag) {
+        for (int j = 0, offset = 0; j < ext->num_scalability_types; j++) {
+            ext->dim_bit_offset[j] = offset;
+            offset += ext->dimension_id_len[j];
+            if (offset >= 6) {
+                av_log(avctx, AV_LOG_ERROR, "invalid dimBitOffset: %d\n", offset);
+                return AVERROR_INVALIDDATA;
+            }
+        }
+    }
+
+    ext->view_id_len = get_bits(gb, 4);
+
+    abort(); // TODO
+}
+#if 0
+        int splitting_flag, num_scalability_types, view_id_len, num_views,
+            vps_nuh_layer_id_present, num_independent_layers;
+        uint8_t dimension_id_len[HEVC_MAX_SCALABILITY_TYPES];
+        uint8_t dimension_id[HEVC_MAX_LAYERS][HEVC_MAX_SCALABILITY_TYPES];
+        uint8_t layer_id_in_nuh[HEVC_MAX_LAYERS];
+        uint64_t layer_id_in_list = 0;
+
+        vps_nuh_layer_id_present = get_bits1(gb);
+        memset(dimension_id[0], 0, sizeof(dimension_id[0]));
+
+        if (splitting_flag) {
+            for (i = 0; i < vps->vps_max_layers; i++) {
+                int offset = 0, next_offset;
+                for (j = 0; j < num_scalability_types; j++) {
+                    if (j == num_scalability_types - 1) {
+                        next_offset = 6;
+                    } else {
+                        next_offset = offset + dimension_id_len[j];
+                        if (next_offset >= 6) {
+                            av_log(avctx, AV_LOG_ERROR, "invalid dimBitOffset: %d\n", next_offset);
+                            goto err;
+                        }
+                    }
+                    dimension_id[i][j] = ((layer_id_in_nuh[i] & ((1 << next_offset) - 1)) >> offset);
+                    offset = next_offset;
+                }
+            }
+        }
+
+        num_views = 0;
+        for (i = 0; i < vps->vps_max_layers; i++) {
+            int smidx, lid = layer_id_in_nuh[i], new_view;
+            for (smidx = 0, j = 0; smidx < HEVC_MAX_SCALABILITY_TYPES; smidx++) {
+                if (vps->scalability_mask & (1 << smidx))
+                    vps->scalability_id[i][smidx] = dimension_id[i][j++];
+                else
+                    vps->scalability_id[i][smidx] = 0;
+            }
+
+            new_view = 1;
+            for (j = 0; j < i; j++) {
+                int cur_view = vps->scalability_id[lid][HEVC_SCALABILITY_MULTIVIEW];
+                int old_view = vps->scalability_id[layer_id_in_nuh[j]][HEVC_SCALABILITY_MULTIVIEW];
+                if (cur_view == old_view) {
+                    new_view = 0;
+                    break;
+                }
+            }
+
+            num_views += new_view;
+        }
+        av_assert1(num_views >= 1);
+
+        view_id_len = get_bits(gb, 4);
+        if (view_id_len > 0) {
+            for (i = 0; i < num_views; i++)
+                vps->view_id_val[i] = get_bits(gb, view_id_len);
+        } else {
+            memset(vps->view_id_val, 0, num_views * sizeof(vps->view_id_val[0]));
+        }
+
+        int direct_dependency_flag[HEVC_MAX_LAYERS];
+        memset(vps->layer_dependencies, 0, sizeof(vps->layer_dependencies));
+        for (i = 1; i < vps->vps_max_layers; i++) {
+            for (j = 0; j < i; j++) {
+                int dep_flag = get_bits1(gb);
+                if (dep_flag) {
+                    direct_dependency_flag[i] |= 1 << j;
+                    vps->layer_dependencies[i] |= vps->layer_dependencies[j];
+                }
+            }
+            vps->layer_dependencies[i] |= direct_dependency_flag[i];
+        }
+
+        for (i = 0; i < vps->vps_max_layers; i++) {
+            int d, r, p, i_lid = layer_id_in_nuh[i];
+            for (j = 0, d = 0, r = 0, p = 0; j < vps->vps_max_layers; j++) {
+                int j_lid = layer_id_in_nuh[j];
+                if (direct_dependency_flag[i] & (1 << j))
+                    vps->id_direct_ref_layer[i_lid][d++] = j_lid;
+                if (vps->layer_dependencies[i] & (1 << j))
+                    vps->id_direct_ref_layer[i_lid][r++] = j_lid;
+                if (vps->layer_dependencies[j] & (1 << i))
+                    vps->id_direct_ref_layer[i_lid][p++] = j_lid;
+            }
+        }
+#endif
+
+
 int ff_hevc_decode_nal_vps(GetBitContext *gb, AVCodecContext *avctx,
                            HEVCParamSets *ps)
 {
     int i,j;
     int vps_id = get_bits(gb, 4);
     ptrdiff_t nal_size = gb->buffer_end - gb->buffer;
-    int ret = AVERROR_INVALIDDATA;
+    int ok, ret = AVERROR_INVALIDDATA;
     HEVCVPS *vps;
 
     if (ps->vps_list[vps_id]) {
@@ -585,91 +726,10 @@ int ff_hevc_decode_nal_vps(GetBitContext *gb, AVCodecContext *avctx,
     }
 
     if (vps->vps_extension_flag) {
-        int splitting_flag, num_scalability_types, view_id_len, num_views,
-            vps_nuh_layer_id_present;
-        uint8_t dimension_id_len[HEVC_MAX_SCALABILITY_TYPES];
-        uint8_t dimension_id[HEVC_MAX_LAYERS][HEVC_MAX_SCALABILITY_TYPES];
-        uint8_t layer_id_in_nuh[HEVC_MAX_LAYERS];
-
-        align_get_bits(gb);
-        if (vps->vps_max_layers > 1 && vps->vps_base_layer_internal_flag) {
-            if (parse_ptl(gb, avctx, 0, &vps->ptl_ext, vps->vps_max_sub_layers) < 0)
-                goto err;
-        }
-        splitting_flag = get_bits1(gb);
-        vps->scalability_mask = 0;
-        for (i = 0; i < HEVC_MAX_SCALABILITY_TYPES; i++)
-            vps->scalability_mask |= get_bits1(gb) << i;
-        for (i = HEVC_MAX_SCALABILITY_TYPES; i < 16; i++) {
-            if (get_bits1(gb) != 0) {
-                av_log(avctx, AV_LOG_ERROR, "scalability_mask[ %d ] is reserved\n", i);
-                goto err;
-            }
-        }
-
-        num_scalability_types = av_popcount(vps->scalability_mask);
-        for (i = 0; i < num_scalability_types - splitting_flag; i++)
-            dimension_id_len[i] = get_bits(gb, 3) + 1;
-        vps_nuh_layer_id_present = get_bits1(gb);
-        memset(dimension_id[0], 0, sizeof(dimension_id[0]));
-        for (i = 1; i < vps->vps_max_layers; i++) {
-            if (vps_nuh_layer_id_present)
-                layer_id_in_nuh[i] = get_bits(gb, 6);
-            if (!splitting_flag) {
-                for (j = 0; j < num_scalability_types; j++)
-                    dimension_id[i][j] = get_bits(gb, dimension_id_len[j]);
-            }
-        }
-
-        if (splitting_flag) {
-            for (i = 0; i < vps->vps_max_layers; i++) {
-                int offset = 0, next_offset;
-                for (j = 0; j < num_scalability_types; j++) {
-                    if (j == num_scalability_types - 1) {
-                        next_offset = 6;
-                    } else {
-                        next_offset = offset + dimension_id_len[j];
-                        if (next_offset >= 6) {
-                            av_log(avctx, AV_LOG_ERROR, "invalid dimBitOffset: %d\n", next_offset);
-                            goto err;
-                        }
-                    }
-                    dimension_id[i][j] = ((layer_id_in_nuh[i] & ((1 << next_offset) - 1)) >> offset);
-                    offset = next_offset;
-                }
-            }
-        }
-
-        num_views = 0;
-        for (i = 0; i < vps->vps_max_layers; i++) {
-            int smidx, lid = layer_id_in_nuh[i], new_view;
-            for (smidx = 0, j = 0; smidx < HEVC_MAX_SCALABILITY_TYPES; smidx++) {
-                if (vps->scalability_mask & (1 << smidx))
-                    vps->scalability_id[i][smidx] = dimension_id[i][j++];
-                else
-                    vps->scalability_id[i][smidx] = 0;
-            }
-
-            new_view = 1;
-            for (j = 0; j < i; j++) {
-                int cur_view = vps->scalability_id[lid][HEVC_SCALABILITY_MULTIVIEW];
-                int old_view = vps->scalability_id[layer_id_in_nuh[j]][HEVC_SCALABILITY_MULTIVIEW];
-                if (cur_view == old_view) {
-                    new_view = 0;
-                    break;
-                }
-            }
-
-            num_views += new_view;
-        }
-        av_assert1(num_views >= 1);
-
-        view_id_len = get_bits(gb, 4);
-        if (view_id_len > 0) {
-            for (i = 0; i < num_views; i++)
-                vps->view_id_val[i] = get_bits(gb, view_id_len);
-        } else {
-            memset(vps->view_id_val, 0, num_views * sizeof(vps->view_id_val[0]));
+        ok = decode_vps_ext(gb, avctx, vps);
+        if (ok < 0) {
+            ret = ok;
+            goto err;
         }
     }
 
