@@ -168,12 +168,18 @@ enum HEVCScalabilityType {
     HEVC_MAX_SCALABILITY_TYPES,
 };
 
+enum HEVCAuxiliaryId {
+    HEVC_AUX_ALPHA          = 1, ///< Alpha plane
+    HEVC_AUX_DEPTH          = 2, ///< Depth picture
+};
+
 typedef struct HEVCVPSExt {
     PTL ptl[HEVC_MAX_PTL];
 
     /* Flags */
     unsigned splitting_flag : 1;
     unsigned vps_nuh_layer_id_present_flag : 1;
+    unsigned vps_sub_layers_max_present_flag : 1;
     unsigned max_tid_ref_present_flag : 1;
     unsigned default_ref_layers_active_flag : 1;
     unsigned rep_format_idx_present_flag : 1;
@@ -214,7 +220,23 @@ typedef struct HEVCVPSExt {
 
     /* Semantic (derived) elements */
     uint8_t num_scalability_types;
-    uint8_t dim_bit_offset[HEVC_MAX_SCALABILITY_TYPES];
+    uint8_t dim_bit_offset[HEVC_MAX_SCALABILITY_TYPES + 1];
+    uint8_t num_views;
+    uint8_t scalability_id[HEVC_MAX_LAYERS][HEVC_MAX_SCALABILITY_TYPES];
+    uint8_t depth_layer_flag[HEVC_MAX_LAYERS];
+    uint8_t view_order_idx[HEVC_MAX_LAYERS];
+    uint8_t dependency_id[HEVC_MAX_LAYERS];
+    uint8_t aux_id[HEVC_MAX_LAYERS];
+    uint8_t dependency_flag[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    uint8_t num_direct_ref_layers[HEVC_MAX_LAYERS];
+    uint8_t id_direct_ref_layer[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    uint8_t num_ref_layers[HEVC_MAX_LAYERS];
+    uint8_t id_ref_layer[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    uint8_t num_predicted_layers[HEVC_MAX_LAYERS];
+    uint8_t id_predicted_layer[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    uint8_t num_independent_layers;
+    uint8_t num_layers_in_tree_partition[HEVC_MAX_LAYERS];
+    uint8_t tree_partition_layer_id_list[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
 } HEVCVPSExt;
 
 typedef struct HEVCVPS {
@@ -241,18 +263,8 @@ typedef struct HEVCVPS {
     int vps_num_hrd_parameters;
     HEVCHdrParams *hdr;
 
-    HEVCVPSExt vps_extension;
-
-    PTL ptl_ext;
     uint8_t vps_extension_flag;
-    uint8_t scalability_id[HEVC_MAX_LAYERS][HEVC_MAX_SCALABILITY_TYPES];
-    uint8_t num_views;
-    uint8_t view_id_val[HEVC_MAX_VIEWS];
-    uint64_t layer_dependencies[HEVC_MAX_LAYERS]; ///< bitmask of previous layers
-
-    uint8_t  id_direct_ref_layer[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
-    uint8_t  id_ref_layer[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
-    uint8_t  id_predicted_layer[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    HEVCVPSExt vps_extension;
 
     uint8_t *data;
     int data_size;
