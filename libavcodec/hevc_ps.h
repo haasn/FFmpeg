@@ -174,6 +174,9 @@ typedef struct HEVCVPS {
 
     HEVCHdrParams *hdr;
 
+    /* VPS extension */
+    PTL ptl_mv;
+
     uint8_t *data;
     int data_size;
 } HEVCVPS;

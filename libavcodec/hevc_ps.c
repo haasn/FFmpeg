@@ -318,11 +318,17 @@ static int decode_profile_tier_level(GetBitContext *gb, AVCodecContext *avctx,
 }
 
 static int parse_ptl(GetBitContext *gb, AVCodecContext *avctx,
-                      PTL *ptl, int max_num_sub_layers)
+                     int profile_present, PTL *ptl, int max_num_sub_layers)
 {
-    int i;
-    if (decode_profile_tier_level(gb, avctx, &ptl->general_ptl) < 0 ||
-        get_bits_left(gb) < 8 + (8*2 * (max_num_sub_layers - 1 > 0))) {
+    int i, status = 0;
+
+    if (profile_present) {
+        status = decode_profile_tier_level(gb, avctx, &ptl->general_ptl);
+    } else {
+        memset(&ptl->general_ptl, 0, sizeof(ptl->general_ptl));
+    }
+
+    if (status < 0 || get_bits_left(gb) < 8 + (8*2 * (max_num_sub_layers - 1 > 0))) {
         av_log(avctx, AV_LOG_ERROR, "PTL information too short\n");
         return -1;
     }
@@ -451,6 +457,33 @@ static void hevc_vps_free(FFRefStructOpaque opaque, void *obj)
     av_freep(&vps->data);
 }
 
+enum ScalabilityMask {
+    HEVC_SCALABILITY_DEPTH = 0,
+    HEVC_SCALABILITY_MULTIVIEW = 1,
+    HEVC_SCALABILITY_SPATIAL = 2,
+    HEVC_SCALABILITY_AUXILIARY = 3,
+    HEVC_SCALABILITY_MASK_MAX = 16,
+};
+
+static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps)
+{
+    int splitting_flag;
+
+    av_assert1(vps->vps_max_layers > 1);
+    if (parse_ptl(gb, avctx, 0, &vps->ptl_mv, vps->vps_max_sub_layers) < 0)
+        return AVERROR_INVALIDDATA;
+
+    splitting_flag = get_bits1(gb);
+    for (int i = 0; i < HEVC_SCALABILITY_MASK_MAX; i++) {
+        int scalability_mask_flag = get_bits1(gb);
+        if (scalability_mask_flag && i != HEVC_SCALABILITY_MULTIVIEW)
+            return AVERROR_PATCHWELCOME;
+    }
+
+
+    return 0; /* TODO */
+}
+
 int ff_hevc_decode_nal_vps(GetBitContext *gb, AVCodecContext *avctx,
                            HEVCParamSets *ps)
 {
@@ -501,7 +534,7 @@ int ff_hevc_decode_nal_vps(GetBitContext *gb, AVCodecContext *avctx,
         goto err;
     }
 
-    if (parse_ptl(gb, avctx, &vps->ptl, vps->vps_max_sub_layers) < 0)
+    if (parse_ptl(gb, avctx, 1, &vps->ptl, vps->vps_max_sub_layers) < 0)
         goto err;
 
     vps->vps_sub_layer_ordering_info_present_flag = get_bits1(gb);
@@ -567,7 +600,15 @@ int ff_hevc_decode_nal_vps(GetBitContext *gb, AVCodecContext *avctx,
                        vps->vps_max_sub_layers);
         }
     }
-    get_bits1(gb); /* vps_extension_flag */
+    if (vps->vps_max_layers > 1 && get_bits1(gb)) { /* vps_extension_flag */
+        int status = decode_vps_ext(gb, avctx, vps);
+        if (status == AVERROR_PATCHWELCOME) {
+            av_log(avctx, AV_LOG_WARNING, "Ignoring unsupported VPS extension\n");
+        } else if (status < 0) {
+            ret = status;
+            goto err;
+        }
+    }
 
     if (get_bits_left(gb) < 0) {
         av_log(avctx, AV_LOG_ERROR,
@@ -897,7 +938,7 @@ int ff_hevc_parse_sps(HEVCSPS *sps, GetBitContext *gb, unsigned int *sps_id,
 
     sps->temporal_id_nesting_flag = get_bits(gb, 1);
 
-    if ((ret = parse_ptl(gb, avctx, &sps->ptl, sps->max_sub_layers)) < 0)
+    if ((ret = parse_ptl(gb, avctx, 1, &sps->ptl, sps->max_sub_layers)) < 0)
         return ret;
 
     *sps_id = get_ue_golomb_long(gb);
