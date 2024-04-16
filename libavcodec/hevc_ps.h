@@ -208,14 +208,14 @@ typedef struct HEVCVPSExt {
     uint8_t output_layer_flag[HEVC_MAX_OUTPUT_LAYER_SETS][HEVC_MAX_LAYERS];
     uint8_t ptl_index[HEVC_MAX_OUTPUT_LAYER_SETS][HEVC_MAX_LAYERS];
     uint8_t alt_output_layer_flag[HEVC_MAX_OUTPUT_LAYER_SETS];
-    uint16_t vps_num_rep_formats; 
+    uint16_t vps_num_rep_formats;
     HEVCRepFormat vps_rep_formats[HEVC_MAX_REP_FORMATS];
     uint8_t vps_rep_format_idx[HEVC_MAX_LAYERS];
     uint8_t poc_lsb_not_present_flag[HEVC_MAX_LAYERS];
     /* TODO: dpb_size() */
     uint8_t direct_dep_type_len; ///< direct_dep_type_len_minus2
-    uint8_t direct_dependency_all_layers_type;
-    uint8_t direct_dependency_type[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    uint32_t direct_dependency_all_layers_type;
+    uint32_t direct_dependency_type[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
     HEVCVPSVui vps_vui;
 
     /* Semantic (derived) elements */
@@ -237,6 +237,10 @@ typedef struct HEVCVPSExt {
     uint8_t num_independent_layers;
     uint8_t num_layers_in_tree_partition[HEVC_MAX_LAYERS];
     uint8_t tree_partition_layer_id_list[HEVC_MAX_LAYERS][HEVC_MAX_LAYERS];
+    uint8_t layer_id_in_list_flag[HEVC_MAX_LAYERS];
+    uint8_t num_layers_in_id_list[HEVC_MAX_LAYER_SETS];
+    uint8_t layer_set_layer_id_list[HEVC_MAX_LAYER_SETS][HEVC_MAX_LAYERS];
+    uint16_t ols_idx_to_ls_idx[HEVC_MAX_OUTPUT_LAYER_SETS];
 } HEVCVPSExt;
 
 typedef struct HEVCVPS {
@@ -255,6 +259,7 @@ typedef struct HEVCVPS {
     unsigned int vps_max_latency_increase[HEVC_MAX_SUB_LAYERS];
     int vps_max_layer_id;
     int vps_num_layer_sets; ///< vps_num_layer_sets_minus1 + 1
+    uint8_t layer_id_included_flag[HEVC_MAX_LAYER_SETS][HEVC_MAX_LAYERS];
     uint8_t vps_timing_info_present_flag;
     uint32_t vps_num_units_in_tick;
     uint32_t vps_time_scale;
