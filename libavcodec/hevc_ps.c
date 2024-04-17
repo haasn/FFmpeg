@@ -467,7 +467,12 @@ enum ScalabilityMask {
 
 static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps)
 {
-    int splitting_flag;
+    int splitting_flag, dimension_id_len;
+
+    if (vps->vps_max_layers > 2)
+        return AVERROR_PATCHWELCOME;
+
+    align_get_bits(gb);
 
     av_assert1(vps->vps_max_layers > 1);
     if (parse_ptl(gb, avctx, 0, &vps->ptl_mv, vps->vps_max_sub_layers) < 0)
@@ -480,6 +485,10 @@ static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps
             return AVERROR_PATCHWELCOME;
     }
 
+    if (!splitting_flag) {
+        int dimension_id_len = get_bits(gb, 3) + 1;
+        printf("dimension_id_len: %d\n", dimension_id_len);
+    }
 
     return 0; /* TODO */
 }
