@@ -151,20 +151,38 @@ typedef struct PTL {
     uint8_t sub_layer_level_present_flag[HEVC_MAX_SUB_LAYERS];
 } PTL;
 
+typedef struct RepFormat {
+    uint16_t pic_width_vps_in_luma_samples;
+    uint16_t pic_height_vps_in_luma_samples;
+    uint8_t chroma_format_vps_idc;
+    uint8_t separate_colour_plane_vps_flag;
+    uint8_t bit_depth_vps_luma; ///< bit_depth_vps_luma_minus8 + 8
+    uint8_t bit_depth_vps_chroma; ///< bit_depth_vps_chroma_minus8 + 8
+    uint16_t conf_win_vps_left_offset;
+    uint16_t conf_win_vps_right_offset;
+    uint16_t conf_win_vps_top_offset;
+    uint16_t conf_win_vps_bottom_offset;
+} RepFormat;
+
+enum DirectDependencyType {
+};
+
 typedef struct HEVCVPS {
     unsigned int vps_id;
 
     uint8_t vps_temporal_id_nesting_flag;
     int vps_max_layers;
     int vps_max_sub_layers; ///< vps_max_temporal_layers_minus1 + 1
+    int vps_num_ptl;
 
-    PTL ptl;
+    PTL ptl[HEVC_MAX_LAYERS];
     int vps_sub_layer_ordering_info_present_flag;
     unsigned int vps_max_dec_pic_buffering[HEVC_MAX_SUB_LAYERS];
     unsigned int vps_num_reorder_pics[HEVC_MAX_SUB_LAYERS];
     unsigned int vps_max_latency_increase[HEVC_MAX_SUB_LAYERS];
     int vps_max_layer_id;
     int vps_num_layer_sets; ///< vps_num_layer_sets_minus1 + 1
+    uint8_t layer_id_included_flag[HEVC_MAX_LAYER_SETS][HEVC_MAX_LAYER_ID];
     uint8_t vps_timing_info_present_flag;
     uint32_t vps_num_units_in_tick;
     uint32_t vps_time_scale;
@@ -175,7 +193,16 @@ typedef struct HEVCVPS {
     HEVCHdrParams *hdr;
 
     /* VPS extension */
-    PTL ptl_mv;
+    uint8_t vps_max_sub_layers_ext[HEVC_MAX_LAYERS]; ///< sub_layers_vps_max_minus1 + 1
+    int8_t max_tid_il_ref_pics; ///< max_tid_il_ref_pics_plus1 - 1
+    uint8_t default_ref_layers_active_flag;
+    uint8_t max_one_active_ref_layer_flag;
+    uint8_t vps_poc_lsb_aligned_flag;
+    uint8_t ptl_idx[HEVC_MAX_LAYER_SETS][HEVC_MAX_LAYERS];
+    unsigned int vps_max_dec_pic_buffering_ext[HEVC_MAX_LAYERS][HEVC_MAX_SUB_LAYERS];
+    unsigned int vps_num_reorder_pics_ext[HEVC_MAX_SUB_LAYERS];
+    unsigned int vps_max_latency_increase_ext[HEVC_MAX_SUB_LAYERS];
+    RepFormat rep_format;
 
     uint8_t *data;
     int data_size;

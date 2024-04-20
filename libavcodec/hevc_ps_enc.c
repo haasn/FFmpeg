@@ -77,7 +77,7 @@ int ff_hevc_encode_nal_vps(HEVCVPS *vps, unsigned int id,
     put_bits(&pb,  1, vps->vps_temporal_id_nesting_flag);
     put_bits(&pb, 16, 0xffff);                          // reserved
 
-    write_ptl(&pb, &vps->ptl, vps->vps_max_sub_layers);
+    write_ptl(&pb, &vps->ptl[0], vps->vps_max_sub_layers);
 
     put_bits(&pb, 1, vps->vps_sub_layer_ordering_info_present_flag);
     for (i = vps->vps_sub_layer_ordering_info_present_flag ? 0 : vps->vps_max_layers - 1;

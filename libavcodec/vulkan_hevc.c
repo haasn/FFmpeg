@@ -601,14 +601,14 @@ static void set_vps(const HEVCVPS *vps,
 
     *ptl = (StdVideoH265ProfileTierLevel) {
         .flags = (StdVideoH265ProfileTierLevelFlags) {
-            .general_tier_flag = vps->ptl.general_ptl.tier_flag,
-            .general_progressive_source_flag = vps->ptl.general_ptl.progressive_source_flag,
-            .general_interlaced_source_flag = vps->ptl.general_ptl.interlaced_source_flag,
-            .general_non_packed_constraint_flag = vps->ptl.general_ptl.non_packed_constraint_flag,
-            .general_frame_only_constraint_flag = vps->ptl.general_ptl.frame_only_constraint_flag,
+            .general_tier_flag = vps->ptl[0].general_ptl.tier_flag,
+            .general_progressive_source_flag = vps->ptl[0].general_ptl.progressive_source_flag,
+            .general_interlaced_source_flag = vps->ptl[0].general_ptl.interlaced_source_flag,
+            .general_non_packed_constraint_flag = vps->ptl[0].general_ptl.non_packed_constraint_flag,
+            .general_frame_only_constraint_flag = vps->ptl[0].general_ptl.frame_only_constraint_flag,
         },
-        .general_profile_idc = vps->ptl.general_ptl.profile_idc,
-        .general_level_idc = convert_to_vk_level_idc(vps->ptl.general_ptl.level_idc),
+        .general_profile_idc = vps->ptl[0].general_ptl.profile_idc,
+        .general_level_idc = convert_to_vk_level_idc(vps->ptl[0].general_ptl.level_idc),
     };
 
     for (int i = 0; i < vps->vps_max_sub_layers; i++) {

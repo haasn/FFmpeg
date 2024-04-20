@@ -465,17 +465,58 @@ enum ScalabilityMask {
     HEVC_SCALABILITY_MASK_MAX = 16,
 };
 
+enum DependencyType {
+    HEVC_DEP_TYPE_SAMPLE = 0,
+    HEVC_DEP_TYPE_MV     = 1,
+    HEVC_DEP_TYPE_BOTH   = 2,
+};
+
 static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps)
 {
-    int splitting_flag, dimension_id_len;
+    int splitting_flag, dimension_id_len, view_id_len, num_add_olss,
+        default_output_layer_idc, direct_dep_type_len, direct_dep_type;
 
-    if (vps->vps_max_layers > 2)
+    if (vps->vps_max_layers > 2 || vps->vps_num_layer_sets != 2 ||
+        vps->vps_max_layer_id != 1)
         return AVERROR_PATCHWELCOME;
 
     align_get_bits(gb);
 
-    av_assert1(vps->vps_max_layers > 1);
-    if (parse_ptl(gb, avctx, 0, &vps->ptl_mv, vps->vps_max_sub_layers) < 0)
+    /**
+     * For stereoscopic MV-HEVC, the following simplifying assumptions are made:
+     *
+     * - vps_max_layers = 2 (one base layer, one multiview layer)
+     * - vps_max_layer_id = 1 (constrained by number of valid layers)
+     * - vps_num_layer_sets = 2 (one output layer set for each view)
+     * - NumScalabilityTypes = 1 (only HEVC_SCALABILITY_MULTIVIEW)
+     * - layer_id_in_nuh = {0, 1} (single multiview layer only)
+     * - view_id_val = {0, 1} (two distinct views)
+     * - direct_dependency_flag[1][0] = 1 (second layer depends on first)
+     * - num_add_olss = 0 (no extra output layer sets)
+     * - default_output_layer_idc = 0 (1:1 mapping between OLSs and layers)
+     * - layer_id_included_flag[1] = {1, 1} (consequence of layer dependencies)
+     * - vps_num_rep_formats_minus1 = 0 (all layers have the same size)
+     *
+     * Which results in the following derived variables:
+     * - ViewOrderIdx = {0, 1}
+     * - NumViews = 2
+     * - DependencyFlag[1][0] = 1
+     * - NumDirectRefLayers = {0, 1}
+     * - NumRefLayers = {0, 1}
+     * - NumPredictedLayers = {1, 0}
+     * - NumIndependentLayers = 1
+     * - NumLayersInTreePartition = {2}
+     * - NumLayerSets = 2
+     * - NumOutputLayerSets = 2
+     * - OlsIdxToLsIdx = {0, 1}
+     * - LayerIdxInVps = {0, 1}
+     * - NumLayersInIdList = {1, 2}
+     * - NumNecessaryLayers = {1, 2}
+     * - NecessaryLayerFlag = {{1, 0}, {1, 1}}
+     * - NumOutputLayersInOutputLayerSet = {1, 2}
+     */
+
+    if (parse_ptl(gb, avctx, 0, &vps->ptl[1], vps->vps_max_sub_layers) < 0)
         return AVERROR_INVALIDDATA;
 
     splitting_flag = get_bits1(gb);
@@ -485,12 +526,150 @@ static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps
             return AVERROR_PATCHWELCOME;
     }
 
-    if (!splitting_flag) {
-        int dimension_id_len = get_bits(gb, 3) + 1;
-        printf("dimension_id_len: %d\n", dimension_id_len);
+    if (!splitting_flag)
+        dimension_id_len = get_bits(gb, 3) + 1;
+
+    if (get_bits1(gb)) { /* vps_nuh_layer_id_present_flag */
+        int layer_id_in_nuh = get_bits(gb, 6);
+        if (layer_id_in_nuh != 1) {
+            av_log(avctx, AV_LOG_ERROR, "Unexpected layer_id_in_nuh[1]: %d\n",
+                   layer_id_in_nuh);
+            return AVERROR_INVALIDDATA;
+        }
+
+        if (!splitting_flag) {
+            int view_idx = get_bits(gb, dimension_id_len);
+            if (view_idx != 1) {
+                av_log(avctx, AV_LOG_ERROR, "Unexpected ViewOrderIdx: %d\n", view_idx);
+                return AVERROR_INVALIDDATA;
+            }
+        }
     }
 
-    return 0; /* TODO */
+    view_id_len = get_bits(gb, 4);
+    if (view_id_len) {
+        for (int i = 0; i < 2 /* NumViews */; i++) {
+            int view_id = get_bits(gb, view_id_len);
+            if (view_id != i) {
+                av_log(avctx, AV_LOG_ERROR, "Unexpected view_id_val[%d] = %d\n", i, view_id);
+                return AVERROR_INVALIDDATA;
+            }
+        }
+    }
+
+    if (!get_bits1(gb) /* direct_dependency_flag */) {
+        av_log(avctx, AV_LOG_WARNING, "Independent output layers not supported\n");
+        return AVERROR_PATCHWELCOME;
+    }
+
+    if (get_bits1(gb) /* vps_sub_layers_max_minus1_present_flag */) {
+        for (int i = 0; i < vps->vps_max_layers; i++)
+            vps->vps_max_sub_layers_ext[i] = get_bits(gb, 3) + 1;
+    } else {
+        for (int i = 0; i < vps->vps_max_layers; i++)
+            vps->vps_max_sub_layers_ext[i] = vps->vps_max_sub_layers;
+    }
+
+    if (get_bits1(gb) /* max_tid_ref_present_flag */) {
+        vps->max_tid_il_ref_pics = get_bits(gb, 3) - 1;
+    } else {
+        vps->max_tid_il_ref_pics = 6;
+    }
+
+    vps->default_ref_layers_active_flag = get_bits1(gb);
+    vps->vps_num_ptl = get_ue_golomb(gb) + 1;
+    for (int i = 2; i < vps->vps_num_ptl; i++) {
+        /* idx [0] is signalled in base VPS, idx [1] is signalled at the
+         * start of VPS extension, indices 2+ are signalled here */
+        int profile_present = get_bits1(gb);
+        if (parse_ptl(gb, avctx, profile_present, &vps->ptl[i], vps->vps_max_sub_layers) < 0)
+            return AVERROR_INVALIDDATA;
+    }
+
+    num_add_olss = get_ue_golomb(gb);
+    if (num_add_olss != 0) {
+        /* Since we don't implement support for independent output layer sets
+         * and auxiliary layers, this should never nonzero */
+        av_log(avctx, AV_LOG_ERROR, "Unexpected num_add_olss: %d\n", num_add_olss);
+        return AVERROR_INVALIDDATA;
+    }
+
+    default_output_layer_idc = get_bits(gb, 2);
+    if (default_output_layer_idc != 0) {
+        av_log(avctx, AV_LOG_WARNING, "Unsupported default_output_layer_idc: %d\n",
+               default_output_layer_idc);
+        return AVERROR_PATCHWELCOME;
+    }
+
+    /* Consequence of established layer dependencies */
+    if (!vps->layer_id_included_flag[1][0] || !vps->layer_id_included_flag[1][1]) {
+        av_log(avctx, AV_LOG_ERROR, "Dependent layer not included in layer ID?\n");
+        return AVERROR_INVALIDDATA;
+    }
+
+    vps->ptl_idx[0][0] = 1;
+    for (int j = 0; j < 2 /* NumLayersInIdList[1] */; j++) {
+        vps->ptl_idx[1][j] = get_bits(gb, av_ceil_log2(vps->vps_num_ptl));
+        if (vps->ptl_idx[1][j] < 1 || vps->ptl_idx[1][j] >= vps->vps_num_ptl) {
+            av_log(avctx, AV_LOG_ERROR, "Invalid PTL index: %d\n", vps->ptl_idx[1][j]);
+            return AVERROR_INVALIDDATA;
+        }
+    }
+
+    if (get_ue_golomb_31(gb) != 0 /* vps_num_rep_formats_minus1 */) {
+        av_log(avctx, AV_LOG_ERROR, "Unexpected extra rep formats\n");
+        return AVERROR_INVALIDDATA;
+    }
+
+    vps->rep_format.pic_width_vps_in_luma_samples = get_bits(gb, 16);
+    vps->rep_format.pic_height_vps_in_luma_samples = get_bits(gb, 16);
+    if (get_bits1(gb) /* chroma_and_bit_depth_vps_present_flag */) {
+        vps->rep_format.chroma_format_vps_idc = get_bits(gb, 2);
+        if (vps->rep_format.chroma_format_vps_idc == 1)
+            vps->rep_format.separate_colour_plane_vps_flag = get_bits1(gb);
+        vps->rep_format.bit_depth_vps_luma = get_bits(gb, 4) + 8;
+        vps->rep_format.bit_depth_vps_chroma = get_bits(gb, 4) + 8;
+    }
+
+    if (get_bits1(gb) /* conformance_window_vps_flag */) {
+        vps->rep_format.conf_win_vps_left_offset = get_ue_golomb(gb);
+        vps->rep_format.conf_win_vps_right_offset = get_ue_golomb(gb);
+        vps->rep_format.conf_win_vps_top_offset = get_ue_golomb(gb);
+        vps->rep_format.conf_win_vps_bottom_offset = get_ue_golomb(gb);
+    }
+
+    vps->max_one_active_ref_layer_flag = get_bits1(gb);
+    vps->vps_poc_lsb_aligned_flag = get_bits1(gb);
+
+    if (get_bits1(gb) /* sub_layer_flag_info_present_flag */) {
+        int max_sub_layers = FFMAX(vps->vps_max_sub_layers_ext[0],
+                                   vps->vps_max_sub_layers_ext[1]);
+        for (int j = 0; j < max_sub_layers; j++) {
+            if (!j || get_bits1(gb) /* sub_layer_dpb_info_present_flag */) {
+                for (int k = 0; k < 2 /* NumLayersInIdList[1] */; k++)
+                    vps->vps_max_dec_pic_buffering_ext[k][j] = get_ue_golomb_long(gb);
+                vps->vps_num_reorder_pics_ext[j] = get_ue_golomb_long(gb);
+                vps->vps_max_latency_increase_ext[j] = get_ue_golomb_long(gb);
+            }
+        }
+    }
+
+    direct_dep_type_len = get_ue_golomb_31(gb) + 2;
+    if (direct_dep_type_len > 32) {
+        av_log(avctx, AV_LOG_ERROR, "Invalid direct_dep_type_len: %d\n",
+               direct_dep_type_len);
+        return AVERROR_INVALIDDATA;
+    }
+
+    skip_bits1(gb); /* direct_depenency_all_layers_flag */
+    direct_dep_type = get_bits_long(gb, direct_dep_type_len);
+    if (direct_dep_type > HEVC_DEP_TYPE_BOTH) {
+        av_log(avctx, AV_LOG_WARNING, "Unsupported direct_dep_type: %d\n",
+               direct_dep_type);
+        return AVERROR_PATCHWELCOME;
+    }
+
+    return 0;
 }
 
 int ff_hevc_decode_nal_vps(GetBitContext *gb, AVCodecContext *avctx,
@@ -543,7 +722,8 @@ int ff_hevc_decode_nal_vps(GetBitContext *gb, AVCodecContext *avctx,
         goto err;
     }
 
-    if (parse_ptl(gb, avctx, 1, &vps->ptl, vps->vps_max_sub_layers) < 0)
+    vps->vps_num_ptl = 1;
+    if (parse_ptl(gb, avctx, 1, &vps->ptl[0], vps->vps_max_sub_layers) < 0)
         goto err;
 
     vps->vps_sub_layer_ordering_info_present_flag = get_bits1(gb);
@@ -575,9 +755,9 @@ int ff_hevc_decode_nal_vps(GetBitContext *gb, AVCodecContext *avctx,
         goto err;
     }
 
-    for (i = 1; i < vps->vps_num_layer_sets; i++)
+    for (i = 0; i < vps->vps_num_layer_sets; i++)
         for (j = 0; j <= vps->vps_max_layer_id; j++)
-            skip_bits(gb, 1);  // layer_id_included_flag[i][j]
+            vps->layer_id_included_flag[i][j] = i ? get_bits1(gb) : !j;
 
     vps->vps_timing_info_present_flag = get_bits1(gb);
     if (vps->vps_timing_info_present_flag) {
