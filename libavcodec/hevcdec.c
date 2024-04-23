@@ -2973,6 +2973,7 @@ static int decode_nal_unit(HEVCContext *s, const H2645NAL *nal)
     *gb              = nal->gb;
     s->nal_unit_type = nal->type;
     s->temporal_id   = nal->temporal_id;
+    s->nuh_layer_id  = nal->nuh_layer_id;
 
     switch (s->nal_unit_type) {
     case HEVC_NAL_VPS:
@@ -3224,7 +3225,8 @@ static int decode_nal_units(HEVCContext *s, const uint8_t *buf, int length)
 
         if (s->avctx->skip_frame >= AVDISCARD_ALL ||
             (s->avctx->skip_frame >= AVDISCARD_NONREF
-            && ff_hevc_nal_is_nonref(nal->type)) || nal->nuh_layer_id > 0)
+            && ff_hevc_nal_is_nonref(nal->type)) ||
+            !ff_hevc_ols_layer_necessary(&s->ols, nal->nuh_layer_id))
             continue;
 
         ret = decode_nal_unit(s, nal);
@@ -3336,6 +3338,16 @@ static int hevc_decode_extradata(HEVCContext *s, uint8_t *buf, int length, int f
     ret = export_stream_params_from_sei(s);
     if (ret < 0)
         return ret;
+
+    for (i = 0; i < FF_ARRAY_ELEMS(s->ps.vps_list); i++) {
+        if (first && s->ps.vps_list[i]) {
+            const HEVCVPS *vps = s->ps.vps_list[i];
+            // XXX: for testing, choose second OLS manually
+            av_assert0(vps->vps_num_layer_sets > 1);
+            s->ols = vps->ols[1];
+            break;
+        }
+    }
 
     return 0;
 }

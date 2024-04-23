@@ -453,6 +453,7 @@ static void hevc_vps_free(FFRefStructOpaque opaque, void *obj)
 {
     HEVCVPS *vps = obj;
 
+    av_freep(&vps->ols);
     av_freep(&vps->hdr);
     av_freep(&vps->data);
 }
@@ -462,7 +463,7 @@ enum ScalabilityMask {
     HEVC_SCALABILITY_MULTIVIEW = 1,
     HEVC_SCALABILITY_SPATIAL = 2,
     HEVC_SCALABILITY_AUXILIARY = 3,
-    HEVC_SCALABILITY_MASK_MAX = 16,
+    HEVC_SCALABILITY_MASK_MAX = 15,
 };
 
 enum DependencyType {
@@ -514,15 +515,16 @@ static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps
      * - NumNecessaryLayers = {1, 2}
      * - NecessaryLayerFlag = {{1, 0}, {1, 1}}
      * - NumOutputLayersInOutputLayerSet = {1, 2}
+     * - OutputLayerFlag = {{1, 0}, {0, 1}}
      */
 
     if (parse_ptl(gb, avctx, 0, &vps->ptl[1], vps->vps_max_sub_layers) < 0)
         return AVERROR_INVALIDDATA;
 
     splitting_flag = get_bits1(gb);
-    for (int i = 0; i < HEVC_SCALABILITY_MASK_MAX; i++) {
+    for (int i = 0; i <= HEVC_SCALABILITY_MASK_MAX; i++) {
         int scalability_mask_flag = get_bits1(gb);
-        if (scalability_mask_flag && i != HEVC_SCALABILITY_MULTIVIEW)
+        if (scalability_mask_flag != (i == HEVC_SCALABILITY_MULTIVIEW))
             return AVERROR_PATCHWELCOME;
     }
 
@@ -669,6 +671,16 @@ static int decode_vps_ext(GetBitContext *gb, AVCodecContext *avctx, HEVCVPS *vps
         return AVERROR_PATCHWELCOME;
     }
 
+    vps->ols = av_calloc(vps->vps_num_layer_sets, sizeof(HEVCOLS));
+    if (!vps->ols)
+        return AVERROR(ENOMEM);
+
+    /* See derived variables above */
+    av_assert2(vps->vps_num_layer_sets == 2);
+    vps->ols[0].necessary_layers = 0x1;
+    vps->ols[0].output_layers    = 0x1;
+    vps->ols[1].necessary_layers = 0x3;
+    vps->ols[1].output_layers    = 0x2;
     return 0;
 }
 
@@ -792,7 +804,18 @@ int ff_hevc_decode_nal_vps(GetBitContext *gb, AVCodecContext *avctx,
     if (vps->vps_max_layers > 1 && get_bits1(gb)) { /* vps_extension_flag */
         int status = decode_vps_ext(gb, avctx, vps);
         if (status == AVERROR_PATCHWELCOME) {
+            static const HEVCOLS bl_only = {
+                .necessary_layers = 0x1,
+                .output_layers = 0x1,
+            };
+
             av_log(avctx, AV_LOG_WARNING, "Ignoring unsupported VPS extension\n");
+            vps->vps_num_layer_sets = 1;
+            vps->ols = av_memdup(&bl_only, sizeof(bl_only));
+            if (!vps->ols) {
+                ret = AVERROR(ENOMEM);
+                goto err;
+            }
         } else if (status < 0) {
             ret = status;
             goto err;

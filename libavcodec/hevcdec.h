@@ -464,6 +464,7 @@ typedef struct HEVCContext {
 
     HEVCParamSets ps;
     HEVCSEI sei;
+    HEVCOLS ols;
     struct AVMD5 *md5_ctx;
 
     struct FFRefStructPool *tab_mvf_pool;

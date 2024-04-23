@@ -164,8 +164,24 @@ typedef struct RepFormat {
     uint16_t conf_win_vps_bottom_offset;
 } RepFormat;
 
-enum DirectDependencyType {
-};
+/* Output layer set */
+typedef struct HEVCOLS {
+    static_assert(HEVC_MAX_LAYERS < 8 * sizeof(uint64_t), "max layers exceeds uint64_t");
+    uint64_t necessary_layers; /* bitmask of necessary layers */
+    uint64_t output_layers; /* bitmask of output layers */
+} HEVCOLS;
+
+static inline int ff_hevc_ols_layer_necessary(const HEVCOLS *ols, int nuh_layer_id)
+{
+    av_assert2(nuh_layer_id < HEVC_MAX_LAYERS);
+    return (ols->necessary_layers >> nuh_layer_id) & 1;
+}
+
+static inline int ff_hevc_ols_layer_output(const HEVCOLS *ols, int nuh_layer_id)
+{
+    av_assert2(nuh_layer_id < HEVC_MAX_LAYERS);
+    return (ols->output_layers >> nuh_layer_id) & 1;
+}
 
 typedef struct HEVCVPS {
     unsigned int vps_id;
@@ -176,6 +192,8 @@ typedef struct HEVCVPS {
     int vps_num_ptl;
 
     PTL ptl[HEVC_MAX_LAYERS];
+    HEVCOLS *ols; ///< output layer sets, length is vps_num_layer_sets
+
     int vps_sub_layer_ordering_info_present_flag;
     unsigned int vps_max_dec_pic_buffering[HEVC_MAX_SUB_LAYERS];
     unsigned int vps_num_reorder_pics[HEVC_MAX_SUB_LAYERS];
