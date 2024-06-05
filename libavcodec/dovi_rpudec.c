@@ -56,14 +56,12 @@ int ff_dovi_attach_side_data(DOVIContext *s, AVFrame *frame)
         return AVERROR(ENOMEM);
     }
 
-    /* Copy only the parts of these structs known to us at compiler-time. */
-#define COPY(t, a, b, last) memcpy(a, b, offsetof(t, last) + sizeof((b)->last))
-    COPY(AVDOVIRpuDataHeader, av_dovi_get_header(dovi), &s->header, disable_residual_flag);
-    COPY(AVDOVIDataMapping, av_dovi_get_mapping(dovi), s->mapping, nlq_pivots);
-    COPY(AVDOVIColorMetadata, av_dovi_get_color(dovi), s->color, source_diagonal);
-    ext_sz = FFMIN(sizeof(AVDOVIDmData), dovi->ext_block_size);
+    *av_dovi_get_header(dovi)  = s->header;
+    *av_dovi_get_mapping(dovi) = *s->mapping;
+    *av_dovi_get_color(dovi)   = *s->color;
+    av_assert0(dovi->ext_block_size >= sizeof(AVDOVIDmData));
     for (int i = 0; i < s->num_ext_blocks; i++)
-        memcpy(av_dovi_get_ext(dovi, i), &s->ext_blocks[i], ext_sz);
+        *av_dovi_get_ext(dovi, i) = s->ext_blocks[i];
     dovi->num_ext_blocks = s->num_ext_blocks;
     return 0;
 }
