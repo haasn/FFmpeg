@@ -463,12 +463,12 @@ int ff_dovi_rpu_generate(DOVIContext *s, const AVDOVIMetadata *metadata,
         return AVERROR_INVALIDDATA;
     }
 
-    vdr_rpu_id = -1;
+    vdr_rpu_id = mapping->vdr_rpu_id;
     for (int i = 0; i <= DOVI_MAX_DM_ID; i++) {
         if (s->vdr[i] && !memcmp(s->vdr[i], mapping, sizeof(*mapping))) {
             vdr_rpu_id = i;
             break;
-        } else if (vdr_rpu_id < 0 && (!s->vdr[i] || i == DOVI_MAX_DM_ID)) {
+        } else if (s->vdr[vdr_rpu_id] && !s->vdr[i]) {
             vdr_rpu_id = i;
         }
     }
