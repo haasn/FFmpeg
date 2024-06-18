@@ -21,6 +21,7 @@
  */
 
 #include <assert.h>
+#include <stdbool.h>
 
 #include "libavutil/avassert.h"
 #include "libavutil/crc.h"
@@ -452,9 +453,10 @@ int ff_dovi_rpu_generate(DOVIContext *s, const AVDOVIMetadata *metadata,
     const AVDOVIRpuDataHeader *hdr;
     const AVDOVIDataMapping *mapping;
     const AVDOVIColorMetadata *color;
-    int vdr_dm_metadata_present, vdr_rpu_id, use_prev_vdr_rpu, profile,
+    int vdr_dm_metadata_present, vdr_rpu_id, profile,
         buffer_size, rpu_size, pad, zero_run;
     int num_ext_blocks_v1, num_ext_blocks_v2;
+    int use_prev_vdr_rpu = false;
     uint32_t crc;
     uint8_t *dst;
     if (!metadata) {
@@ -475,12 +477,21 @@ int ff_dovi_rpu_generate(DOVIContext *s, const AVDOVIMetadata *metadata,
     }
 
     vdr_rpu_id = mapping->vdr_rpu_id;
-    for (int i = 0; i <= DOVI_MAX_DM_ID; i++) {
-        if (s->vdr[i] && !cmp_data_mapping(s->vdr[i], mapping)) {
-            vdr_rpu_id = i;
-            break;
-        } else if (s->vdr[vdr_rpu_id] && !s->vdr[i]) {
-            vdr_rpu_id = i;
+    if (flags & FF_DOVI_COMPRESS_VDR) {
+        for (int i = 0; i <= DOVI_MAX_DM_ID; i++) {
+            if (s->vdr[i] && !cmp_data_mapping(s->vdr[i], mapping)) {
+                use_prev_vdr_rpu = true;
+                vdr_rpu_id = i;
+                break;
+            } else if (s->vdr[vdr_rpu_id] && !s->vdr[i]) {
+                vdr_rpu_id = i;
+            }
+        }
+    } else {
+        /* Flush VDRs to avoid leaking old state after keyframe */
+        for (int i = 0; i <= DOVI_MAX_DM_ID; i++) {
+            if (i != vdr_rpu_id)
+                ff_refstruct_unref(&s->vdr[i]);
         }
     }
 
@@ -524,7 +535,6 @@ int ff_dovi_rpu_generate(DOVIContext *s, const AVDOVIMetadata *metadata,
     }
 
     vdr_dm_metadata_present = memcmp(color, &ff_dovi_color_default, sizeof(*color));
-    use_prev_vdr_rpu = !memcmp(s->vdr[vdr_rpu_id], mapping, sizeof(*mapping));
     if (num_ext_blocks_v1 || num_ext_blocks_v2)
         vdr_dm_metadata_present = 1;
 
