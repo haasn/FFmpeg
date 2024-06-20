@@ -20,6 +20,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <assert.h>
+
 #include "libavutil/avassert.h"
 #include "libavutil/crc.h"
 #include "libavutil/mem.h"
@@ -199,6 +201,15 @@ int ff_dovi_configure(DOVIContext *s, AVCodecContext *avctx)
 skip:
     s->cfg = (AVDOVIDecoderConfigurationRecord) {0};
     return 0;
+}
+
+/* compares data mappings, excluding vdr_rpu_id */
+static int cmp_data_mapping(const AVDOVIDataMapping *m1,
+                            const AVDOVIDataMapping *m2)
+{
+    static_assert(offsetof(AVDOVIDataMapping, vdr_rpu_id) == 0, "vdr_rpu_id is first field");
+    const void *p1 = &m1->vdr_rpu_id + 1, *p2 = &m2->vdr_rpu_id + 1;
+    return memcmp(p1, p2, sizeof(AVDOVIDataMapping) - sizeof(m1->vdr_rpu_id));
 }
 
 static inline void put_ue_coef(PutBitContext *pb, const AVDOVIRpuDataHeader *hdr,
@@ -465,7 +476,7 @@ int ff_dovi_rpu_generate(DOVIContext *s, const AVDOVIMetadata *metadata,
 
     vdr_rpu_id = mapping->vdr_rpu_id;
     for (int i = 0; i <= DOVI_MAX_DM_ID; i++) {
-        if (s->vdr[i] && !memcmp(s->vdr[i], mapping, sizeof(*mapping))) {
+        if (s->vdr[i] && !cmp_data_mapping(s->vdr[i], mapping)) {
             vdr_rpu_id = i;
             break;
         } else if (s->vdr[vdr_rpu_id] && !s->vdr[i]) {
@@ -639,6 +650,7 @@ int ff_dovi_rpu_generate(DOVIContext *s, const AVDOVIMetadata *metadata,
         }
 
         memcpy(s->vdr[vdr_rpu_id], mapping, sizeof(*mapping));
+        s->vdr[vdr_rpu_id]->vdr_rpu_id = vdr_rpu_id;
     }
 
     if (vdr_dm_metadata_present) {
