@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2024 Niklas Haas
  * Copyright (C) 2001-2003 Michael Niedermayer <michaelni@gmx.at>
  *
  * This file is part of FFmpeg.
@@ -59,6 +60,164 @@
 #include "rgb2rgb.h"
 #include "swscale.h"
 #include "swscale_internal.h"
+
+SwsFlags sws_default_flags(SwsQuality preset)
+{
+    int flags = 0;
+    if (preset <= SWS_Q_VERYFAST)
+        flags |= SWS_FLAG_ALIAS;
+    return flags;
+}
+
+SwsDither sws_default_dither(SwsQuality preset)
+{
+    if (preset <= SWS_Q_VERYFAST)
+        return SWS_DITHER_NONE;
+    else if (preset <= SWS_Q_SLOW)
+        return SWS_DITHER_BAYER;
+    else
+        return SWS_DITHER_ED;
+}
+
+enum SwsScaler sws_default_scaler(SwsQuality preset)
+{
+    if (preset <= SWS_Q_ULTRAFAST)
+        return SWS_SCALER_NEAREST;
+    else if (preset <= SWS_Q_FASTER)
+        return SWS_SCALER_BILINEAR;
+    else if (preset <= SWS_Q_MEDIUM)
+        return SWS_SCALER_BICUBIC;
+    else
+        return SWS_SCALER_LANCZOS;
+}
+
+enum SwsScaler sws_default_scaler_sub(SwsQuality preset)
+{
+    if (preset <= SWS_Q_VERYFAST)
+        return SWS_SCALER_NEAREST;
+    else if (preset <= SWS_Q_FAST)
+        return SWS_SCALER_BILINEAR;
+    else if (preset <= SWS_Q_SLOWER)
+        return SWS_SCALER_BICUBIC;
+    else
+        return SWS_SCALER_LANCZOS;
+}
+
+SwsFlags sws_get_flags(const SwsContext2 *ctx)
+{
+    int flags = ctx->flags;
+    if (ctx->quality)
+        flags |= sws_default_flags(ctx->quality);
+    /* Backwards compatibility with legacy API */
+    AV_NOWARN_DEPRECATED(
+    if (ctx->sws_flags & SWS_BITEXACT)
+        flags |= SWS_FLAG_BITEXACT;
+    )
+    return flags;
+}
+
+SwsDither sws_get_dither(const SwsContext2 *ctx)
+{
+    if (ctx->dither != SWS_DITHER_AUTO)
+        return ctx->dither;
+    if (ctx->quality)
+        return sws_default_dither(ctx->quality);
+    /* Backwards compatibility with legacy API */
+    AV_NOWARN_DEPRECATED(
+    if (ctx->sws_flags & SWS_ERROR_DIFFUSION)
+        return SWS_DITHER_ED;
+    )
+    return SWS_DITHER_AUTO;
+}
+
+static enum SwsScaler get_sws_scaler(int sws_flags)
+{
+    if (sws_flags & SWS_POINT)
+        return SWS_SCALER_NEAREST;
+    if (sws_flags & SWS_BILINEAR)
+        return SWS_SCALER_BILINEAR;
+    if (sws_flags & SWS_BICUBIC)
+        return SWS_SCALER_BICUBIC;
+    if (sws_flags & SWS_GAUSS)
+        return SWS_SCALER_GAUSSIAN;
+    if (sws_flags & SWS_LANCZOS)
+        return SWS_SCALER_LANCZOS;
+    return SWS_SCALER_AUTO;
+}
+
+enum SwsScaler sws_get_scaler(const SwsContext2 *ctx)
+{
+    if (ctx->scaler != SWS_SCALER_AUTO)
+        return ctx->scaler;
+    if (ctx->quality)
+        return sws_default_scaler(ctx->quality);
+    /* Backwards compatibility with legacy API */
+    AV_NOWARN_DEPRECATED(
+    if (ctx->sws_flags & SWS_BICUBLIN)
+        return SWS_SCALER_BICUBIC;
+    return get_sws_scaler(ctx->sws_flags);
+    )
+}
+
+enum SwsScaler sws_get_scaler_sub(const SwsContext2 *ctx)
+{
+    if (ctx->scaler_sub != SWS_SCALER_AUTO)
+        return ctx->scaler;
+    if (ctx->scaler)
+        return ctx->scaler;
+    if (ctx->quality)
+        return sws_default_scaler_sub(ctx->quality);
+    /* Backwards compatibility with legacy API */
+    AV_NOWARN_DEPRECATED(
+    if (ctx->sws_flags & SWS_BICUBLIN)
+        return SWS_SCALER_BILINEAR;
+    return get_sws_scaler(ctx->sws_flags);
+    )
+}
+
+int sws_test_format(enum AVPixelFormat format, int output)
+{
+    return output ? sws_isSupportedOutput(format) : sws_isSupportedInput(format);
+}
+
+int sws_test_colorspace(enum AVColorSpace csp, int output)
+{
+    switch (csp) {
+    case AVCOL_SPC_UNSPECIFIED:
+    case AVCOL_SPC_RGB:
+    case AVCOL_SPC_BT709:
+    case AVCOL_SPC_BT470BG:
+    case AVCOL_SPC_SMPTE170M:
+    case AVCOL_SPC_FCC:
+    case AVCOL_SPC_SMPTE240M:
+    case AVCOL_SPC_BT2020_NCL:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+int sws_test_primaries(enum AVColorPrimaries prim, int output)
+{
+    return 1;
+}
+
+int sws_test_transfer(enum AVColorTransferCharacteristic trc, int output)
+{
+    return 1;
+}
+
+int sws_test_fmt(const SwsFormat *fmt, int output)
+{
+    return sws_test_format    (fmt->format, output) &&
+           sws_test_colorspace(fmt->csp,    output) &&
+           sws_test_primaries (fmt->prim,   output) &&
+           sws_test_transfer  (fmt->trc,    output);
+}
+
+/**************************************************
+ * Legacy context and main scaling implementation *
+ **************************************************/
 
 typedef struct FormatEntry {
     uint8_t is_supported_in         :1;

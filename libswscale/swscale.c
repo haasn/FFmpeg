@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2024 Niklas Haas
  * Copyright (C) 2001-2011 Michael Niedermayer <michaelni@gmx.at>
  *
  * This file is part of FFmpeg.
@@ -22,18 +23,357 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "libavutil/attributes.h"
 #include "libavutil/avassert.h"
 #include "libavutil/bswap.h"
 #include "libavutil/common.h"
 #include "libavutil/cpu.h"
 #include "libavutil/emms.h"
+#include "libavutil/internal.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/mem.h"
 #include "libavutil/mem_internal.h"
+#include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
 #include "config.h"
+#include "graph.h"
 #include "swscale_internal.h"
 #include "swscale.h"
+
+typedef struct SwsInternal {
+    /* Currently active options  */
+    SwsContext2 opts; /* (shallow) shadow copy of main context */
+    SwsFormat src_fmt, dst_fmt;
+
+    /* Active filter graph */
+    SwsGraph graph[2]; /* top/prog, bottom */
+} SwsInternal;
+
+SwsContext2 *sws_alloc_context2(void)
+{
+    SwsInternal *s;
+    SwsContext2 *ctx = av_mallocz(sizeof(*ctx));
+    if (!ctx)
+        return NULL;
+
+    s = ctx->internal = av_mallocz(sizeof(*ctx->internal));
+    if (!s) {
+        av_free(ctx);
+        return NULL;
+    }
+
+    ctx->av_class = sws_get_class2();
+    av_opt_set_defaults(ctx);
+    s->src_fmt.format = s->dst_fmt.format = AV_PIX_FMT_NONE;
+    return ctx;
+}
+
+static void uninit(SwsContext2 *ctx)
+{
+    SwsInternal *s = ctx->internal;
+    s->src_fmt = s->dst_fmt = (SwsFormat) { .format = AV_PIX_FMT_NONE };
+    memset(&s->opts, 0, sizeof(s->opts));
+    for (int i = 0; i < FF_ARRAY_ELEMS(s->graph); i++)
+        sws_graph_uninit(&s->graph[i]);
+}
+
+void sws_free_context2(SwsContext2 **pctx)
+{
+    SwsContext2 *ctx = *pctx;
+    if (!ctx)
+        return;
+
+    uninit(ctx);
+    av_free(ctx->internal);
+    av_free(ctx);
+    *pctx = NULL;
+}
+
+/**
+ * This function also sanitizes and strips the input data, removing irrelevant
+ * fields for certain formats.
+ */
+static SwsFormat fmt_from_frame(const AVFrame *frame)
+{
+    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(frame->format);
+    SwsFormat fmt = {
+        .width  = frame->width,
+        .height = frame->height,
+        .format = frame->format,
+        .range  = frame->color_range,
+        .prim   = frame->color_primaries,
+        .trc    = frame->color_trc,
+        .csp    = frame->colorspace,
+        .loc    = frame->chroma_location,
+        .desc   = desc,
+    };
+
+    av_assert1(fmt.width > 0);
+    av_assert1(fmt.height > 0);
+    av_assert1(fmt.format != AV_PIX_FMT_NONE);
+    av_assert0(desc);
+    if (desc->flags & (AV_PIX_FMT_FLAG_RGB | AV_PIX_FMT_FLAG_PAL | AV_PIX_FMT_FLAG_BAYER)) {
+        /* RGB-like family */
+        fmt.csp   = AVCOL_SPC_RGB;
+        fmt.range = AVCOL_RANGE_JPEG;
+    } else if (desc->flags & AV_PIX_FMT_FLAG_XYZ) {
+        fmt.csp   = AVCOL_SPC_UNSPECIFIED;
+        fmt.prim  = AVCOL_PRI_SMPTE428;
+        fmt.trc   = AVCOL_TRC_SMPTE428;
+    } else if (desc->nb_components < 3) {
+        /* Grayscale formats */
+        fmt.prim  = AVCOL_PRI_UNSPECIFIED;
+        fmt.csp   = AVCOL_SPC_UNSPECIFIED;
+        if (desc->flags & AV_PIX_FMT_FLAG_FLOAT)
+            fmt.range = AVCOL_RANGE_UNSPECIFIED;
+        else
+            fmt.range = AVCOL_RANGE_JPEG; // FIXME: this restriction should be lifted
+    }
+
+    switch (frame->format) {
+    case AV_PIX_FMT_YUVJ420P:
+    case AV_PIX_FMT_YUVJ411P:
+    case AV_PIX_FMT_YUVJ422P:
+    case AV_PIX_FMT_YUVJ444P:
+    case AV_PIX_FMT_YUVJ440P:
+        fmt.range = AVCOL_RANGE_JPEG;
+        break;
+    }
+
+    if (!desc->log2_chroma_w && !desc->log2_chroma_h)
+        fmt.loc = AVCHROMA_LOC_UNSPECIFIED;
+
+    if (frame->flags & AV_FRAME_FLAG_INTERLACED) {
+        av_assert1(!(fmt.height & 1));
+        fmt.height >>= 1;
+        fmt.interlaced = 1;
+    }
+
+    return fmt;
+}
+
+int sws_test_frame(const AVFrame *frame, int output)
+{
+    const SwsFormat fmt = fmt_from_frame(frame);
+    return sws_test_fmt(&fmt, output);
+}
+
+int sws_is_noop(const AVFrame *dst, const AVFrame *src)
+{
+    SwsFormat dst_fmt = fmt_from_frame(dst);
+    SwsFormat src_fmt = fmt_from_frame(src);
+    return sws_fmt_equal(&dst_fmt, &src_fmt);
+}
+
+SwsField sws_get_field(const AVFrame *frame, int field)
+{
+    SwsField f = {
+#define COPY4(x) { x[0], x[1], x[2], x[3] }
+        .data     = COPY4(frame->data),
+        .linesize = COPY4(frame->linesize),
+    };
+
+    if (!(frame->flags & AV_FRAME_FLAG_INTERLACED)) {
+        av_assert1(!field);
+        return f;
+    }
+
+    if (field == FIELD_BOTTOM) {
+        /* Odd rows, offset by one line */
+        const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(frame->format);
+        for (int i = 0; i < FF_ARRAY_ELEMS(f.data); i++) {
+            f.data[i] += f.linesize[i];
+            if (desc->flags & AV_PIX_FMT_FLAG_PAL)
+                break;
+        }
+    }
+
+    /* Take only every second line */
+    for (int i = 0; i < FF_ARRAY_ELEMS(f.linesize); i++)
+        f.linesize[i] <<= 1;
+
+    return f;
+}
+
+/* Subset of av_frame_ref() that only copies (video) data buffers */
+static int frame_refcopy(AVFrame *dst, const AVFrame *src)
+{
+    int ret;
+
+    /* TODO: handle hwframes? */
+
+    /* copy frame data if it's not refcounted, or if dst buffers exist */
+    if (!src->buf[0] || dst->buf[0]) {
+        if (!dst->data[0]) {
+            ret = av_frame_get_buffer(dst, 0);
+            if (ret < 0)
+                return ret;
+        }
+        ret = av_frame_copy(dst, src);
+        if (ret < 0)
+            return ret;
+        return 0;
+    }
+
+    /* ref the buffers */
+    for (int i = 0; i < FF_ARRAY_ELEMS(src->buf); i++) {
+        if (!src->buf[i])
+            continue;
+        dst->buf[i] = av_buffer_ref(src->buf[i]);
+        if (!dst->buf[i])
+            return AVERROR(ENOMEM);
+    }
+
+    memcpy(dst->data,     src->data,     sizeof(src->data));
+    memcpy(dst->linesize, src->linesize, sizeof(src->linesize));
+    return 0;
+}
+
+int sws_scale_frame2(SwsContext2 *ctx, AVFrame *dst, const AVFrame *src)
+{
+    int ret;
+    SwsInternal *s = ctx->internal;
+    if (!src || !dst)
+        return AVERROR(EINVAL);
+
+    ret = sws_frame_setup(ctx, dst, src);
+    if (ret < 0)
+        goto fail;
+
+    if (src->data[0]) {
+        if (sws_fmt_equal(&s->dst_fmt, &s->src_fmt)) {
+            ret = frame_refcopy(dst, src);
+            if (ret < 0)
+                goto fail;
+        } else {
+            if (!dst->data[0]) {
+                ret = av_frame_get_buffer(dst, 0);
+                if (ret < 0)
+                    return ret;
+            }
+
+            for (int field = 0; field < 2; field++) {
+                SwsField dst_field = sws_get_field(dst, field);
+                SwsField src_field = sws_get_field(src, field);
+                sws_graph_run(&s->graph[field], &dst_field, &src_field);
+                if (!s->src_fmt.interlaced)
+                    break;
+            }
+        }
+    }
+
+    return 0;
+
+fail:
+    av_frame_unref(dst);
+    return ret;
+}
+
+static int validate_params(SwsContext2 *ctx)
+{
+#define VALIDATE(field, min, max) \
+    if (ctx->field < min || ctx->field > max) { \
+        av_log(ctx, AV_LOG_ERROR, "'%s' (%d) out of range [%d, %d]\n", \
+               #field, (int) ctx->field, min, max); \
+        return AVERROR(EINVAL); \
+    }
+
+    VALIDATE(flags,         0, (SWS_FLAG_MAX_VALUE << 1) - 1);
+    VALIDATE(threads,       0, 8192);
+    VALIDATE(quality,       0, SWS_Q_MAX)
+    VALIDATE(scaler,        0, SWS_SCALER_NB - 1)
+    VALIDATE(scaler_sub,    0, SWS_SCALER_NB - 1)
+    VALIDATE(dither,        0, SWS_DITHER_NB - 1)
+    VALIDATE(alpha_blend,   0, SWS_ALPHA_BLEND_NB - 1)
+    return 0;
+}
+
+int sws_frame_setup(SwsContext2 *ctx, const AVFrame *dst, const AVFrame *src)
+{
+    SwsInternal *s = ctx->internal;
+    SwsFormat src_fmt, dst_fmt;
+    const char *err_msg;
+    int ret;
+
+    if (!src || !dst)
+        return AVERROR(EINVAL);
+    if ((ret = validate_params(ctx)) < 0)
+        return ret;
+
+    src_fmt = fmt_from_frame(src);
+    dst_fmt = fmt_from_frame(dst);
+
+    if ((src->flags ^ dst->flags) & AV_FRAME_FLAG_INTERLACED) {
+        err_msg = "Cannot convert interlaced to progressive frames or vice versa.\n";
+        ret = AVERROR(EINVAL);
+        goto fail;
+    }
+
+    /* Try to re-use already initialized graph */
+    if (sws_fmt_equal(&dst_fmt, &s->dst_fmt) &&
+        sws_fmt_equal(&src_fmt, &s->src_fmt) &&
+        sws_opts_equal(ctx, &s->opts))
+        return 0;
+
+    if (!sws_test_fmt(&src_fmt, 0)) {
+        err_msg = "Unsupported input";
+        ret = AVERROR(ENOTSUP);
+        goto fail;
+    }
+
+    if (!sws_test_fmt(&dst_fmt, 1)) {
+        err_msg = "Unsupported output";
+        ret = AVERROR(ENOTSUP);
+        goto fail;
+    }
+
+    /* TODO: remove once implemented */
+    if (dst_fmt.prim != src_fmt.prim || dst_fmt.trc != src_fmt.trc) {
+        av_log(ctx, AV_LOG_WARNING, "Conversions between different primaries / "
+               "transfer functions are not currently implemented, expect "
+               "wrong results.\n");
+    }
+
+    /* Re-initialize scaling graph */
+    uninit(ctx);
+    for (int field = 0; field < 2; field++) {
+        ret = sws_graph_init(ctx, &s->graph[field], &dst_fmt, &src_fmt, field);
+        if (ret < 0) {
+            err_msg = "Failed initializing scaling graph";
+            goto fail;
+        }
+
+        if (s->graph[field].incomplete && ctx->flags & SWS_FLAG_STRICT) {
+            err_msg = "Incomplete scaling graph";
+            ret = AVERROR(EINVAL);
+            goto fail;
+        }
+
+        if (!src_fmt.interlaced)
+            break;
+    }
+
+    s->src_fmt = src_fmt;
+    s->dst_fmt = dst_fmt;
+    s->opts = *ctx;
+    return 0;
+
+fail:
+    av_log(ctx, AV_LOG_ERROR, "%s (%s): fmt:%s csp:%s prim:%s trc:%s ->"
+                                      " fmt:%s csp:%s prim:%s trc:%s\n",
+           err_msg, av_err2str(ret),
+           av_get_pix_fmt_name(src_fmt.format), av_color_space_name(src_fmt.csp),
+           av_color_primaries_name(src_fmt.prim), av_color_transfer_name(src_fmt.trc),
+           av_get_pix_fmt_name(dst_fmt.format), av_color_space_name(dst_fmt.csp),
+           av_color_primaries_name(dst_fmt.prim), av_color_transfer_name(dst_fmt.trc));
+
+    uninit(ctx);
+    return ret;
+}
+
+/**************************************************
+ * Legacy context and main scaling implementation *
+ **************************************************/
 
 DECLARE_ALIGNED(8, const uint8_t, ff_dither_8x8_128)[9][8] = {
     {  36, 68,  60, 92,  34, 66,  58, 90, },
