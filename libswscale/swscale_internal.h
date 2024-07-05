@@ -24,11 +24,13 @@
 #include <stdatomic.h>
 
 #include "config.h"
+#include "swscale.h"
 
 #include "libavutil/avassert.h"
 #include "libavutil/common.h"
 #include "libavutil/frame.h"
 #include "libavutil/intreadwrite.h"
+#include "libavutil/internal.h"
 #include "libavutil/log.h"
 #include "libavutil/mem_internal.h"
 #include "libavutil/pixfmt.h"
@@ -38,6 +40,77 @@
 #include "libavutil/ppc/util_altivec.h"
 #endif
 #include "libavutil/half2float.h"
+
+/* Tests only options that affect graph state */
+static inline int sws_opts_equal(const SwsContext2 *ctx1,
+                                 const SwsContext2 *ctx2)
+{
+FF_DISABLE_DEPRECATION_WARNINGS
+    return ctx1->flags       == ctx2->flags       &&
+           ctx1->threads     == ctx2->threads     &&
+           ctx1->quality     == ctx2->quality     &&
+           ctx1->dither      == ctx2->dither      &&
+           ctx1->scaler      == ctx2->scaler      &&
+           ctx1->scaler_sub  == ctx2->scaler_sub  &&
+           ctx1->alpha_blend == ctx2->alpha_blend &&
+           ctx1->sws_flags   == ctx2->sws_flags;
+FF_ENABLE_DEPRECATION_WARNINGS
+}
+
+/* Represents a view into a single field of frame data */
+typedef struct SwsField {
+    uint8_t *data[4]; /* points to y=0 */
+    int linesize[4];
+} SwsField;
+
+enum {
+    FIELD_TOP, /* top/even rows, or progressive */
+    FIELD_BOTTOM, /* bottom/odd rows */
+};
+
+SwsField sws_get_field(const AVFrame *frame, int field);
+
+/* Subset of AVFrame parameters that uniquely determine pixel representation */
+typedef struct SwsFormat {
+    int width, height;
+    int interlaced;
+    enum AVPixelFormat format;
+    enum AVColorRange range;
+    enum AVColorPrimaries prim;
+    enum AVColorTransferCharacteristic trc;
+    enum AVColorSpace csp;
+    enum AVChromaLocation loc;
+    const AVPixFmtDescriptor *desc; /* convenience */
+} SwsFormat;
+
+static inline int sws_fmt_equal(const SwsFormat *fmt1, const SwsFormat *fmt2)
+{
+    return fmt1->width      == fmt2->width      &&
+           fmt1->height     == fmt2->height     &&
+           fmt1->interlaced == fmt2->interlaced &&
+           fmt1->format     == fmt2->format     &&
+           fmt1->range      == fmt2->range      &&
+           fmt1->prim       == fmt2->prim       &&
+           fmt1->trc        == fmt2->trc        &&
+           fmt1->csp        == fmt2->csp        &&
+           fmt1->loc        == fmt2->loc;
+}
+
+static inline int sws_fmt_align(enum AVPixelFormat fmt)
+{
+    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(fmt);
+    if (desc->flags & AV_PIX_FMT_FLAG_BAYER) {
+        return 2;
+    } else {
+        return 1 << desc->log2_chroma_h;
+    }
+}
+
+int sws_test_fmt(const SwsFormat *fmt, int output);
+
+/*************************
+ * Legacy implementation *
+ *************************/
 
 #define STR(s) AV_TOSTRING(s) // AV_STRINGIFY is too long
 
@@ -65,23 +138,6 @@
 #define RETCODE_USE_CASCADE -12345
 
 struct SwsContext;
-
-typedef enum SwsDither {
-    SWS_DITHER_AUTO = 0,
-    SWS_DITHER_NONE,
-    SWS_DITHER_BAYER,
-    SWS_DITHER_ED,
-    SWS_DITHER_A_DITHER,
-    SWS_DITHER_X_DITHER,
-    SWS_DITHER_NB,
-} SwsDither;
-
-typedef enum SwsAlphaBlend {
-    SWS_ALPHA_BLEND_NONE  = 0,
-    SWS_ALPHA_BLEND_UNIFORM,
-    SWS_ALPHA_BLEND_CHECKERBOARD,
-    SWS_ALPHA_BLEND_NB,
-} SwsAlphaBlend;
 
 typedef struct Range {
     unsigned int start;

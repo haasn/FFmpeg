@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2024 Niklas Haas
  * Copyright (C) 2001-2011 Michael Niedermayer <michaelni@gmx.at>
  *
  * This file is part of FFmpeg.
@@ -60,6 +61,286 @@ const char *swscale_configuration(void);
  * Return the libswscale license.
  */
 const char *swscale_license(void);
+
+/**
+ * Main external API structure. New fields cannot be added to the end with
+ * minor version bumps. Removal, reordering and changes to existing fields
+ * require a major version bump. sizeof(SwsContext2) is not part of the ABI.
+ */
+typedef struct SwsContext2 {
+    const AVClass *av_class;
+
+    /**
+     * Private context used for internal data.
+     */
+    struct SwsInternal *internal;
+
+    /**
+     * Private data of the user, can be used to carry app specific stuff.
+     */
+    void *opaque;
+
+    /**
+     * Bitmask of SWS_FLAG_*.
+     */
+    int64_t flags;
+
+    /**
+     * How many threads to use for processing, or 0 for automatic selection.
+     */
+    int threads;
+
+    /**
+     * Quality preset, on a scale from 1 to 10, or 0 to use fixed, built-in
+     * defaults. See `enum SwsQuality`.
+     */
+    int quality;
+
+    /**
+     * Scaling filter. If set to something other than SWS_FILTER_AUTO, this
+     * will override the filter implied by the `quality` preset.
+     */
+    int scaler;
+
+    /**
+     * Filter used specifically for up/downsampling subsampled (chroma) planes.
+     * If set to something other than SWS_FILTER_AUTO, this will override the
+     * filter implied by the `quality` preset and/or `filter` option.
+     */
+    int scaler_sub;
+
+    /**
+     * Dither mode. If set to something other than SWS_DITHER_AUTO, this will
+     * override the dither mode implied by the `quality` preset.
+     */
+    int dither;
+
+    /**
+     * Alpha blending mode. See `SwsAlphaBlend` for details.
+     */
+    int alpha_blend;
+
+    /**
+     * Backwards compatibility field with legacy flags (SWS_*). Anything set
+     * here will be used as a fallback for the corresponding options above.
+     *
+     * @deprecated use SwsContext2.flags/filter/dither
+     */
+    attribute_deprecated
+    int sws_flags;
+
+    /* Note: Remember to update sws_opts_equal() when adding new members */
+} SwsContext2;
+
+/**
+ * Allocate an SwsContext2 and set its fields to default values. The
+ * resulting struct should be freed with sws_free_context2().
+ */
+SwsContext2 *sws_alloc_context2(void);
+
+/**
+ * Free the codec context and everything associated with it, and write NULL
+ * to the provided pointer.
+ */
+void sws_free_context2(SwsContext2 **ctx);
+
+/**
+ * Get the AVClass for SwsContext2. It can be used in combination with
+ * AV_OPT_SEARCH_FAKE_OBJ for examining options.
+ *
+ * @see av_opt_find().
+ */
+const AVClass *sws_get_class2(void);
+
+/******************************
+ * Flags and quality settings *
+ ******************************/
+
+typedef enum SwsFlags {
+    /**
+     * Force bit-exact output. This will prevent the use of platform-specific
+     * optimizations that may lead to slight difference in rounding, in favor
+     * of always maintaining exact bit output compatibility with the reference
+     * C code.
+     */
+    SWS_FLAG_BITEXACT = 1 << 0,
+
+    /**
+     * Return an error on underspecified conversions. Without this flag,
+     * unspecified fields are defaulted to sensible values.
+     */
+    SWS_FLAG_STRICT = 1 << 1,
+
+    /**
+     * Allow aliasing during scaling / sampling. This will improve performance
+     * at the cost of quality, especially while downscaling.
+     */
+    SWS_FLAG_ALIAS = 1 << 2,
+
+    /* Not part of the ABI */
+    SWS_FLAG_MAX_VALUE = SWS_FLAG_ALIAS,
+} SwsFlags;
+
+/**
+ * The exact interpretation of these quality presets are not part of the ABI.
+ */
+typedef enum SwsQuality {
+    SWS_Q_ULTRAFAST = 1,  /* no dither,      nearest+nearest,   alias   */
+    SWS_Q_SUPERFAST = 2,  /* no dither,      bilinear+nearest,  alias   */
+    SWS_Q_VERYFAST  = 3,  /* no dither,      bilinear+bilinear, alias   */
+    SWS_Q_FASTER    = 4,  /* bayer dither,   bilinear+bilinear          */
+    SWS_Q_FAST      = 5,  /* bayer dither,   bicubic+bilinear           */
+    SWS_Q_MEDIUM    = 6,  /* bayer dither,   bicubic+bicubic            */
+    SWS_Q_SLOW      = 7,  /* bayer dither,   lanczos+bicubic            */
+    SWS_Q_SLOWER    = 8,  /* ED dither,      lanczos+bicubic            */
+    SWS_Q_VERYSLOW  = 9,  /* ED dither,      lanczos+lanczos            */
+    SWS_Q_PLACEBO   = 10, /* ED dither,      lanczos+lanczos            */
+
+    SWS_Q_NONE      = 0,
+    SWS_Q_MIN       = SWS_Q_ULTRAFAST,
+    SWS_Q_MAX       = SWS_Q_PLACEBO,
+} SwsQuality;
+
+typedef enum SwsScaler {
+    SWS_SCALER_AUTO = 0,  /* auto-select from preset */
+    SWS_SCALER_NEAREST,   /* nearest neighbour */
+    SWS_SCALER_BILINEAR,  /* bilinear filtering */
+    SWS_SCALER_BICUBIC,   /* 2-tap cubic B-spline */
+    SWS_SCALER_GAUSSIAN,  /* gaussian approximation */
+    SWS_SCALER_LANCZOS,   /* 3-tap sinc/sinc */
+    SWS_SCALER_NB,        /* not part of the ABI */
+} SwsScaler;
+
+typedef enum SwsDither {
+    SWS_DITHER_AUTO = 0, /* auto-select from preset */
+    SWS_DITHER_NONE,     /* disable dithering */
+    SWS_DITHER_BAYER,    /* ordered dither matrix */
+    SWS_DITHER_ED,       /* error diffusion */
+    SWS_DITHER_A_DITHER, /* arithmetic addition */
+    SWS_DITHER_X_DITHER, /* arithmetic xor */
+    SWS_DITHER_NB,       /* not part of the ABI */
+} SwsDither;
+
+typedef enum SwsAlphaBlend {
+    SWS_ALPHA_BLEND_NONE  = 0,
+    SWS_ALPHA_BLEND_UNIFORM,
+    SWS_ALPHA_BLEND_CHECKERBOARD,
+    SWS_ALPHA_BLEND_NB,  /* not part of the ABI */
+} SwsAlphaBlend;
+
+/**
+ * Returns the default parameters implied by a given * quality preset.
+ */
+SwsFlags  sws_default_flags(SwsQuality preset);
+SwsDither sws_default_dither(SwsQuality preset);
+SwsScaler sws_default_scaler(SwsQuality preset);
+SwsScaler sws_default_scaler_sub(SwsQuality preset);
+
+/**
+ * Returns the effectively active parameters implied by a given
+ * combination of SwsContext2 options.
+ */
+SwsFlags  sws_get_flags(const SwsContext2 *ctx);
+SwsDither sws_get_dither(const SwsContext2 *ctx);
+SwsScaler sws_get_scaler(const SwsContext2 *ctx);
+SwsScaler sws_get_scaler_sub(const SwsContext2 *ctx);
+
+/***************************
+ * Supported frame formats *
+ ***************************/
+
+/**
+ * Test if a given pixel format is supported.
+ *
+ * @param output  If 0, test if compatible with the source/input frame;
+ *                otherwise, with the destination/output frame.
+ * @param format  The format to check.
+ *
+ * @return A positive integer if supported, 0 otherwise.
+ */
+int sws_test_format(enum AVPixelFormat format, int output);
+
+/**
+ * Test if a given color space is supported.
+ *
+ * @param output  If 0, test if compatible with the source/input frame;
+ *                otherwise, with the destination/output frame.
+ * @param colorspace The colorspace to check.
+ *
+ * @return A positive integer if supported, 0 otherwise.
+ */
+int sws_test_colorspace(enum AVColorSpace colorspace, int output);
+
+/**
+ * Test if a given set of color primaries is supported.
+ *
+ * @param output  If 0, test if compatible with the source/input frame;
+ *                otherwise, with the destination/output frame.
+ * @param primaries The color primaries to check.
+ *
+ * @return A positive integer if supported, 0 otherwise.
+ */
+int sws_test_primaries(enum AVColorPrimaries primaries, int output);
+
+/**
+ * Test if a given color transfer function is supported.
+ *
+ * @param output  If 0, test if compatible with the source/input frame;
+ *                otherwise, with the destination/output frame.
+ * @param trc     The color transfer function to check.
+ *
+ * @return A positive integer if supported, 0 otherwise.
+ */
+int sws_test_transfer(enum AVColorTransferCharacteristic trc, int output);
+
+/**
+ * Helper function to run all sws_test_* against a frame. Ignores irrelevant
+ * properties, for example AVColorSpace is not checked for RGB frames.
+ */
+int sws_test_frame(const AVFrame *frame, int output);
+
+/********************
+ * Main scaling API *
+ ********************/
+
+/**
+ * Check if a given conversion is a noop. Returns a positive integer if
+ * no operation needs to be performed, 0 otherwise.
+ */
+int sws_is_noop(const AVFrame *dst, const AVFrame *src);
+
+/**
+ * Scale source data from `src` and write the output to `dst`.
+ *
+ * @param ctx   The scaling context.
+ * @param dst   The destination frame. The data buffers may either be already
+ *              allocated by the caller or left clear, in which case they will
+ *              be allocated by the scaler. The latter may have performance
+ *              advantages - e.g. in certain cases some (or all) output planes
+ *              may be references to input planes, rather than copies.
+ * @param src   The source frame. If the data buffers are set to NULL, then
+ *              this function behaves identically to `sws_frame_setup`.
+ * @return 0 on success, a negative AVERROR code on failure.
+ */
+int sws_scale_frame2(SwsContext2 *ctx, AVFrame *dst, const AVFrame *src);
+
+/**
+ * Like `sws_scale_frame2`, but without actually scaling. It will instead
+ * merely initialize internal state that *would* be required to perform the
+ * operation, as well as returning the correct error code for unsupported
+ * frame combinations.
+ *
+ * @param ctx   The scaling context.
+ * @param dst   The destination frame to consider.
+ * @param src   The source frame to consider.
+ * @return 0 on success, a negative AVERROR code on failure.
+ */
+int sws_frame_setup(SwsContext2 *ctx, const AVFrame *dst,
+                    const AVFrame *src);
+
+/**********************************************************
+ * Deprecated, legacy API. See above for the replacement. *
+ **********************************************************/
 
 /* values for the flags, the stuff on the command line is different */
 #define SWS_FAST_BILINEAR     1
