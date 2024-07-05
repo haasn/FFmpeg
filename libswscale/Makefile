@@ -1,14 +1,17 @@
 NAME = swscale
 DESC = FFmpeg image rescaling library
 
-HEADERS = swscale.h                                                     \
+HEADERS = avscale.h                                                     \
+          swscale.h                                                     \
           version.h                                                     \
           version_major.h                                               \
 
-OBJS = alphablend.o                                     \
+OBJS = avscale.o                                        \
+       alphablend.o                                     \
        hscale.o                                         \
        hscale_fast_bilinear.o                           \
        gamma.o                                          \
+       graph.o                                          \
        half2float.o                                     \
        input.o                                          \
        options.o                                        \
