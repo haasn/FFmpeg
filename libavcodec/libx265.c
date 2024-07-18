@@ -792,9 +792,11 @@ static int libx265_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
             }
         } else if (ctx->dovi.cfg.dv_profile) {
             av_log(avctx, AV_LOG_ERROR, "Dolby Vision enabled, but received frame "
-                   "without AV_FRAME_DATA_DOVI_METADATA");
-            free_picture(ctx, &x265pic);
-            return AVERROR_INVALIDDATA;
+                   "without AV_FRAME_DATA_DOVI_METADATA\n");
+            if (avctx->strict_std_compliance >= FF_COMPLIANCE_STRICT) {
+                free_picture(ctx, &x265pic);
+                return AVERROR_INVALIDDATA;
+            }
         }
 #endif
     }
