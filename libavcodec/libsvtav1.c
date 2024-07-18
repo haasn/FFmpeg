@@ -551,9 +551,9 @@ static int eb_send_frame(AVCodecContext *avctx, const AVFrame *frame)
     } else if (svt_enc->dovi.cfg.dv_profile) {
         av_log(avctx, AV_LOG_ERROR, "Dolby Vision enabled, but received frame "
                "without AV_FRAME_DATA_DOVI_METADATA\n");
-        return AVERROR_INVALIDDATA;
+        if (avctx->strict_std_compliance >= FF_COMPLIANCE_STRICT)
+            return AVERROR_INVALIDDATA;
     }
-
 
     svt_ret = svt_av1_enc_send_picture(svt_enc->svt_handle, headerPtr);
     if (svt_ret != EB_ErrorNone)
