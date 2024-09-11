@@ -31,6 +31,7 @@
 #include "filters.h"
 #include "formats.h"
 #include "framesync.h"
+#include "libavutil/pixfmt.h"
 #include "scale_eval.h"
 #include "video.h"
 #include "libavutil/eval.h"
@@ -812,6 +813,10 @@ scale:
         goto err;
     }
 
+    if (scale->in_color_matrix != -1)
+        in->colorspace = scale->in_color_matrix;
+    if (scale->in_range != AVCOL_RANGE_UNSPECIFIED)
+        in->color_range = scale->in_range;
     if (scale->in_chroma_loc != AVCHROMA_LOC_UNSPECIFIED)
         in->chroma_location = scale->in_chroma_loc;
 
