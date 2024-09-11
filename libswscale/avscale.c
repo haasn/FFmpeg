@@ -252,7 +252,7 @@ int avscale_frame_slice(AVScaleContext *ctx, AVFrame *dst,
     }
 
     align = avscale_slice_alignment(src);
-    if ((y | h) & align) {
+    if (y & align || h & align && h != src->height) {
         av_log(ctx, AV_LOG_ERROR, "Slice [%d, %d) not aligned to a multiple of "
                "%d for subsampled/interlaced frame\n", y, y + h, align);
         return AVERROR(EINVAL);
