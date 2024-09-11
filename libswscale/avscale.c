@@ -28,7 +28,7 @@
 #include "graph.h"
 
 typedef struct AVScaleInternal {
-    /* Currenty active options  */
+    /* Currently active options  */
     AVScaleContext opts; /* (shallow) shadow copy of main context */
     AVScaleFormat src_fmt, dst_fmt;
 
@@ -246,7 +246,7 @@ int avscale_frame_slice(AVScaleContext *ctx, AVFrame *dst,
 
     /* Check slice bounds and alignment */
     if (y < 0 || h <= 0 || y + h > src->height) {
-        av_log(ctx, AV_LOG_ERROR, "Slice [%d, %d) out of frame range [0, %d).",
+        av_log(ctx, AV_LOG_ERROR, "Slice [%d, %d) out of frame range [0, %d).\n",
                y, y + h, src->height);
         return AVERROR(EINVAL);
     }
@@ -254,7 +254,7 @@ int avscale_frame_slice(AVScaleContext *ctx, AVFrame *dst,
     align = avscale_slice_alignment(src);
     if ((y | h) & align) {
         av_log(ctx, AV_LOG_ERROR, "Slice [%d, %d) not aligned to a multiple of "
-               "%d for subsampled/interlaced frame", y, y + h, align);
+               "%d for subsampled/interlaced frame\n", y, y + h, align);
         return AVERROR(EINVAL);
     }
 
@@ -309,7 +309,7 @@ int avscale_frame_setup(AVScaleContext *ctx, const AVFrame *dst,
 
     if ((src->flags ^ dst->flags) & AV_FRAME_FLAG_INTERLACED) {
         av_log(ctx, AV_LOG_ERROR, "Cannot convert interlaced to progressive "
-                                  "frames or vice versa.");
+                                  "frames or vice versa.\n");
         return AVERROR(EINVAL);
     }
 
@@ -337,7 +337,7 @@ int avscale_frame_setup(AVScaleContext *ctx, const AVFrame *dst,
     if (dst_fmt.prim != src_fmt.prim || dst_fmt.trc != src_fmt.trc) {
         av_log(ctx, AV_LOG_WARNING, "Conversions between different primaries / "
                "transfer functions are not currently implemented, expect "
-               "wrong results.");
+               "wrong results.\n");
     }
 
     /* Re-initialize scaling graph */
