@@ -376,9 +376,9 @@ fail:
 
 FF_DISABLE_DEPRECATION_WARNINGS
 static const AVOption avscale_options[] = {
-    { "flags",        "avscale flags",  OFFSET(flags), AV_OPT_TYPE_FLAGS, { .i64 = 0 }, 0, UINT_MAX,    .flags = VE, .unit = "avscale_flags" },
-        { "bitexact", "bit-exact mode", 0,             AV_OPT_TYPE_CONST, { .i64 = AV_SCALE_BITEXACT }, .flags = VE, .unit = "avscale_flags" },
-        { "strict",   "strict mode",    0,             AV_OPT_TYPE_CONST, { .i64 = AV_SCALE_STRICT },   .flags = VE, .unit = "avscale_flags" },
+    { "scale_flags",  "avscale flags",  OFFSET(flags), AV_OPT_TYPE_FLAGS, { .i64 = 0 }, 0, UINT_MAX,    .flags = VE, .unit = "scale_flags" },
+        { "bitexact", "bit-exact mode", 0,             AV_OPT_TYPE_CONST, { .i64 = AV_SCALE_BITEXACT }, .flags = VE, .unit = "scale_flags" },
+        { "strict",   "strict mode",    0,             AV_OPT_TYPE_CONST, { .i64 = AV_SCALE_STRICT },   .flags = VE, .unit = "scale_flags" },
 
     { "threads",  "number of threads",   OFFSET(threads), AV_OPT_TYPE_INT,   { .i64 = 1 }, 0, INT_MAX, .flags = VE, .unit = "threads" },
         { "auto", "automatic selection", 0,               AV_OPT_TYPE_CONST, { .i64 = 0 },             .flags = VE, .unit = "threads" },
