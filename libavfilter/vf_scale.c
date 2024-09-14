@@ -147,6 +147,7 @@ typedef struct ScaleContext {
 
     int hsub, vsub;             ///< chroma subsampling
     int slice_y;                ///< top of current output slice
+    int interlaced;
     int uses_ref;
 
     char *w_expr;               ///< width  expression string
@@ -412,8 +413,8 @@ static av_cold int init(AVFilterContext *ctx)
         return AVERROR(EINVAL);
     }
 
-    av_log(ctx, AV_LOG_VERBOSE, "w:%s h:%s flags:'%s'\n",
-           scale->w_expr, scale->h_expr, (char *)av_x_if_null(scale->flags_str, ""));
+    av_log(ctx, AV_LOG_VERBOSE, "w:%s h:%s flags:'%s' interl:%d\n",
+           scale->w_expr, scale->h_expr, (char *)av_x_if_null(scale->flags_str, ""), scale->interlaced);
 
     if (scale->flags_str && *scale->flags_str) {
         ret = av_opt_set(scale->avs, "sws_flags", scale->flags_str, 0);
@@ -722,8 +723,7 @@ static int scale_frame(AVFilterLink *link, AVFrame **frame_in,
     AVFrame *out, *in = *frame_in;
     const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(link->format);
     char buf[32];
-    int ret;
-    int frame_changed;
+    int ret, flags_orig, frame_changed;
 
     *frame_in = NULL;
 
@@ -820,6 +820,12 @@ scale:
     if (scale->in_chroma_loc != AVCHROMA_LOC_UNSPECIFIED)
         in->chroma_location = scale->in_chroma_loc;
 
+    flags_orig = in->flags;
+    if (scale->interlaced > 0)
+        in->flags |= AV_FRAME_FLAG_INTERLACED;
+    else if (!scale->interlaced)
+        in->flags &= ~AV_FRAME_FLAG_INTERLACED;
+
     av_frame_copy_props(out, in);
     out->width  = outlink->w;
     out->height = outlink->h;
@@ -835,12 +841,14 @@ scale:
 
     if (avscale_is_noop(out, in)) {
         av_frame_free(&out);
+        in->flags = flags_orig;
         *frame_out = in;
         return 0;
     }
 
     ret = avscale_frame(scale->avs, out, in);
     av_frame_free(&in);
+    out->flags = flags_orig;
     if (ret < 0)
         av_frame_free(&out);
     *frame_out = out;
@@ -1038,7 +1046,7 @@ static const AVOption scale_options[] = {
     { "h",     "Output video height",         OFFSET(h_expr),    AV_OPT_TYPE_STRING,        .flags = TFLAGS },
     { "height","Output video height",         OFFSET(h_expr),    AV_OPT_TYPE_STRING,        .flags = TFLAGS },
     { "flags", "Flags to pass to libswscale", OFFSET(flags_str), AV_OPT_TYPE_STRING, { .str = "" }, .flags = FLAGS },
-    // { "interl", "set interlacing", OFFSET(interlaced), AV_OPT_TYPE_BOOL, {.i64 = 0 }, -1, 1, FLAGS },
+    { "interl", "set interlacing", OFFSET(interlaced), AV_OPT_TYPE_BOOL, {.i64 = 0 }, -1, 1, FLAGS },
     { "size",   "set video size",          OFFSET(size_str), AV_OPT_TYPE_STRING, {.str = NULL}, 0, .flags = FLAGS },
     { "s",      "set video size",          OFFSET(size_str), AV_OPT_TYPE_STRING, {.str = NULL}, 0, .flags = FLAGS },
     {  "in_color_matrix", "set input YCbCr type",   OFFSET(in_color_matrix),  AV_OPT_TYPE_INT, { .i64 = -1 }, -1, AVCOL_SPC_NB-1, .flags = FLAGS, .unit = "color" },
