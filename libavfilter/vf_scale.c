@@ -486,7 +486,7 @@ static int query_formats(AVFilterContext *ctx)
     formats = NULL;
     while ((desc = av_pix_fmt_desc_next(desc))) {
         pix_fmt = av_pix_fmt_desc_get_id(desc);
-        if (avscale_test_format(pix_fmt, 1)) {
+        if (avscale_test_format(pix_fmt, 1) || pix_fmt == AV_PIX_FMT_PAL8) {
             if ((ret = ff_add_format(&formats, pix_fmt)) < 0)
                 return ret;
         }
@@ -846,9 +846,15 @@ scale:
         return 0;
     }
 
+    if (out->format == AV_PIX_FMT_PAL8) {
+        out->format = AV_PIX_FMT_BGR8;
+        avpriv_set_systematic_pal2((uint32_t*) out->data[1], out->format);
+    }
+
     ret = avscale_frame(scale->avs, out, in);
     av_frame_free(&in);
     out->flags = flags_orig;
+    out->format = outlink->format; /* undo PAL8 handling */
     if (ret < 0)
         av_frame_free(&out);
     *frame_out = out;
