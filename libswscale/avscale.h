@@ -60,7 +60,8 @@ typedef struct AVScaleContext {
     int threads;
 
     /**
-     * Quality preset, on a scale from 1 to 10. See `enum AVScaleQuality`.
+     * Quality preset, on a scale from 1 to 10, or 0 to disable in favor of
+     * fixed, unchanging dafaults. See `enum AVScaleQuality`.
      */
     int preset;
 
@@ -134,20 +135,22 @@ enum AVScaleFlags {
 };
 
 /**
- * The exact interpretation of these quality presets depends on the backend
- * used, but the backend-invariant common settings are derived as follows:
+ * The exact interpretation of these quality presets are not part of the ABI,
+ * except for AV_SCALE_NONE, which is guaranteed to remain stable across
+ * versions (for constistent output).
  */
 enum AVScaleQuality {
-    AV_SCALE_ULTRAFAST = 1,  /* no dither,      nearest+nearest     */
-    AV_SCALE_SUPERFAST = 2,  /* no dither,      bilinear+nearest    */
-    AV_SCALE_VERYFAST  = 3,  /* no dither,      bilinear+bilinear   */
-    AV_SCALE_FASTER    = 4,  /* bayer dither,   bilinear+bilinear   */
-    AV_SCALE_FAST      = 5,  /* bayer dither,   bicubic+bilinear    */
-    AV_SCALE_MEDIUM    = 6,  /* bayer dither,   bicubic+bicubic     */
-    AV_SCALE_SLOW      = 7,  /* bayer dither,   lanczos+bicubic     */
-    AV_SCALE_SLOWER    = 8,  /* full dither,    lanczos+bicubic     */
-    AV_SCALE_VERYSLOW  = 9,  /* full dither,    lanczos+lanczos     */
-    AV_SCALE_PLACEBO   = 10, /* full dither,    lanczos+lanczos     */
+    AV_SCALE_NONE      = 0,  /* currently equivalent to AV_SCALE_MEDIUM */
+    AV_SCALE_ULTRAFAST = 1,  /* no dither,      nearest+nearest         */
+    AV_SCALE_SUPERFAST = 2,  /* no dither,      bilinear+nearest        */
+    AV_SCALE_VERYFAST  = 3,  /* no dither,      bilinear+bilinear       */
+    AV_SCALE_FASTER    = 4,  /* bayer dither,   bilinear+bilinear       */
+    AV_SCALE_FAST      = 5,  /* bayer dither,   bicubic+bilinear        */
+    AV_SCALE_MEDIUM    = 6,  /* bayer dither,   bicubic+bicubic         */
+    AV_SCALE_SLOW      = 7,  /* bayer dither,   lanczos+bicubic         */
+    AV_SCALE_SLOWER    = 8,  /* full dither,    lanczos+bicubic         */
+    AV_SCALE_VERYSLOW  = 9,  /* full dither,    lanczos+lanczos         */
+    AV_SCALE_PLACEBO   = 10, /* full dither,    lanczos+lanczos         */
 };
 
 enum AVDitherMode {
