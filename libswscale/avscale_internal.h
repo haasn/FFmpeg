@@ -33,7 +33,7 @@ static inline int avscale_opts_equal(const AVScaleContext *ctx1,
 FF_DISABLE_DEPRECATION_WARNINGS
     return ctx1->flags      == ctx2->flags      &&
            ctx1->threads    == ctx2->threads    &&
-           ctx1->preset     == ctx2->preset     &&
+           ctx1->quality    == ctx2->quality    &&
            ctx1->dither     == ctx2->dither     &&
            ctx1->filter     == ctx2->filter     &&
            ctx1->filter_sub == ctx2->filter_sub &&

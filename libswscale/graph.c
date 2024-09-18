@@ -25,6 +25,7 @@
 #include "libavutil/pixdesc.h"
 
 #include "avscale_internal.h"
+#include "libswscale/avscale.h"
 #include "swscale_internal.h"
 #include "graph.h"
 
@@ -109,26 +110,53 @@ static void get_chroma_pos(int *h_chr_pos, int *v_chr_pos, int field,
     *v_chr_pos = sub_y ? y_pos : -513;
 }
 
-int avscale_graph_init(const AVScaleContext *ctx, AVScaleGraph *graph,
-                       const AVScaleFormat *dst, const AVScaleFormat *src,
-                       int field)
+static int init_fallback(AVScaleContext *ctx, AVScaleGraph *graph,
+                         const AVScaleFormat *dst, const AVScaleFormat *src,
+                         int field)
 {
-    int ret;
+    enum AVDitherMode dither = avscale_get_dither(ctx);
+    enum AVScaleFilter filter = avscale_get_filter(ctx);
+    enum AVScaleFilter filter_sub = avscale_get_filter_sub(ctx);
+    int sws_filter, ret;
 
-    SwsContext *sws = graph->sws = sws_alloc_context();
+    SwsContext *sws = graph->fallback = sws_alloc_context();
     if (!sws)
         return AVERROR(ENOMEM);
 
-    AV_NOWARN_DEPRECATED({ sws->flags = ctx->sws_flags; })
+    sws_filter = ctx->sws_flags & (SWS_POINT         |
+                                   SWS_AREA          |
+                                   SWS_BILINEAR      |
+                                   SWS_FAST_BILINEAR |
+                                   SWS_BICUBIC       |
+                                   SWS_X             |
+                                   SWS_GAUSS         |
+                                   SWS_LANCZOS       |
+                                   SWS_SINC          |
+                                   SWS_SPLINE        |
+                                   SWS_BICUBLIN);
+
+    AV_NOWARN_DEPRECATED({ sws->flags = ctx->sws_flags ^ sws_filter; })
     sws->nb_threads = ctx->threads;
     if (ctx->flags & AV_SCALE_BITEXACT)
         sws->flags |= SWS_BITEXACT | SWS_ACCURATE_RND;
 
-    /* TODO: map quality settings etc.
-    switch (avscale_get_dither(ctx)) {
-    case AV_DITHER_NONE: sws->dither = 0; break;
+    switch (filter) {
+    case AV_SCALE_NEAREST:  sws_filter = SWS_POINT;    break;
+    case AV_SCALE_BILINEAR: sws_filter = SWS_BILINEAR; break;
+    case AV_SCALE_BICUBIC:  sws_filter = SWS_BICUBIC;  break;
+    case AV_SCALE_GAUSSIAN: sws_filter = SWS_GAUSS;    break;
+    case AV_SCALE_LANCZOS:  sws_filter = SWS_LANCZOS;  break;
     }
-    */
+
+    if (filter == AV_SCALE_BICUBIC && filter_sub == AV_SCALE_BILINEAR)
+        sws_filter = SWS_BICUBLIN;
+    else if (filter_sub && filter_sub != filter) {
+        av_log(ctx, AV_LOG_WARNING, "Subsampling filter ignored\n");
+    }
+
+    sws->flags |= sws_filter;
+
+    // TODO: set correct dithering mode
 
     sws->srcW      = src->width;
     sws->srcH      = src->height;
@@ -165,16 +193,25 @@ int avscale_graph_init(const AVScaleContext *ctx, AVScaleGraph *graph,
     return 0;
 }
 
+int avscale_graph_init(AVScaleContext *ctx, AVScaleGraph *graph,
+                       const AVScaleFormat *dst, const AVScaleFormat *src,
+                       int field)
+{
+    return init_fallback(ctx, graph, dst, src, field);
+}
+
 void avscale_graph_uninit(AVScaleGraph *graph)
 {
-    sws_freeContext(graph->sws);
-    graph->sws = NULL;
+    sws_freeContext(graph->fallback);
+    graph->fallback = NULL;
 }
 
 void avscale_graph_run(AVScaleGraph *graph, const AVScaleField *dst,
                        const AVScaleField *src, int y, int h)
 {
-    av_assert1(graph->sws);
-    (void) sws_scale(graph->sws, (const uint8_t **) src->data, src->linesize,
-                     y, h, dst->data, dst->linesize);
+    if (graph->fallback) {
+        sws_scale(graph->fallback, (const uint8_t **) src->data, src->linesize,
+                  y, h, dst->data, dst->linesize);
+        return;
+    }
 }

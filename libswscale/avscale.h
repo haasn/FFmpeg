@@ -60,10 +60,10 @@ typedef struct AVScaleContext {
     int threads;
 
     /**
-     * Quality preset, on a scale from 1 to 10, or 0 to disable in favor of
-     * fixed, unchanging dafaults. See `enum AVScaleQuality`.
+     * Quality preset, on a scale from 1 to 10, or 0 to use fixed, built-in
+     * defaults. See `enum AVScaleQuality`.
      */
-    int preset;
+    int quality;
 
     /**
      * Dither mode. If set to something other than AV_DITHER_AUTO, this will
@@ -86,7 +86,7 @@ typedef struct AVScaleContext {
 
     /**
      * Backwards compatibility field with libswscale. Anything set here
-     * will override the corresponding options implied by the fields above.
+     * will be used as a fallback for the corresponding options above.
      *
      * @deprecated use AVScaleContext.flags/filter/dither
      */
@@ -135,12 +135,9 @@ enum AVScaleFlags {
 };
 
 /**
- * The exact interpretation of these quality presets are not part of the ABI,
- * except for AV_SCALE_NONE, which is guaranteed to remain stable across
- * versions (for constistent output).
+ * The exact interpretation of these quality presets are not part of the ABI.
  */
 enum AVScaleQuality {
-    AV_SCALE_NONE      = 0,  /* currently equivalent to AV_SCALE_MEDIUM */
     AV_SCALE_ULTRAFAST = 1,  /* no dither,      nearest+nearest         */
     AV_SCALE_SUPERFAST = 2,  /* no dither,      bilinear+nearest        */
     AV_SCALE_VERYFAST  = 3,  /* no dither,      bilinear+bilinear       */
@@ -179,6 +176,15 @@ enum AVScaleFilter {
  */
 enum AVScaleFilter avscale_default_filter(int preset);
 enum AVScaleFilter avscale_default_filter_sub(int preset);
+
+
+/**
+ * Returns the effectively active dither/filter mode implied by a given
+ * combination of AVScaleContext options.
+ */
+enum AVDitherMode avscale_get_dither(const AVScaleContext *ctx);
+enum AVScaleFilter avscale_get_filter(const AVScaleContext *ctx);
+enum AVScaleFilter avscale_get_filter_sub(const AVScaleContext *ctx);
 
 /***************************
  * Supported frame formats *

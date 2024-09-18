@@ -70,6 +70,57 @@ enum AVScaleFilter avscale_default_filter_sub(int preset)
         return AV_SCALE_LANCZOS;
 }
 
+enum AVDitherMode avscale_get_dither(const AVScaleContext *ctx)
+{
+    if (ctx->dither != AV_DITHER_AUTO)
+        return ctx->dither;
+    if (ctx->quality)
+        return avscale_default_dither(ctx->quality);
+    /* Backwards compatibility with legacy API */
+    if (ctx->sws_flags & SWS_ERROR_DIFFUSION)
+        return AV_DITHER_FULL;
+    return AV_DITHER_AUTO;
+}
+
+static enum AVScaleFilter get_sws_filter(int sws_flags)
+{
+    if (sws_flags & SWS_POINT)
+        return AV_SCALE_NEAREST;
+    if (sws_flags & SWS_BILINEAR)
+        return AV_SCALE_BILINEAR;
+    if (sws_flags & SWS_BICUBIC)
+        return AV_SCALE_BICUBIC;
+    if (sws_flags & SWS_GAUSS)
+        return AV_SCALE_GAUSSIAN;
+    if (sws_flags & SWS_LANCZOS)
+        return AV_SCALE_LANCZOS;
+    return AV_SCALE_AUTO;
+}
+
+enum AVScaleFilter avscale_get_filter(const AVScaleContext *ctx)
+{
+    if (ctx->filter != AV_SCALE_AUTO)
+        return ctx->filter;
+    if (ctx->quality)
+        return avscale_default_filter(ctx->quality);
+    /* Backwards compatibility with legacy API */
+    if (ctx->sws_flags & SWS_BICUBLIN)
+        return AV_SCALE_BICUBIC;
+    return get_sws_filter(ctx->sws_flags);
+}
+
+enum AVScaleFilter avscale_get_filter_sub(const AVScaleContext *ctx)
+{
+    if (ctx->filter_sub != AV_SCALE_AUTO)
+        return ctx->filter;
+    if (ctx->quality)
+        return avscale_default_filter_sub(ctx->quality);
+    /* Backwards compatibility with legacy API */
+    if (ctx->sws_flags & SWS_BICUBLIN)
+        return AV_SCALE_BILINEAR;
+    return get_sws_filter(ctx->sws_flags);
+}
+
 static void uninit(AVScaleContext *ctx)
 {
     AVScaleInternal *s = ctx->internal;
@@ -386,9 +437,8 @@ static const AVOption avscale_options[] = {
     { "threads",  "number of threads",   OFFSET(threads), AV_OPT_TYPE_INT,   { .i64 = 1 }, 0, INT_MAX, .flags = VE, .unit = "threads" },
         { "auto", "automatic selection", 0,               AV_OPT_TYPE_CONST, { .i64 = 0 },             .flags = VE, .unit = "threads" },
 
-    { "preset", "quality preset", OFFSET(preset), AV_OPT_TYPE_INT,    { .i64 = AV_SCALE_NONE },      .flags = VE, .unit = "preset",
-                                  .min = AV_SCALE_NONE, .max = AV_SCALE_PLACEBO },
-        { "none",      "",        0,              AV_OPT_TYPE_CONST,  { .i64 = AV_SCALE_NONE },      .flags = VE, .unit = "preset" },
+    { "quality", "quality preset", OFFSET(quality), AV_OPT_TYPE_INT,  { .i64 = 0 },                  .flags = VE, .unit = "preset", .max = AV_SCALE_PLACEBO },
+        { "none",      "",        0,              AV_OPT_TYPE_CONST,  { .i64 = 0 },                  .flags = VE, .unit = "preset" },
         { "ultrafast", "",        0,              AV_OPT_TYPE_CONST,  { .i64 = AV_SCALE_ULTRAFAST }, .flags = VE, .unit = "preset" },
         { "superfast", "",        0,              AV_OPT_TYPE_CONST,  { .i64 = AV_SCALE_SUPERFAST }, .flags = VE, .unit = "preset" },
         { "veryfast",  "",        0,              AV_OPT_TYPE_CONST,  { .i64 = AV_SCALE_VERYFAST },  .flags = VE, .unit = "preset" },
@@ -415,7 +465,7 @@ static const AVOption avscale_options[] = {
         { "gaussian", "gaussian approximation", 0,                  AV_OPT_TYPE_CONST, { .i64 = AV_SCALE_GAUSSIAN }, .flags = VE, .unit = "filter" },
         { "lanczos",  "3-tap sinc/sinc",        0,                  AV_OPT_TYPE_CONST, { .i64 = AV_SCALE_LANCZOS  }, .flags = VE, .unit = "filter" },
 
-    { "sws_flags",          "swscale flags", OFFSET(sws_flags),  AV_OPT_TYPE_FLAGS, { .i64 = 0 }, 0, UINT_MAX,      .flags = VE, .unit = "sws_flags" },
+    { "sws_flags",          "swscale flags", OFFSET(sws_flags),  AV_OPT_TYPE_FLAGS, { .i64 = SWS_BICUBIC },         .flags = VE, .unit = "sws_flags", .max = UINT_MAX },
         { "fast_bilinear",  "fast bilinear",                 0,  AV_OPT_TYPE_CONST, { .i64  = SWS_FAST_BILINEAR  }, .flags = VE, .unit = "sws_flags" },
         { "bilinear",       "bilinear",                      0,  AV_OPT_TYPE_CONST, { .i64  = SWS_BILINEAR       }, .flags = VE, .unit = "sws_flags" },
         { "bicubic",        "bicubic",                       0,  AV_OPT_TYPE_CONST, { .i64  = SWS_BICUBIC        }, .flags = VE, .unit = "sws_flags" },

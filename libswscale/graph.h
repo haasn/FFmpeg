@@ -25,13 +25,14 @@
 #include "swscale.h"
 
 typedef struct AVScaleGraph {
-    struct SwsContext *sws;
+    /* Generic swscale fallback to cover use cases not yet implemented */
+    struct SwsContext *fallback;
 } AVScaleGraph;
 
 /**
  * Initialize the filter graph. Returns 0 or a negative error code.
  */
-int avscale_graph_init(const AVScaleContext *ctx, AVScaleGraph *graph,
+int avscale_graph_init(AVScaleContext *ctx, AVScaleGraph *graph,
                        const AVScaleFormat *dst, const AVScaleFormat *src,
                        int field);
 
@@ -41,7 +42,8 @@ int avscale_graph_init(const AVScaleContext *ctx, AVScaleGraph *graph,
 void avscale_graph_uninit(AVScaleGraph *graph);
 
 /**
- * Dispatch the filter graph on a single slice of data.
+ * Dispatch the filter graph on a single slice of data. This function is
+ * internally threadad.
  */
 void avscale_graph_run(AVScaleGraph *graph, const AVScaleField *dst,
                        const AVScaleField *src, int y, int h);
