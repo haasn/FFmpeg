@@ -35,3 +35,4 @@ TESTPROGS = colorspace                                                  \
             floatimg_cmp                                                \
             pixdesc_query                                               \
             swscale                                                     \
+            avscale
