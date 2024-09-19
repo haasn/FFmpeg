@@ -115,6 +115,8 @@ enum AVScaleFilter avscale_get_filter_sub(const AVScaleContext *ctx)
         return ctx->filter;
     if (ctx->quality)
         return avscale_default_filter_sub(ctx->quality);
+    if (ctx->filter)
+        return ctx->filter;
     /* Backwards compatibility with legacy API */
     if (ctx->sws_flags & SWS_BICUBLIN)
         return AV_SCALE_BILINEAR;
