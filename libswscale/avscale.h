@@ -148,6 +148,8 @@ enum AVScaleQuality {
     AV_SCALE_SLOWER    = 8,  /* full dither,    lanczos+bicubic         */
     AV_SCALE_VERYSLOW  = 9,  /* full dither,    lanczos+lanczos         */
     AV_SCALE_PLACEBO   = 10, /* full dither,    lanczos+lanczos         */
+    AV_SCALE_MIN       = AV_SCALE_ULTRAFAST,
+    AV_SCALE_MAX       = AV_SCALE_PLACEBO,
 };
 
 enum AVDitherMode {
@@ -155,6 +157,7 @@ enum AVDitherMode {
     AV_DITHER_NONE,     /* disable dithering */
     AV_DITHER_BAYER,    /* ordered dither matrix */
     AV_DITHER_FULL,     /* full error diffusion */
+    AV_DITHER_MODE_NB,
 };
 
 /**
@@ -169,6 +172,7 @@ enum AVScaleFilter {
     AV_SCALE_BICUBIC,   /* 2-tap cubic B-spline */
     AV_SCALE_GAUSSIAN,  /* gaussian approximation */
     AV_SCALE_LANCZOS,   /* 3-tap sinc/sinc */
+    AV_SCALE_FILTER_NB,
 };
 
 /**
@@ -176,7 +180,6 @@ enum AVScaleFilter {
  */
 enum AVScaleFilter avscale_default_filter(int preset);
 enum AVScaleFilter avscale_default_filter_sub(int preset);
-
 
 /**
  * Returns the effectively active dither/filter mode implied by a given
