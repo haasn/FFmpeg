@@ -67,8 +67,8 @@
 struct SwsContext;
 
 typedef enum SwsDither {
-    SWS_DITHER_NONE = 0,
-    SWS_DITHER_AUTO,
+    SWS_DITHER_AUTO = 0,
+    SWS_DITHER_NONE,
     SWS_DITHER_BAYER,
     SWS_DITHER_ED,
     SWS_DITHER_A_DITHER,
