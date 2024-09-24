@@ -1,4 +1,4 @@
-850744d6d38ab09adb2fbd685d5df740 *tests/data/fate/vsynth2-msrle.avi
-4556642 tests/data/fate/vsynth2-msrle.avi
-df26a524cad8ebf0cf5ba4376c5f115f *tests/data/fate/vsynth2-msrle.out.rawvideo
-stddev:    7.57 PSNR: 30.54 MAXDIFF:   35 bytes:  7603200/  7603200
+1409699df1d1f37c74b8f11953b2c79c *tests/data/fate/vsynth2-msrle.avi
+4995588 tests/data/fate/vsynth2-msrle.avi
+8e83da779b45e2494d68bade740a1217 *tests/data/fate/vsynth2-msrle.out.rawvideo
+stddev:    6.51 PSNR: 31.85 MAXDIFF:   73 bytes:  7603200/  7603200

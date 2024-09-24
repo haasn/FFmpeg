@@ -121,6 +121,8 @@ static int scale_legacy(AVFrame *dst, const AVFrame *src, struct mode mode)
         flags |= SWS_BITEXACT | SWS_ACCURATE_RND;
     if (!(mode.flags & SWS_FLAG_ALIAS))
         flags |= SWS_FULL_CHR_H_INP;
+    if (mode.scaler != SWS_SCALER_NEAREST)
+        flags |= SWS_FULL_CHR_H_INT;
 
     switch (mode.scaler) {
     case SWS_SCALER_NEAREST:  flags |= SWS_POINT;    break;
