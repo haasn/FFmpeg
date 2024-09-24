@@ -1,4 +1,4 @@
-b92226742d745515732a5e7b8a03e7b7 *tests/data/fate/vsynth1-smc.mov
-4613320 tests/data/fate/vsynth1-smc.mov
-f142ee03bf9f37bb2e1902fe32366bbf *tests/data/fate/vsynth1-smc.out.rawvideo
-stddev:    8.69 PSNR: 29.34 MAXDIFF:   64 bytes:  7603200/  7603200
+457d18e8328c6cef9487e630afaa74ed *tests/data/fate/vsynth1-smc.mov
+4745117 tests/data/fate/vsynth1-smc.mov
+2d512b58773c7c2858effc5cc23f0942 *tests/data/fate/vsynth1-smc.out.rawvideo
+stddev:    7.50 PSNR: 30.62 MAXDIFF:   54 bytes:  7603200/  7603200

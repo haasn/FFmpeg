@@ -341,6 +341,8 @@ FF_ENABLE_DEPRECATION_WARNINGS
         sws_flags |= SWS_BITEXACT | SWS_ACCURATE_RND;
     if (!(ctx->flags & SWS_FLAG_ALIAS))
         sws_flags |= SWS_FULL_CHR_H_INP;
+    if (scaler_sub != SWS_SCALER_NEAREST)
+        sws_flags |= SWS_FULL_CHR_H_INT;
 
     graph->incomplete |= src->range == AVCOL_RANGE_UNSPECIFIED;
     graph->incomplete |= dst->range == AVCOL_RANGE_UNSPECIFIED;

@@ -1,4 +1,4 @@
-abbfccc551b173a357024d8392de21dd *tests/data/fate/vsynth_lena-zlib.avi
-12517180 tests/data/fate/vsynth_lena-zlib.avi
-98d0e2854731472c5bf13d8638502d0a *tests/data/fate/vsynth_lena-zlib.out.rawvideo
-stddev:    1.26 PSNR: 46.10 MAXDIFF:   13 bytes:  7603200/  7603200
+f9b68121e76eb314b8ead287d7bfb47e *tests/data/fate/vsynth_lena-zlib.avi
+13891878 tests/data/fate/vsynth_lena-zlib.avi
+93f2af6cf51da904c407b37330cdd8e6 *tests/data/fate/vsynth_lena-zlib.out.rawvideo
+stddev:    0.71 PSNR: 51.00 MAXDIFF:   12 bytes:  7603200/  7603200

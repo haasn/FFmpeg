@@ -1,4 +1,4 @@
-d3705acfc90b16968d0d4a3ac56b049c *tests/data/fate/vsynth3-zlib.avi
-174882 tests/data/fate/vsynth3-zlib.avi
-693aff10c094f8bd31693f74cf79d2b2 *tests/data/fate/vsynth3-zlib.out.rawvideo
-stddev:    3.67 PSNR: 36.82 MAXDIFF:   43 bytes:    86700/    86700
+b102ed61dc12da9afc830279bf0ad99f *tests/data/fate/vsynth3-zlib.avi
+178678 tests/data/fate/vsynth3-zlib.avi
+7697f51af1d08c473ff7c92492518d6c *tests/data/fate/vsynth3-zlib.out.rawvideo
+stddev:    3.84 PSNR: 36.44 MAXDIFF:   43 bytes:    86700/    86700
