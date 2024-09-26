@@ -1138,6 +1138,13 @@ void ff_init_vscale_pfn(SwsContext *c, yuv2planar1_fn yuv2plane1, yuv2planarX_fn
 void ff_sws_slice_worker(void *priv, int jobnr, int threadnr,
                          int nb_jobs, int nb_threads);
 
+int ff_scale_internal(SwsContext *c,
+                      const uint8_t * const srcSlice[], const int srcStride[],
+                      int srcSliceY, int srcSliceH,
+                      uint8_t *const dstSlice[], const int dstStride[],
+                      int dstSliceY, int dstSliceH);
+
+
 //number of extra lines to process
 #define MAX_LINES_AHEAD 4
 
