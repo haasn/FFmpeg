@@ -233,10 +233,9 @@ static void lumRangeFromJpeg16_c(int16_t *_dst, int width)
     if (DEBUG_SWSCALE_BUFFERS)                  \
         av_log(c, AV_LOG_DEBUG, __VA_ARGS__)
 
-static int swscale(SwsContext *c, const uint8_t *src[],
-                   int srcStride[], int srcSliceY, int srcSliceH,
-                   uint8_t *dst[], int dstStride[],
-                   int dstSliceY, int dstSliceH)
+int ff_swscale(SwsContext *c, const uint8_t *src[], int srcStride[],
+               int srcSliceY, int srcSliceH, uint8_t *dst[],
+               const int dstStride[], int dstSliceY, int dstSliceH)
 {
     const int scale_dst = dstSliceY > 0 || dstSliceH < c->dstH;
 
@@ -1053,8 +1052,8 @@ static int scale_internal(SwsContext *c,
         if (scale_dst)
             dst2[0] += dstSliceY * dstStride2[0];
     } else {
-        ret = swscale(c, src2, srcStride2, srcSliceY_internal, srcSliceH,
-                      dst2, dstStride2, dstSliceY, dstSliceH);
+        ret = ff_swscale(c, src2, srcStride2, srcSliceY_internal, srcSliceH,
+                         dst2, dstStride2, dstSliceY, dstSliceH);
     }
 
     if (c->dstXYZ && !(c->srcXYZ && c->srcW==c->dstW && c->srcH==c->dstH)) {
