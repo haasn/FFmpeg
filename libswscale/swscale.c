@@ -753,7 +753,7 @@ void ff_rgb48Toxyz12(const SwsContext *c, uint8_t *dst, int dst_stride,
     }
 }
 
-static void update_palette(SwsContext *c, const uint32_t *pal)
+void ff_update_palette(SwsContext *c, const uint32_t *pal)
 {
     for (int i = 0; i < 256; i++) {
         int r, g, b, y, u, v, a = 0xff;
@@ -951,7 +951,7 @@ static int scale_internal(SwsContext *c,
             memset(c->dither_error[i], 0, sizeof(c->dither_error[0][0]) * (c->dstW+2));
 
     if (usePal(c->srcFormat))
-        update_palette(c, (const uint32_t *)srcSlice[1]);
+        ff_update_palette(c, (const uint32_t *)srcSlice[1]);
 
     memcpy(src2,       srcSlice,  sizeof(src2));
     memcpy(dst2,       dstSlice,  sizeof(dst2));
