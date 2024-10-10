@@ -29,9 +29,9 @@ av_cold void ff_sws_init_range_convert_loongarch(SwsInternal *c)
     int cpu_flags = av_get_cpu_flags();
 
     if (have_lsx(cpu_flags)) {
-        if (c->srcRange != c->dstRange && !isAnyRGB(c->dstFormat)) {
+        if (c->opts.src_range != c->opts.dst_range && !isAnyRGB(c->opts.dst_format)) {
             if (c->dstBpc <= 14) {
-                if (c->srcRange) {
+                if (c->opts.src_range) {
                     c->lumConvertRange = lumRangeFromJpeg_lsx;
                     c->chrConvertRange = chrRangeFromJpeg_lsx;
                 } else {
@@ -43,9 +43,9 @@ av_cold void ff_sws_init_range_convert_loongarch(SwsInternal *c)
     }
 #if HAVE_LASX
     if (have_lasx(cpu_flags)) {
-        if (c->srcRange != c->dstRange && !isAnyRGB(c->dstFormat)) {
+        if (c->opts.src_range != c->opts.dst_range && !isAnyRGB(c->opts.dst_format)) {
             if (c->dstBpc <= 14) {
-                if (c->srcRange) {
+                if (c->opts.src_range) {
                     c->lumConvertRange = lumRangeFromJpeg_lasx;
                     c->chrConvertRange = chrRangeFromJpeg_lasx;
                 } else {
@@ -112,29 +112,29 @@ av_cold SwsFunc ff_yuv2rgb_init_loongarch(SwsInternal *c)
     int cpu_flags = av_get_cpu_flags();
 #if HAVE_LASX
     if (have_lasx(cpu_flags)) {
-        if (c->srcFormat == AV_PIX_FMT_YUV420P) {
-            switch (c->dstFormat) {
+        if (c->opts.src_format == AV_PIX_FMT_YUV420P) {
+            switch (c->opts.dst_format) {
                 case AV_PIX_FMT_RGB24:
                     return yuv420_rgb24_lasx;
                 case AV_PIX_FMT_BGR24:
                     return yuv420_bgr24_lasx;
                 case AV_PIX_FMT_RGBA:
-                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat)) {
+                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->opts.src_format)) {
                         break;
                     } else
                         return yuv420_rgba32_lasx;
                 case AV_PIX_FMT_ARGB:
-                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat)) {
+                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->opts.src_format)) {
                         break;
                     } else
                         return yuv420_argb32_lasx;
                 case AV_PIX_FMT_BGRA:
-                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat)) {
+                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->opts.src_format)) {
                         break;
                     } else
                         return yuv420_bgra32_lasx;
                 case AV_PIX_FMT_ABGR:
-                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat)) {
+                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->opts.src_format)) {
                         break;
                     } else
                         return yuv420_abgr32_lasx;
@@ -143,29 +143,29 @@ av_cold SwsFunc ff_yuv2rgb_init_loongarch(SwsInternal *c)
     }
 #endif // #if HAVE_LASX
     if (have_lsx(cpu_flags)) {
-        if (c->srcFormat == AV_PIX_FMT_YUV420P) {
-            switch (c->dstFormat) {
+        if (c->opts.src_format == AV_PIX_FMT_YUV420P) {
+            switch (c->opts.dst_format) {
                 case AV_PIX_FMT_RGB24:
                     return yuv420_rgb24_lsx;
                 case AV_PIX_FMT_BGR24:
                     return yuv420_bgr24_lsx;
                 case AV_PIX_FMT_RGBA:
-                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat)) {
+                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->opts.src_format)) {
                         break;
                     } else
                         return yuv420_rgba32_lsx;
                 case AV_PIX_FMT_ARGB:
-                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat)) {
+                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->opts.src_format)) {
                         break;
                     } else
                         return yuv420_argb32_lsx;
                 case AV_PIX_FMT_BGRA:
-                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat)) {
+                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->opts.src_format)) {
                         break;
                     } else
                         return yuv420_bgra32_lsx;
                 case AV_PIX_FMT_ABGR:
-                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat)) {
+                    if (CONFIG_SWSCALE_ALPHA && isALPHA(c->opts.src_format)) {
                         break;
                     } else
                         return yuv420_abgr32_lsx;

@@ -47,10 +47,10 @@ static void check_lumConvertRange(int from)
         fail();
 
     c = sws_internal(sws);
-    c->srcFormat = from ? AV_PIX_FMT_YUVJ444P : AV_PIX_FMT_YUV444P;
-    c->dstFormat = from ? AV_PIX_FMT_YUV444P : AV_PIX_FMT_YUVJ444P;
-    c->srcRange = from;
-    c->dstRange = !from;
+    c->opts.src_format = from ? AV_PIX_FMT_YUVJ444P : AV_PIX_FMT_YUV444P;
+    c->opts.dst_format = from ? AV_PIX_FMT_YUV444P : AV_PIX_FMT_YUVJ444P;
+    c->opts.src_range = from;
+    c->opts.dst_range = !from;
 
     for (int dstWi = 0; dstWi < INPUT_SIZES; dstWi++) {
         int width = input_sizes[dstWi];
@@ -95,10 +95,10 @@ static void check_chrConvertRange(int from)
         fail();
 
     c = sws_internal(sws);
-    c->srcFormat = from ? AV_PIX_FMT_YUVJ444P : AV_PIX_FMT_YUV444P;
-    c->dstFormat = from ? AV_PIX_FMT_YUV444P : AV_PIX_FMT_YUVJ444P;
-    c->srcRange = from;
-    c->dstRange = !from;
+    c->opts.src_format = from ? AV_PIX_FMT_YUVJ444P : AV_PIX_FMT_YUV444P;
+    c->opts.dst_format = from ? AV_PIX_FMT_YUV444P : AV_PIX_FMT_YUVJ444P;
+    c->opts.src_range = from;
+    c->opts.dst_range = !from;
 
     for (int dstWi = 0; dstWi < INPUT_SIZES; dstWi++) {
         int width = input_sizes[dstWi];
