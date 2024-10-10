@@ -1318,8 +1318,8 @@ static enum AVPixelFormat alphaless_fmt(enum AVPixelFormat fmt)
     }
 }
 
-static av_cold int sws_init_single_context(SwsContext *sws, SwsFilter *srcFilter,
-                                           SwsFilter *dstFilter)
+av_cold int sws_init_single_context(SwsContext *sws, SwsFilter *srcFilter,
+                                    SwsFilter *dstFilter)
 {
     int i;
     int usesVFilter, usesHFilter;
