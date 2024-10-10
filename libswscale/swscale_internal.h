@@ -70,25 +70,8 @@ typedef struct SwsInternal SwsInternal;
 
 static inline SwsInternal *sws_internal(const SwsContext *sws)
 {
-    return (SwsInternal *) sws;
+    return sws ? sws->internal : NULL;
 }
-
-typedef enum SwsDither {
-    SWS_DITHER_NONE = 0,
-    SWS_DITHER_AUTO,
-    SWS_DITHER_BAYER,
-    SWS_DITHER_ED,
-    SWS_DITHER_A_DITHER,
-    SWS_DITHER_X_DITHER,
-    SWS_DITHER_NB,
-} SwsDither;
-
-typedef enum SwsAlphaBlend {
-    SWS_ALPHA_BLEND_NONE  = 0,
-    SWS_ALPHA_BLEND_UNIFORM,
-    SWS_ALPHA_BLEND_CHECKERBOARD,
-    SWS_ALPHA_BLEND_NB,
-} SwsAlphaBlend;
 
 typedef struct Range {
     unsigned int start;
@@ -329,32 +312,10 @@ struct SwsFilterDescriptor;
 
 /* This struct should be aligned on at least a 32-byte boundary. */
 struct SwsInternal {
-    /* Currently active user-facing options. */
-    struct {
-        const AVClass *av_class;
+    /* Shallow copy of the main scaler context, contains currently active options */
+    SwsContext opts;
 
-        double scaler_params[2];       ///< Input parameters for scaling algorithms that need them.
-        int flags;                     ///< Flags passed by the user to select scaler algorithm, optimizations, subsampling, etc...
-        int threads;                   ///< Number of threads used for scaling
-
-        int src_w;                     ///< Width  of source      luma/alpha planes.
-        int src_h;                     ///< Height of source      luma/alpha planes.
-        int dst_w;                     ///< Width  of destination luma/alpha planes.
-        int dst_h;                     ///< Height of destination luma/alpha planes.
-        enum AVPixelFormat src_format; ///< Source      pixel format.
-        enum AVPixelFormat dst_format; ///< Destination pixel format.
-        int src_range;                 ///< 0 = MPG YUV range, 1 = JPG YUV range (source      image).
-        int dst_range;                 ///< 0 = MPG YUV range, 1 = JPG YUV range (destination image).
-        int src_h_chr_pos;
-        int dst_h_chr_pos;
-        int src_v_chr_pos;
-        int dst_v_chr_pos;
-        int gamma_flag;
-
-        SwsDither dither;
-        SwsAlphaBlend alpha_blend;
-    } opts;
-
+    /* Parent context (for cascaded/sliced contexts) */
     SwsContext *parent;
 
     AVSliceThread      *slicethread;
@@ -713,7 +674,7 @@ static_assert(offsetof(SwsInternal, redDither) + DITHER32_INT == offsetof(SwsInt
 #if ARCH_X86_64
 /* x86 yuv2gbrp uses the SwsInternal for yuv coefficients
    if struct offsets change the asm needs to be updated too */
-static_assert(offsetof(SwsInternal, yuv2rgb_y_offset) == 40316,
+static_assert(offsetof(SwsInternal, yuv2rgb_y_offset) == 40332,
               "yuv2rgb_y_offset must be updated in x86 asm");
 #endif
 
