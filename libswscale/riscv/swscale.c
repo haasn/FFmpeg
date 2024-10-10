@@ -37,10 +37,10 @@ av_cold static void ff_sws_init_range_convert_riscv(SwsInternal *c, int flags)
         { ff_range_lum_from_jpeg_16_rvv, ff_range_chr_from_jpeg_16_rvv },
     };
 
-    if (c->srcRange != c->dstRange && !isAnyRGB(c->dstFormat) &&
+    if (c->sws->src_range != c->sws->dst_range && !isAnyRGB(c->sws->dst_format) &&
         c->dstBpc <= 14 &&
         (flags & AV_CPU_FLAG_RVV_I32) && (flags & AV_CPU_FLAG_RVB)) {
-        bool from = c->srcRange != 0;
+        bool from = c->sws->src_range != 0;
 
         c->lumConvertRange = convs[from].lum;
         c->chrConvertRange = convs[from].chr;
@@ -71,7 +71,7 @@ av_cold void ff_sws_init_swscale_riscv(SwsInternal *c)
 
 #if HAVE_RVV
     if ((flags & AV_CPU_FLAG_RVV_I32) && (flags & AV_CPU_FLAG_RVB)) {
-        switch (c->srcFormat) {
+        switch (c->sws->src_format) {
             case AV_PIX_FMT_ABGR:
                 c->lumToYV12 = ff_abgr32ToY_rvv;
                 if (c->chrSrcHSubSample)

@@ -155,7 +155,7 @@ const int *sws_getCoefficients(int colorspace)
             const uint8_t av_unused *pv_1 = src[2] + (y >> !yuv422) * srcStride[2]; \
             const uint8_t av_unused *pu_2, *pv_2;                           \
             const uint8_t av_unused *pa_1, *pa_2;                           \
-            unsigned int h_size = c->dstW >> 3;                             \
+            unsigned int h_size = c->sws->dst_w >> 3;                       \
             if (nb_dst_planes > 1) {                                        \
                 dst1_1 = (dst_type *)(dst[1] + (yd)     * dstStride[1]);    \
                 dst1_2 = (dst_type *)(dst[1] + (yd + 1) * dstStride[1]);    \
@@ -195,7 +195,7 @@ const int *sws_getCoefficients(int colorspace)
         dst2_2 += dst_delta >> ss;                  \
     }                                               \
     }                                               \
-    if (c->dstW & (4 >> ss)) {                      \
+    if (c->sws->dst_w & (4 >> ss)) {                \
         int av_unused Y, U, V;                      \
 
 #define ENDYUV2RGBFUNC()                            \
@@ -485,9 +485,9 @@ YUV2RGBFUNC(yuv2rgb_c_1_ordered_dither, uint8_t, 0, 0, 1)
     dst_1 += 1;
     dst_2 += 1;
     }
-    if (c->dstW & 7) {
+    if (c->sws->dst_w & 7) {
         int av_unused Y, U, V;
-        int pixels_left = c->dstW & 7;
+        int pixels_left = c->sws->dst_w & 7;
     const uint8_t *d128 = ff_dither_8x8_220[yd & 7];
     char out_1 = 0, out_2 = 0;
     g = c->table_gU[128 + YUVRGB_TABLE_HEADROOM] + c->table_gV[128 + YUVRGB_TABLE_HEADROOM];
@@ -573,12 +573,12 @@ SwsFunc ff_yuv2rgb_get_func_ptr(SwsInternal *c)
     if (t)
         return t;
 
-    av_log(c, AV_LOG_WARNING,
+    av_log(c->sws, AV_LOG_WARNING,
            "No accelerated colorspace conversion found from %s to %s.\n",
-           av_get_pix_fmt_name(c->srcFormat), av_get_pix_fmt_name(c->dstFormat));
+           av_get_pix_fmt_name(c->sws->src_format), av_get_pix_fmt_name(c->sws->dst_format));
 
-    if (c->srcFormat == AV_PIX_FMT_YUV422P) {
-        switch (c->dstFormat) {
+    if (c->sws->src_format == AV_PIX_FMT_YUV422P) {
+        switch (c->sws->dst_format) {
         case AV_PIX_FMT_BGR48BE:
         case AV_PIX_FMT_BGR48LE:
             return yuv422p_bgr48_c;
@@ -587,11 +587,11 @@ SwsFunc ff_yuv2rgb_get_func_ptr(SwsInternal *c)
             return yuv422p_rgb48_c;
         case AV_PIX_FMT_ARGB:
         case AV_PIX_FMT_ABGR:
-            if (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat))
+            if (CONFIG_SWSCALE_ALPHA && isALPHA(c->sws->src_format))
                 return yuva422p_argb_c;
         case AV_PIX_FMT_RGBA:
         case AV_PIX_FMT_BGRA:
-            return (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat)) ? yuva422p_rgba_c : yuv422p_rgb32_c;
+            return (CONFIG_SWSCALE_ALPHA && isALPHA(c->sws->src_format)) ? yuva422p_rgba_c : yuv422p_rgb32_c;
         case AV_PIX_FMT_RGB24:
             return yuv422p_rgb24_c;
         case AV_PIX_FMT_BGR24:
@@ -620,7 +620,7 @@ SwsFunc ff_yuv2rgb_get_func_ptr(SwsInternal *c)
             return yuv422p_gbrp_c;
         }
     } else {
-        switch (c->dstFormat) {
+        switch (c->sws->dst_format) {
         case AV_PIX_FMT_BGR48BE:
         case AV_PIX_FMT_BGR48LE:
             return yuv2rgb_c_bgr48;
@@ -629,11 +629,11 @@ SwsFunc ff_yuv2rgb_get_func_ptr(SwsInternal *c)
             return yuv2rgb_c_48;
         case AV_PIX_FMT_ARGB:
         case AV_PIX_FMT_ABGR:
-            if (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat))
+            if (CONFIG_SWSCALE_ALPHA && isALPHA(c->sws->src_format))
                 return yuva2argb_c;
         case AV_PIX_FMT_RGBA:
         case AV_PIX_FMT_BGRA:
-            return (CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat)) ? yuva2rgba_c : yuv2rgb_c_32;
+            return (CONFIG_SWSCALE_ALPHA && isALPHA(c->sws->src_format)) ? yuva2rgba_c : yuv2rgb_c_32;
         case AV_PIX_FMT_RGB24:
             return yuv2rgb_c_24_rgb;
         case AV_PIX_FMT_BGR24:
@@ -706,29 +706,29 @@ av_cold int ff_yuv2rgb_c_init_tables(SwsInternal *c, const int inv_table[4],
                                      int fullRange, int brightness,
                                      int contrast, int saturation)
 {
-    const int isRgb = c->dstFormat == AV_PIX_FMT_RGB32     ||
-                      c->dstFormat == AV_PIX_FMT_RGB32_1   ||
-                      c->dstFormat == AV_PIX_FMT_BGR24     ||
-                      c->dstFormat == AV_PIX_FMT_RGB565BE  ||
-                      c->dstFormat == AV_PIX_FMT_RGB565LE  ||
-                      c->dstFormat == AV_PIX_FMT_RGB555BE  ||
-                      c->dstFormat == AV_PIX_FMT_RGB555LE  ||
-                      c->dstFormat == AV_PIX_FMT_RGB444BE  ||
-                      c->dstFormat == AV_PIX_FMT_RGB444LE  ||
-                      c->dstFormat == AV_PIX_FMT_X2RGB10BE ||
-                      c->dstFormat == AV_PIX_FMT_X2RGB10LE ||
-                      c->dstFormat == AV_PIX_FMT_RGB8      ||
-                      c->dstFormat == AV_PIX_FMT_RGB4      ||
-                      c->dstFormat == AV_PIX_FMT_RGB4_BYTE ||
-                      c->dstFormat == AV_PIX_FMT_MONOBLACK;
-    const int isNotNe = c->dstFormat == AV_PIX_FMT_NE(RGB565LE, RGB565BE) ||
-                        c->dstFormat == AV_PIX_FMT_NE(RGB555LE, RGB555BE) ||
-                        c->dstFormat == AV_PIX_FMT_NE(RGB444LE, RGB444BE) ||
-                        c->dstFormat == AV_PIX_FMT_NE(BGR565LE, BGR565BE) ||
-                        c->dstFormat == AV_PIX_FMT_NE(BGR555LE, BGR555BE) ||
-                        c->dstFormat == AV_PIX_FMT_NE(BGR444LE, BGR444BE) ||
-                        c->dstFormat == AV_PIX_FMT_NE(X2RGB10LE, X2RGB10BE) ||
-                        c->dstFormat == AV_PIX_FMT_NE(X2BGR10LE, X2BGR10BE);
+    const int isRgb = c->sws->dst_format == AV_PIX_FMT_RGB32     ||
+                      c->sws->dst_format == AV_PIX_FMT_RGB32_1   ||
+                      c->sws->dst_format == AV_PIX_FMT_BGR24     ||
+                      c->sws->dst_format == AV_PIX_FMT_RGB565BE  ||
+                      c->sws->dst_format == AV_PIX_FMT_RGB565LE  ||
+                      c->sws->dst_format == AV_PIX_FMT_RGB555BE  ||
+                      c->sws->dst_format == AV_PIX_FMT_RGB555LE  ||
+                      c->sws->dst_format == AV_PIX_FMT_RGB444BE  ||
+                      c->sws->dst_format == AV_PIX_FMT_RGB444LE  ||
+                      c->sws->dst_format == AV_PIX_FMT_X2RGB10BE ||
+                      c->sws->dst_format == AV_PIX_FMT_X2RGB10LE ||
+                      c->sws->dst_format == AV_PIX_FMT_RGB8      ||
+                      c->sws->dst_format == AV_PIX_FMT_RGB4      ||
+                      c->sws->dst_format == AV_PIX_FMT_RGB4_BYTE ||
+                      c->sws->dst_format == AV_PIX_FMT_MONOBLACK;
+    const int isNotNe = c->sws->dst_format == AV_PIX_FMT_NE(RGB565LE, RGB565BE) ||
+                        c->sws->dst_format == AV_PIX_FMT_NE(RGB555LE, RGB555BE) ||
+                        c->sws->dst_format == AV_PIX_FMT_NE(RGB444LE, RGB444BE) ||
+                        c->sws->dst_format == AV_PIX_FMT_NE(BGR565LE, BGR565BE) ||
+                        c->sws->dst_format == AV_PIX_FMT_NE(BGR555LE, BGR555BE) ||
+                        c->sws->dst_format == AV_PIX_FMT_NE(BGR444LE, BGR444BE) ||
+                        c->sws->dst_format == AV_PIX_FMT_NE(X2RGB10LE, X2RGB10BE) ||
+                        c->sws->dst_format == AV_PIX_FMT_NE(X2BGR10LE, X2BGR10BE);
     const int bpp = c->dstFormatBpp;
     uint8_t *y_table;
     uint16_t *y_table16;
@@ -904,7 +904,7 @@ av_cold int ff_yuv2rgb_c_init_tables(SwsInternal *c, const int inv_table[4],
         rbase = isRgb ? 20 : 0;
         gbase = 10;
         bbase = isRgb ? 0 : 20;
-        needAlpha = CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat);
+        needAlpha = CONFIG_SWSCALE_ALPHA && isALPHA(c->sws->src_format);
         if (!needAlpha)
             abase = 30;
         ALLOC_YUV_TABLE(table_plane_size * 3 * 4);
@@ -928,12 +928,12 @@ av_cold int ff_yuv2rgb_c_init_tables(SwsInternal *c, const int inv_table[4],
         break;
     case 32:
     case 64:
-        base      = (c->dstFormat == AV_PIX_FMT_RGB32_1 ||
-                     c->dstFormat == AV_PIX_FMT_BGR32_1) ? 8 : 0;
+        base      = (c->sws->dst_format == AV_PIX_FMT_RGB32_1 ||
+                     c->sws->dst_format == AV_PIX_FMT_BGR32_1) ? 8 : 0;
         rbase     = base + (isRgb ? 16 : 0);
         gbase     = base + 8;
         bbase     = base + (isRgb ? 0 : 16);
-        needAlpha = CONFIG_SWSCALE_ALPHA && isALPHA(c->srcFormat);
+        needAlpha = CONFIG_SWSCALE_ALPHA && isALPHA(c->sws->src_format);
         if (!needAlpha)
             abase = (base + 24) & 31;
         ALLOC_YUV_TABLE(table_plane_size * 3 * 4);
@@ -953,8 +953,8 @@ av_cold int ff_yuv2rgb_c_init_tables(SwsInternal *c, const int inv_table[4],
         fill_gv_table(c->table_gV, 4, cgv);
         break;
     default:
-        if(!isPlanar(c->dstFormat) || bpp <= 24)
-            av_log(c, AV_LOG_ERROR, "%ibpp not supported by yuv2rgb\n", bpp);
+        if(!isPlanar(c->sws->dst_format) || bpp <= 24)
+            av_log(c->sws, AV_LOG_ERROR, "%ibpp not supported by yuv2rgb\n", bpp);
         return AVERROR(EINVAL);
     }
     return 0;

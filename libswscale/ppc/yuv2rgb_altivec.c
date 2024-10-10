@@ -299,7 +299,7 @@ static int altivec_ ## name(SwsInternal *c, const unsigned char *const *in,   \
                             const int *instrides, int srcSliceY, int srcSliceH,   \
                             unsigned char *const *oplanes, const int *outstrides) \
 {                                                                             \
-    int w = c->srcW;                                                          \
+    int w = c->sws->src_w;                                                    \
     int h = srcSliceH;                                                        \
     int i, j;                                                                 \
     int instrides_scl[3];                                                     \
@@ -475,7 +475,7 @@ static int altivec_uyvy_rgb32(SwsInternal *c, const unsigned char *const *in,
                               const int *instrides, int srcSliceY, int srcSliceH,
                               unsigned char *const *oplanes, const int *outstrides)
 {
-    int w = c->srcW;
+    int w = c->sws->src_w;
     int h = srcSliceH;
     int i, j;
     vector unsigned char uyvy;
@@ -545,46 +545,46 @@ av_cold SwsFunc ff_yuv2rgb_init_ppc(SwsInternal *c)
      * boom with X11 bad match.
      *
      */
-    if ((c->srcW & 0xf) != 0)
+    if ((c->sws->src_w & 0xf) != 0)
         return NULL;
 
-    switch (c->srcFormat) {
+    switch (c->sws->src_format) {
     case AV_PIX_FMT_YUV410P:
     case AV_PIX_FMT_YUV420P:
     /*case IMGFMT_CLPL:        ??? */
     case AV_PIX_FMT_GRAY8:
     case AV_PIX_FMT_NV12:
     case AV_PIX_FMT_NV21:
-        if ((c->srcH & 0x1) != 0)
+        if ((c->sws->src_h & 0x1) != 0)
             return NULL;
 
-        switch (c->dstFormat) {
+        switch (c->sws->dst_format) {
         case AV_PIX_FMT_RGB24:
-            av_log(c, AV_LOG_WARNING, "ALTIVEC: Color Space RGB24\n");
+            av_log(c->sws, AV_LOG_WARNING, "ALTIVEC: Color Space RGB24\n");
             return altivec_yuv2_rgb24;
         case AV_PIX_FMT_BGR24:
-            av_log(c, AV_LOG_WARNING, "ALTIVEC: Color Space BGR24\n");
+            av_log(c->sws, AV_LOG_WARNING, "ALTIVEC: Color Space BGR24\n");
             return altivec_yuv2_bgr24;
         case AV_PIX_FMT_ARGB:
-            av_log(c, AV_LOG_WARNING, "ALTIVEC: Color Space ARGB\n");
+            av_log(c->sws, AV_LOG_WARNING, "ALTIVEC: Color Space ARGB\n");
             return altivec_yuv2_argb;
         case AV_PIX_FMT_ABGR:
-            av_log(c, AV_LOG_WARNING, "ALTIVEC: Color Space ABGR\n");
+            av_log(c->sws, AV_LOG_WARNING, "ALTIVEC: Color Space ABGR\n");
             return altivec_yuv2_abgr;
         case AV_PIX_FMT_RGBA:
-            av_log(c, AV_LOG_WARNING, "ALTIVEC: Color Space RGBA\n");
+            av_log(c->sws, AV_LOG_WARNING, "ALTIVEC: Color Space RGBA\n");
             return altivec_yuv2_rgba;
         case AV_PIX_FMT_BGRA:
-            av_log(c, AV_LOG_WARNING, "ALTIVEC: Color Space BGRA\n");
+            av_log(c->sws, AV_LOG_WARNING, "ALTIVEC: Color Space BGRA\n");
             return altivec_yuv2_bgra;
         default: return NULL;
         }
         break;
 
     case AV_PIX_FMT_UYVY422:
-        switch (c->dstFormat) {
+        switch (c->sws->dst_format) {
         case AV_PIX_FMT_BGR32:
-            av_log(c, AV_LOG_WARNING, "ALTIVEC: Color Space UYVY -> RGB32\n");
+            av_log(c->sws, AV_LOG_WARNING, "ALTIVEC: Color Space UYVY -> RGB32\n");
             return altivec_uyvy_rgb32;
         default: return NULL;
         }
@@ -740,9 +740,9 @@ static av_always_inline void yuv2packedX_altivec(SwsInternal *c,
              * instead. */
             static int printed_error_message;
             if (!printed_error_message) {
-                av_log(c, AV_LOG_ERROR,
+                av_log(c->sws, AV_LOG_ERROR,
                        "altivec_yuv2packedX doesn't support %s output\n",
-                       av_get_pix_fmt_name(c->dstFormat));
+                       av_get_pix_fmt_name(c->sws->dst_format));
                 printed_error_message = 1;
             }
             return;
@@ -828,9 +828,9 @@ static av_always_inline void yuv2packedX_altivec(SwsInternal *c,
             break;
         default:
             /* Unreachable, I think. */
-            av_log(c, AV_LOG_ERROR,
+            av_log(c->sws, AV_LOG_ERROR,
                    "altivec_yuv2packedX doesn't support %s output\n",
-                   av_get_pix_fmt_name(c->dstFormat));
+                   av_get_pix_fmt_name(c->sws->dst_format));
             return;
         }
 
