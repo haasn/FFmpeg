@@ -352,6 +352,7 @@ struct SwsInternal {
     SwsFunc convert_unscaled;
     int srcW;                     ///< Width  of source      luma/alpha planes.
     int srcH;                     ///< Height of source      luma/alpha planes.
+    int dstW;                     ///< Width  of destination luma/alpha planes.
     int dstH;                     ///< Height of destination luma/alpha planes.
     int chrSrcW;                  ///< Width  of source      chroma     planes.
     int chrSrcH;                  ///< Height of source      chroma     planes.
@@ -541,7 +542,7 @@ struct SwsInternal {
     DECLARE_ALIGNED(8, uint64_t, vOffset);
     int32_t lumMmxFilter[4 * MAX_FILTER_SIZE];
     int32_t chrMmxFilter[4 * MAX_FILTER_SIZE];
-    int dstW;                     ///< Width  of destination luma/alpha planes.
+    int dstW_mmx;
     DECLARE_ALIGNED(8, uint64_t, esp);
     DECLARE_ALIGNED(8, uint64_t, vRounder);
     DECLARE_ALIGNED(8, uint64_t, u_temp);
