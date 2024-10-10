@@ -957,6 +957,10 @@ extern const int32_t ff_yuv2rgb_coeffs[11][4];
 
 extern const AVClass ff_sws_context_class;
 
+/* Assumes c->opts is already initialized */
+int sws_init_single_context(SwsContext *sws, SwsFilter *srcFilter,
+                            SwsFilter *dstFilter);
+
 /**
  * Set c->convert_unscaled to an unscaled converter if one exists for the
  * specific source and destination formats, bit depths, flags, etc.
