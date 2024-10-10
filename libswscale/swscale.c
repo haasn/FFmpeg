@@ -1252,7 +1252,7 @@ int attribute_align_arg sws_scale(SwsContext *sws,
 void ff_sws_slice_worker(void *priv, int jobnr, int threadnr,
                          int nb_jobs, int nb_threads)
 {
-    SwsInternal *parent = priv;
+    SwsInternal *parent = sws_internal(priv);
     SwsContext     *sws = parent->slice_ctx[threadnr];
     SwsInternal      *c = sws_internal(sws);
 

@@ -124,12 +124,12 @@ static void check_yuv2yuv1(int accurate)
     randomize_buffers((uint8_t*)dither, 8);
     randomize_buffers((uint8_t*)src_pixels, LARGEST_INPUT_SIZE * sizeof(int16_t));
     sws = sws_alloc_context();
-    c = sws_internal(sws);
     if (accurate)
-        c->opts.flags |= SWS_ACCURATE_RND;
+        sws->flags |= SWS_ACCURATE_RND;
     if (sws_init_context(sws, NULL, NULL) < 0)
         fail();
 
+    c = sws_internal(sws);
     ff_sws_init_scale(c);
     for (isi = 0; isi < INPUT_SIZES; ++isi) {
         dstW = input_sizes[isi];
@@ -192,12 +192,12 @@ static void check_yuv2yuvX(int accurate)
     memset(dither, d_val, LARGEST_INPUT_SIZE);
     randomize_buffers((uint8_t*)src_pixels, LARGEST_FILTER * LARGEST_INPUT_SIZE * sizeof(int16_t));
     sws = sws_alloc_context();
-    c = sws_internal(sws);
     if (accurate)
-        c->opts.flags |= SWS_ACCURATE_RND;
+        sws->flags |= SWS_ACCURATE_RND;
     if (sws_init_context(sws, NULL, NULL) < 0)
         fail();
 
+    c = sws_internal(sws);
     ff_sws_init_scale(c);
     for(isi = 0; isi < INPUT_SIZES; ++isi){
         dstW = input_sizes[isi];
