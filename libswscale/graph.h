@@ -34,10 +34,18 @@ typedef struct SwsImg {
 typedef struct SwsPass  SwsPass;
 typedef struct SwsGraph SwsGraph;
 
+/**
+ * Output `h` lines of filtered data. `out` and `in` point to the
+ * start of the image buffer for this pass.
+ */
+typedef void (*sws_filter_run_t)(const SwsImg *out, const SwsImg *in,
+                                 int y, int h, const SwsPass *pass);
+
 struct SwsPass {
     const SwsGraph *graph;
     uint8_t *buf; /* temporary buffer for this pass, freed automatically */
 
+    sws_filter_run_t run;
     int width, height; /* new output size */
     int pixel_bytes;   /* bytes per pixel */
     int slice_h;       /* filter granularity */
@@ -53,13 +61,6 @@ struct SwsPass {
      * of `input` and `output` fields.
      */
     void (*setup)(const SwsImg *out, const SwsImg *in, const SwsPass *pass);
-
-    /**
-     * Output `slice_h` lines of filtered data. `src` and `dst` point to the
-     * start of the image buffer for this pass.
-     */
-    void (*run)(const SwsImg *out, const SwsImg *in, int y, int h,
-                const SwsPass *pass);
 
     void (*uninit)(const SwsPass *pass); /* optional */
     void *priv;
