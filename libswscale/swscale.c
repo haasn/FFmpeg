@@ -1212,9 +1212,9 @@ int sws_receive_slice(SwsContext *sws, unsigned int slice_start,
                           dst, c->frame_dst->linesize, slice_start, slice_height);
 }
 
-static SwsField get_field(const AVFrame *frame, int field)
+static SwsImg get_field(const AVFrame *frame, int field)
 {
-    SwsField f = {
+    SwsImg f = {
 #define COPY4(x) { x[0], x[1], x[2], x[3] }
         .data     = COPY4(frame->data),
         .linesize = COPY4(frame->linesize),
@@ -1306,8 +1306,8 @@ int sws_scale_frame(SwsContext *sws, AVFrame *dst, const AVFrame *src)
 
         for (int field = 0; field < 2; field++) {
             SwsGraph *graph = c->graph[field];
-            SwsField dst_field = get_field(dst, field);
-            SwsField src_field = get_field(src, field);
+            SwsImg dst_field = get_field(dst, field);
+            SwsImg src_field = get_field(src, field);
             sws_graph_run(graph, &dst_field, &src_field);
             if (!graph->dst.interlaced)
                 break;

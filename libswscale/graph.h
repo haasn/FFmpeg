@@ -26,18 +26,18 @@
 #include "utils.h"
 
 /* Represents a view into a single field of frame data */
-typedef struct SwsField {
+typedef struct SwsImg {
     uint8_t *data[4]; /* points to y=0 */
     int linesize[4];
-} SwsField;
+} SwsImg;
 
 /**
  * Sentinel values to refer to the overall image input / output during
  * filter graph construction, as the true values are not known.
  */
 extern const uint8_t sws_input_sentinel, sws_output_sentinel;
-#define SWS_INPUT  ((SwsField) {{ (uint8_t *) &sws_input_sentinel }})
-#define SWS_OUTPUT ((SwsField) {{ (uint8_t *) &sws_output_sentinel }})
+#define SWS_INPUT  ((SwsImg) {{ (uint8_t *) &sws_input_sentinel }})
+#define SWS_OUTPUT ((SwsImg) {{ (uint8_t *) &sws_output_sentinel }})
 
 typedef struct SwsPass  SwsPass;
 typedef struct SwsGraph SwsGraph;
@@ -52,22 +52,21 @@ struct SwsPass {
     int num_slices;
 
     /* Filter input/output. */
-    SwsField input;
-    SwsField output;
+    SwsImg input;
+    SwsImg output;
 
     /**
      * Called once from the main thread before running the filter. Optional.
      * `out` and `in` always point to the main image input/output, regardless
      * of `input` and `output` fields.
      */
-    void (*setup)(const SwsField *out, const SwsField *in,
-                  const SwsPass *pass);
+    void (*setup)(const SwsImg *out, const SwsImg *in, const SwsPass *pass);
 
     /**
      * Output `slice_h` lines of filtered data. `src` and `dst` point to the
      * start of the image buffer for this pass.
      */
-    void (*run)(const SwsField *out, const SwsField *in, int y, int h,
+    void (*run)(const SwsImg *out, const SwsImg *in, int y, int h,
                 const SwsPass *pass);
 
     void (*uninit)(const SwsPass *pass); /* optional */
@@ -95,8 +94,8 @@ typedef struct SwsGraph {
     /* Temporary execution state inside sws_graph_run */
     struct {
         const SwsPass *pass; /* current filter pass */
-        SwsField input;
-        SwsField output;
+        SwsImg input;
+        SwsImg output;
     } exec;
 } SwsGraph;
 
@@ -121,6 +120,6 @@ int sws_graph_reinit(SwsContext *ctx, const SwsFormat *dst, const SwsFormat *src
 /**
  * Dispatch the filter graph on a single field. Internally threaded.
  */
-void sws_graph_run(SwsGraph *graph, const SwsField *out, const SwsField *in);
+void sws_graph_run(SwsGraph *graph, const SwsImg *out, const SwsImg *in);
 
 #endif /* SWSCALE_GRAPH_H */

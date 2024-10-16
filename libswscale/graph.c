@@ -34,7 +34,7 @@
 
 /* slice_align should be a power of two, or 0 to disable slice threading */
 static SwsPass *pass_add(SwsGraph *graph, void *priv, int w, int h,
-                         SwsField in, SwsField out, int slice_align)
+                         SwsImg in, SwsImg out, int slice_align)
 {
     SwsPass *pass = av_mallocz(sizeof(*pass));
     int ret;
@@ -97,15 +97,15 @@ static int vshift(const SwsFormat *fmt, int plane)
     return is_chroma ? fmt->desc->log2_chroma_h : 0;
 }
 
-/* Shift a field vertically by y lines */
-static SwsField shift_field(const SwsFormat *fmt, SwsField field, int y)
+/* Shift an image vertically by y lines */
+static SwsImg shift_img(const SwsFormat *fmt, SwsImg img, int y)
 {
-    for (int i = 0; i < 4 && field.data[i]; i++)
-        field.data[i] += (y >> vshift(fmt, i)) * field.linesize[i];
-    return field;
+    for (int i = 0; i < 4 && img.data[i]; i++)
+        img.data[i] += (y >> vshift(fmt, i)) * img.linesize[i];
+    return img;
 }
 
-static void setup_swscale(const SwsField *out, const SwsField *in,
+static void setup_swscale(const SwsImg *out, const SwsImg *in,
                           const SwsPass *pass)
 {
     SwsInternal *c = pass->priv;
@@ -118,12 +118,12 @@ static void setup_swscale(const SwsField *out, const SwsField *in,
         ff_update_palette(c, (const uint32_t *) in->data[1]);
 }
 
-static void run_copy(const SwsField *out_base, const SwsField *in_base,
+static void run_copy(const SwsImg *out_base, const SwsImg *in_base,
                      int y, int h, const SwsPass *pass)
 {
     const SwsGraph *graph = pass->graph;
-    SwsField in  = shift_field(&graph->src, *in_base,  y);
-    SwsField out = shift_field(&graph->dst, *out_base, y);
+    SwsImg in  = shift_img(&graph->src, *in_base,  y);
+    SwsImg out = shift_img(&graph->dst, *out_base, y);
 
     for (int i = 0; i < FF_ARRAY_ELEMS(in.data) && in.data[i]; i++) {
         const int lines = h >> vshift(&graph->src, i);
@@ -140,7 +140,7 @@ static void run_copy(const SwsField *out_base, const SwsField *in_base,
     }
 }
 
-static void run_rgb0(const SwsField *out, const SwsField *in, int y, int h,
+static void run_rgb0(const SwsImg *out, const SwsImg *in, int y, int h,
                      const SwsPass *pass)
 {
     SwsInternal *c = pass->priv;
@@ -161,7 +161,7 @@ static void run_rgb0(const SwsField *out, const SwsField *in, int y, int h,
     }
 }
 
-static void run_xyz2rgb(const SwsField *out, const SwsField *in, int y, int h,
+static void run_xyz2rgb(const SwsImg *out, const SwsImg *in, int y, int h,
                         const SwsPass *pass)
 {
     ff_xyz12Torgb48(pass->priv, out->data[0] + y * out->linesize[0], out->linesize[0],
@@ -169,7 +169,7 @@ static void run_xyz2rgb(const SwsField *out, const SwsField *in, int y, int h,
                     pass->width, h);
 }
 
-static void run_rgb2xyz(const SwsField *out, const SwsField *in, int y, int h,
+static void run_rgb2xyz(const SwsImg *out, const SwsImg *in, int y, int h,
                         const SwsPass *pass)
 {
     ff_rgb48Toxyz12(pass->priv, out->data[0] + y * out->linesize[0], out->linesize[0],
@@ -177,21 +177,21 @@ static void run_rgb2xyz(const SwsField *out, const SwsField *in, int y, int h,
                     pass->width, h);
 }
 
-static void run_unscaled(const SwsField *out, const SwsField *in_base,
+static void run_unscaled(const SwsImg *out, const SwsImg *in_base,
                          int y, int h, const SwsPass *pass)
 {
     SwsInternal *c = pass->priv;
-    const SwsField in = shift_field(&pass->graph->src, *in_base, y);
+    const SwsImg in = shift_img(&pass->graph->src, *in_base, y);
     c->convert_unscaled(c, (const uint8_t *const *) in.data, in.linesize, y, h,
                         out->data, out->linesize);
 }
 
-static void run_swscale(const SwsField *out_base, const SwsField *in,
+static void run_swscale(const SwsImg *out_base, const SwsImg *in,
                         int y, int h, const SwsPass *pass)
 {
     SwsInternal *c = pass->priv;
     const SwsGraph *const graph = pass->graph;
-    const SwsField out = shift_field(&graph->dst, *out_base, y);
+    const SwsImg out = shift_img(&graph->dst, *out_base, y);
     const int src_h = graph->src.height;
 
     if (pass->num_slices > 1) {
@@ -254,7 +254,7 @@ static void get_chroma_pos(SwsGraph *graph, int *h_chr_pos, int *v_chr_pos,
 }
 
 static int init_pass(SwsGraph *graph, SwsContext *sws,
-                     SwsField input, SwsField output)
+                     SwsImg input, SwsImg output)
 {
     SwsInternal *c = sws_internal(sws);
     const int src_w = c->opts.src_w, src_h = c->opts.src_h;
@@ -273,7 +273,7 @@ static int init_pass(SwsGraph *graph, SwsContext *sws,
                 ret = init_pass(graph, sub, input, output);
             } else {
                 /* Steal the intermediate buffers that were already allocated */
-                SwsField tmp;
+                SwsImg tmp;
                 av_assert1(i < FF_ARRAY_ELEMS(c->cascaded_tmp));
                 memcpy(tmp.data, c->cascaded_tmp[i], sizeof(tmp.data));
                 memcpy(tmp.linesize, c->cascaded_tmpStride[i], sizeof(tmp.linesize));
@@ -293,7 +293,7 @@ static int init_pass(SwsGraph *graph, SwsContext *sws,
         align = 0; /* disable slice threading */
 
     if (c->src0Alpha && !c->dst0Alpha && isALPHA(c->opts.dst_format)) {
-        SwsField tmp = { .linesize = { FFALIGN(src_w * sizeof(uint8_t[4]), 16) }};
+        SwsImg tmp = { .linesize = { FFALIGN(src_w * sizeof(uint8_t[4]), 16) }};
         SwsPass *sub = pass_add(graph, c, src_w, src_h, input, tmp, 1);
         if (!sub || pass_alloc_output(sub) < 0)
             return AVERROR(ENOMEM);
@@ -302,7 +302,7 @@ static int init_pass(SwsGraph *graph, SwsContext *sws,
     }
 
     if (c->srcXYZ && !(c->dstXYZ && unscaled)) {
-        SwsField tmp = { .linesize = { FFALIGN(src_w * sizeof(uint16_t[3]), 16) }};
+        SwsImg tmp = { .linesize = { FFALIGN(src_w * sizeof(uint16_t[3]), 16) }};
         SwsPass *sub = pass_add(graph, c, src_w, src_h, input, tmp, 1);
         if (!sub || pass_alloc_output(sub) < 0)
             return AVERROR(ENOMEM);
@@ -438,14 +438,14 @@ static int init_passes(SwsGraph *graph)
 
 const uint8_t sws_input_sentinel, sws_output_sentinel;
 
-static const SwsField *resolve_field(SwsGraph *graph, const SwsField *field)
+static const SwsImg *resolve_img(SwsGraph *graph, const SwsImg *img)
 {
-    if (field->data[0] == &sws_input_sentinel)
+    if (img->data[0] == &sws_input_sentinel)
         return &graph->exec.input;
-    else if (field->data[0] == &sws_output_sentinel)
+    else if (img->data[0] == &sws_output_sentinel)
         return &graph->exec.output;
     else
-        return field;
+        return img;
 }
 
 static void sws_graph_worker(void *priv, int jobnr, int threadnr, int nb_jobs,
@@ -453,8 +453,8 @@ static void sws_graph_worker(void *priv, int jobnr, int threadnr, int nb_jobs,
 {
     SwsGraph *graph = priv;
     const SwsPass *pass = graph->exec.pass;
-    const SwsField *input  = resolve_field(graph, &pass->input);
-    const SwsField *output = resolve_field(graph, &pass->output);
+    const SwsImg *input  = resolve_img(graph, &pass->input);
+    const SwsImg *output = resolve_img(graph, &pass->output);
     const int slice_y = jobnr * pass->slice_h;
     const int slice_h = FFMIN(pass->slice_h, pass->height - slice_y);
 
@@ -545,7 +545,7 @@ int sws_graph_reinit(SwsContext *ctx, const SwsFormat *dst, const SwsFormat *src
 }
 
 
-void sws_graph_run(SwsGraph *graph, const SwsField *out, const SwsField *in)
+void sws_graph_run(SwsGraph *graph, const SwsImg *out, const SwsImg *in)
 {
     graph->exec.input  = *in;
     graph->exec.output = *out;
