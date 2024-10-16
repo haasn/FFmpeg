@@ -113,6 +113,9 @@ int sws_graph_reinit(SwsContext *ctx, const SwsFormat *dst, const SwsFormat *src
 /**
  * Dispatch the filter graph on a single field. Internally threaded.
  */
-void sws_graph_run(SwsGraph *graph, const SwsImg *out, const SwsImg *in);
+void sws_graph_run(SwsGraph *graph, uint8_t *const out_data[4],
+                   const int out_linesize[4],
+                   const uint8_t *const in_data[4],
+                   const int in_linesize[4]);
 
 #endif /* SWSCALE_GRAPH_H */

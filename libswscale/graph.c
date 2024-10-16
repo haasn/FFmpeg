@@ -551,10 +551,17 @@ int sws_graph_reinit(SwsContext *ctx, const SwsFormat *dst, const SwsFormat *src
 }
 
 
-void sws_graph_run(SwsGraph *graph, const SwsImg *out, const SwsImg *in)
+void sws_graph_run(SwsGraph *graph, uint8_t *const out_data[4],
+                   const int out_linesize[4],
+                   const uint8_t *const in_data[4],
+                   const int in_linesize[4])
 {
-    graph->exec.input  = *in;
-    graph->exec.output = *out;
+    SwsImg *out = &graph->exec.output;
+    SwsImg *in  = &graph->exec.input;
+    memcpy(out->data,     out_data,     sizeof(out->data));
+    memcpy(out->linesize, out_linesize, sizeof(out->linesize));
+    memcpy(in->data,      in_data,      sizeof(in->data));
+    memcpy(in->linesize,  in_linesize,  sizeof(in->linesize));
 
     for (int i = 0; i < graph->num_passes; i++) {
         const SwsPass *pass = graph->passes[i];

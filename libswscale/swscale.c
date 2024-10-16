@@ -1212,34 +1212,32 @@ int sws_receive_slice(SwsContext *sws, unsigned int slice_start,
                           dst, c->frame_dst->linesize, slice_start, slice_height);
 }
 
-static SwsImg get_field(const AVFrame *frame, int field)
+static void get_frame_pointers(const AVFrame *frame, uint8_t *data[4],
+                               int linesize[4], int field)
 {
-    SwsImg f = {
-#define COPY4(x) { x[0], x[1], x[2], x[3] }
-        .data     = COPY4(frame->data),
-        .linesize = COPY4(frame->linesize),
-    };
+    for (int i = 0; i < 4; i++) {
+        data[i]     = frame->data[i];
+        linesize[i] = frame->linesize[i];
+    }
 
     if (!(frame->flags & AV_FRAME_FLAG_INTERLACED)) {
         av_assert1(!field);
-        return f;
+        return;
     }
 
     if (field == FIELD_BOTTOM) {
         /* Odd rows, offset by one line */
         const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(frame->format);
-        for (int i = 0; i < FF_ARRAY_ELEMS(f.data); i++) {
-            f.data[i] += f.linesize[i];
+        for (int i = 0; i < 4; i++) {
+            data[i] += linesize[i];
             if (desc->flags & AV_PIX_FMT_FLAG_PAL)
                 break;
         }
     }
 
     /* Take only every second line */
-    for (int i = 0; i < FF_ARRAY_ELEMS(f.linesize); i++)
-        f.linesize[i] <<= 1;
-
-    return f;
+    for (int i = 0; i < 4; i++)
+        linesize[i] <<= 1;
 }
 
 /* Subset of av_frame_ref() that only references (video) data buffers */
@@ -1306,9 +1304,12 @@ int sws_scale_frame(SwsContext *sws, AVFrame *dst, const AVFrame *src)
 
         for (int field = 0; field < 2; field++) {
             SwsGraph *graph = c->graph[field];
-            SwsImg dst_field = get_field(dst, field);
-            SwsImg src_field = get_field(src, field);
-            sws_graph_run(graph, &dst_field, &src_field);
+            uint8_t *dst_data[4], *src_data[4];
+            int dst_linesize[4], src_linesize[4];
+            get_frame_pointers(dst, dst_data, dst_linesize, field);
+            get_frame_pointers(src, src_data, src_linesize, field);
+            sws_graph_run(graph, dst_data, dst_linesize,
+                          (const uint8_t **) src_data, src_linesize);
             if (!graph->dst.interlaced)
                 break;
         }
