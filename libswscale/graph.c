@@ -34,12 +34,14 @@
 
 /* slice_align should be a power of two, or 0 to disable slice threading */
 static SwsPass *pass_add(SwsGraph *graph, void *priv, int w, int h,
-                         SwsImg in, SwsImg out, int slice_align)
+                         sws_filter_run_t run, SwsImg in, SwsImg out,
+                         int slice_align)
 {
     SwsPass *pass = av_mallocz(sizeof(*pass));
     int ret;
 
     pass->graph  = graph;
+    pass->run    = run;
     pass->input  = in;
     pass->output = out;
     pass->priv   = priv;
@@ -294,27 +296,26 @@ static int init_pass(SwsGraph *graph, SwsContext *sws,
 
     if (c->src0Alpha && !c->dst0Alpha && isALPHA(c->opts.dst_format)) {
         SwsImg tmp = { .linesize = { FFALIGN(src_w * sizeof(uint8_t[4]), 16) }};
-        SwsPass *sub = pass_add(graph, c, src_w, src_h, input, tmp, 1);
+        SwsPass *sub = pass_add(graph, c, src_w, src_h, run_rgb0, input, tmp, 1);
         if (!sub || pass_alloc_output(sub) < 0)
             return AVERROR(ENOMEM);
-        sub->run = run_rgb0;
         input = sub->output;
     }
 
     if (c->srcXYZ && !(c->dstXYZ && unscaled)) {
         SwsImg tmp = { .linesize = { FFALIGN(src_w * sizeof(uint16_t[3]), 16) }};
-        SwsPass *sub = pass_add(graph, c, src_w, src_h, input, tmp, 1);
+        SwsPass *sub = pass_add(graph, c, src_w, src_h, run_xyz2rgb, input, tmp, 1);
         if (!sub || pass_alloc_output(sub) < 0)
             return AVERROR(ENOMEM);
-        sub->run = run_xyz2rgb;
         input = sub->output;
     }
 
-    pass = pass_add(graph, c, dst_w, dst_h, input, output, align);
+    pass = pass_add(graph, c, dst_w, dst_h,
+                    c->convert_unscaled ? run_unscaled : run_swscale,
+                    input, output, align);
     if (!pass)
         return AVERROR(ENOMEM);
     pass->setup = setup_swscale;
-    pass->run   = c->convert_unscaled ? run_unscaled : run_swscale;
 
     /**
      * For slice threading, we need to create sub contexts, similar to how
@@ -356,10 +357,9 @@ static int init_pass(SwsGraph *graph, SwsContext *sws,
     }
 
     if (c->dstXYZ && !(c->srcXYZ && unscaled)) {
-        SwsPass *sub = pass_add(graph, c, dst_w, dst_h, output, output, 1);
+        SwsPass *sub = pass_add(graph, c, dst_w, dst_h, run_rgb2xyz, output, output, 1);
         if (!sub)
             return AVERROR(ENOMEM);
-        sub->run = run_rgb2xyz;
     }
 
     return 0;
@@ -397,10 +397,9 @@ static int init_passes(SwsGraph *graph)
     if (graph->noop) {
         /* Threaded memcpy pass */
         SwsPass *copy = pass_add(graph, NULL, dst->width, dst->height,
-                                 input, output, 1);
+                                 run_copy, input, output, 1);
         if (!copy)
             return AVERROR(ENOMEM);
-        copy->run = run_copy;
         return 0;
     }
 
