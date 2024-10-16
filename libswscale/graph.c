@@ -365,6 +365,22 @@ static int init_pass(SwsGraph *graph, SwsContext *sws,
     return 0;
 }
 
+/**
+ * Sentinel values to refer to the overall image input / output during
+ * filter graph construction, as the true values are not known.
+ */
+static uint8_t sws_input_sentinel, sws_output_sentinel;
+
+static const SwsImg *resolve_img(SwsGraph *graph, const SwsImg *img)
+{
+    if (img->data[0] == &sws_input_sentinel)
+        return &graph->exec.input;
+    else if (img->data[0] == &sws_output_sentinel)
+        return &graph->exec.output;
+    else
+        return img;
+}
+
 static int init_passes(SwsGraph *graph)
 {
     SwsContext *const ctx     = graph->ctx;
@@ -374,11 +390,14 @@ static int init_passes(SwsGraph *graph)
     SwsContext *sws;
     int ret;
 
+    const SwsImg input  = { .data = { &sws_input_sentinel }};
+    const SwsImg output = { .data = { &sws_output_sentinel }};
+
     graph->noop = ff_fmt_equal(dst, src);
     if (graph->noop) {
         /* Threaded memcpy pass */
         SwsPass *copy = pass_add(graph, NULL, dst->width, dst->height,
-                                 SWS_INPUT, SWS_OUTPUT, 1);
+                                 input, output, 1);
         if (!copy)
             return AVERROR(ENOMEM);
         copy->run = run_copy;
@@ -429,23 +448,11 @@ static int init_passes(SwsGraph *graph)
                                 brightness, contrast, saturation);
     }
 
-    ret = init_pass(graph, sws, SWS_INPUT, SWS_OUTPUT);
+    ret = init_pass(graph, sws, input, output);
     if (ret < 0)
         return ret;
 
     return 0;
-}
-
-const uint8_t sws_input_sentinel, sws_output_sentinel;
-
-static const SwsImg *resolve_img(SwsGraph *graph, const SwsImg *img)
-{
-    if (img->data[0] == &sws_input_sentinel)
-        return &graph->exec.input;
-    else if (img->data[0] == &sws_output_sentinel)
-        return &graph->exec.output;
-    else
-        return img;
 }
 
 static void sws_graph_worker(void *priv, int jobnr, int threadnr, int nb_jobs,

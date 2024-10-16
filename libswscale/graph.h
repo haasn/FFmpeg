@@ -31,14 +31,6 @@ typedef struct SwsImg {
     int linesize[4];
 } SwsImg;
 
-/**
- * Sentinel values to refer to the overall image input / output during
- * filter graph construction, as the true values are not known.
- */
-extern const uint8_t sws_input_sentinel, sws_output_sentinel;
-#define SWS_INPUT  ((SwsImg) {{ (uint8_t *) &sws_input_sentinel }})
-#define SWS_OUTPUT ((SwsImg) {{ (uint8_t *) &sws_output_sentinel }})
-
 typedef struct SwsPass  SwsPass;
 typedef struct SwsGraph SwsGraph;
 
