@@ -136,13 +136,13 @@ static void check_output_yuv2gbrp(void)
         fail();
 
     c = sws_internal(sws);
-    c->opts.flags |= SWS_FULL_CHR_H_INT;
+    sws->flags |= SWS_FULL_CHR_H_INT;
 
     for (fmi = 0; fmi < FF_ARRAY_ELEMS(planar_fmts); fmi++) {
         for (fsi = 0; fsi < FILTER_SIZES; fsi++) {
             for (isi = 0; isi < INPUT_SIZES; isi++ ) {
                 desc = av_pix_fmt_desc_get(planar_fmts[fmi]);
-                c->opts.dst_format = planar_fmts[fmi];
+                sws->dst_format = planar_fmts[fmi];
 
                 dstW = input_sizes[isi];
                 luma_filter_size = filter_sizes[fsi];
@@ -232,8 +232,8 @@ static void check_input_planar_rgb_to_y(void)
     for (fmi = 0; fmi < FF_ARRAY_ELEMS(planar_fmts); fmi++) {
         for (isi = 0; isi < INPUT_SIZES; isi++ ) {
             desc = av_pix_fmt_desc_get(planar_fmts[fmi]);
-            c->opts.src_format = planar_fmts[fmi];
-            c->opts.dst_format = AV_PIX_FMT_YUVA444P16;
+            sws->src_format = planar_fmts[fmi];
+            sws->dst_format = AV_PIX_FMT_YUVA444P16;
             byte_size = 2;
             dstW = input_sizes[isi];
 
@@ -305,8 +305,8 @@ static void check_input_planar_rgb_to_uv(void)
     for (fmi = 0; fmi < FF_ARRAY_ELEMS(planar_fmts); fmi++) {
         for (isi = 0; isi < INPUT_SIZES; isi++ ) {
             desc = av_pix_fmt_desc_get(planar_fmts[fmi]);
-            c->opts.src_format = planar_fmts[fmi];
-            c->opts.dst_format = AV_PIX_FMT_YUVA444P16;
+            sws->src_format = planar_fmts[fmi];
+            sws->dst_format = AV_PIX_FMT_YUVA444P16;
             byte_size = 2;
             dstW = input_sizes[isi];
 
@@ -380,8 +380,8 @@ static void check_input_planar_rgb_to_a(void)
             if (!(desc->flags & AV_PIX_FMT_FLAG_ALPHA))
                 continue;
 
-            c->opts.src_format = planar_fmts[fmi];
-            c->opts.dst_format = AV_PIX_FMT_YUVA444P16;
+            sws->src_format = planar_fmts[fmi];
+            sws->dst_format = AV_PIX_FMT_YUVA444P16;
             byte_size = 2;
             dstW = input_sizes[isi];
 
