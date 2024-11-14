@@ -8,6 +8,7 @@ HEADERS = swscale.h                                                     \
 OBJS = alphablend.o                                     \
        hscale.o                                         \
        hscale_fast_bilinear.o                           \
+       csp.o                                            \
        gamma.o                                          \
        graph.o                                          \
        half2float.o                                     \
