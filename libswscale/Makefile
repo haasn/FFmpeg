@@ -10,6 +10,7 @@ OBJS = alphablend.o                                     \
        hscale_fast_bilinear.o                           \
        csp.o                                            \
        gamma.o                                          \
+       gamut_mapping.o                                  \
        graph.o                                          \
        half2float.o                                     \
        input.o                                          \
