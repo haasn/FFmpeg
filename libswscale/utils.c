@@ -2708,6 +2708,54 @@ SwsFormat ff_fmt_from_frame(const AVFrame *frame, int field)
     return fmt;
 }
 
+static int infer_prim_ref(enum AVColorPrimaries *prim, enum AVColorPrimaries ref)
+{
+    if (*prim != AVCOL_PRI_UNSPECIFIED)
+        return 0;
+
+    /* Re-use the reference gamut only for "safe", similar primaries */
+    switch (ref) {
+    case AVCOL_PRI_BT709:
+    case AVCOL_PRI_BT470M:
+    case AVCOL_PRI_BT470BG:
+    case AVCOL_PRI_SMPTE170M:
+    case AVCOL_PRI_SMPTE240M:
+        *prim = ref;
+        break;
+    default:
+        *prim = AVCOL_PRI_BT709;
+        break;
+    }
+    return 1;
+}
+
+int ff_infer_color_metadata(SwsFormat *src, SwsFormat *dst)
+{
+    int incomplete = 0;
+
+    /**
+     * Grayspace does not really have primaries, so just force the use of
+     * the equivalent other primary set to avoid a conversion. Technically,
+     * this does affect the weights used for the Grayscale conversion, but
+     * in practise, that should give the expected results more often than not.
+     */
+    if (isGray(dst->format)) {
+        dst->prim = src->prim;
+    } else if (isGray(src->format)) {
+        src->prim = dst->prim;
+    }
+
+    if (src->prim != dst->prim) {
+        incomplete |= infer_prim_ref(&dst->prim, src->prim);
+        incomplete |= infer_prim_ref(&src->prim, dst->prim);
+        av_assert0(src->prim != AVCOL_PRI_UNSPECIFIED);
+        av_assert0(dst->prim != AVCOL_PRI_UNSPECIFIED);
+    }
+
+    return incomplete;
+}
+
+
 int sws_test_format(enum AVPixelFormat format, int output)
 {
     return output ? sws_isSupportedOutput(format) : sws_isSupportedInput(format);
