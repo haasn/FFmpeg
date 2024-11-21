@@ -160,7 +160,8 @@ typedef struct ScaleContext {
 
     int in_color_matrix;
     int out_color_matrix;
-
+    int in_primaries;
+    int out_primaries;
     int in_range;
     int out_range;
 
@@ -386,6 +387,18 @@ static av_cold int init(AVFilterContext *ctx)
     ret = scale_parse_expr(ctx, NULL, &scale->h_pexpr, "height", scale->h_expr);
     if (ret < 0)
         return ret;
+
+    if (scale->in_primaries != -1 && !sws_test_primaries(scale->in_primaries, 0)) {
+        av_log(ctx, AV_LOG_ERROR, "Unsupported input primaries '%s'\n",
+               av_color_primaries_name(scale->in_primaries));
+        return AVERROR(EINVAL);
+    }
+
+    if (scale->out_primaries != -1 && !sws_test_primaries(scale->out_primaries, 1)) {
+        av_log(ctx, AV_LOG_ERROR, "Unsupported output primaries '%s'\n",
+               av_color_primaries_name(scale->out_primaries));
+        return AVERROR(EINVAL);
+    }
 
     if (scale->in_color_matrix != -1 && !sws_test_colorspace(scale->in_color_matrix, 0)) {
         av_log(ctx, AV_LOG_ERROR, "Unsupported input color matrix '%s'\n",
@@ -815,6 +828,8 @@ scale:
 
     if (scale->in_color_matrix != -1)
         in->colorspace = scale->in_color_matrix;
+    if (scale->in_primaries != -1)
+        in->color_primaries = scale->in_primaries;
     if (scale->in_range != AVCOL_RANGE_UNSPECIFIED)
         in->color_range = scale->in_range;
     in->chroma_location = scale->in_chroma_loc;
@@ -832,6 +847,8 @@ scale:
     out->colorspace = outlink->colorspace;
     if (scale->out_chroma_loc != AVCHROMA_LOC_UNSPECIFIED)
         out->chroma_location = scale->out_chroma_loc;
+    if (scale->out_primaries != AVCOL_PRI_UNSPECIFIED)
+        out->color_primaries = scale->out_primaries;
 
     av_reduce(&out->sample_aspect_ratio.num, &out->sample_aspect_ratio.den,
               (int64_t)in->sample_aspect_ratio.num * outlink->h * link->w,
@@ -1064,6 +1081,22 @@ static const AVOption scale_options[] = {
         { "fcc",         NULL, 0, AV_OPT_TYPE_CONST, { .i64 = AVCOL_SPC_FCC },          0, 0, FLAGS, .unit = "color" },
         { "smpte240m",   NULL, 0, AV_OPT_TYPE_CONST, { .i64 = AVCOL_SPC_SMPTE240M },    0, 0, FLAGS, .unit = "color" },
         { "bt2020",      NULL, 0, AV_OPT_TYPE_CONST, { .i64 = AVCOL_SPC_BT2020_NCL },   0, 0, FLAGS, .unit = "color" },
+    {  "in_primaries", "set input primaries",   OFFSET(in_primaries),  AV_OPT_TYPE_INT, { .i64 = -1 }, -1, AVCOL_PRI_NB-1, .flags = FLAGS, .unit = "primaries" },
+    { "out_primaries", "set output primaries",  OFFSET(out_primaries), AV_OPT_TYPE_INT, { .i64 = AVCOL_PRI_UNSPECIFIED }, 0, AVCOL_PRI_NB-1, .flags = FLAGS, .unit = "primaries"},
+        {"auto",         NULL,  0, AV_OPT_TYPE_CONST, {.i64=-1},                        0, 0, FLAGS, .unit = "primaries"},
+        {"bt709",        NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_BT709},           0, 0, FLAGS, .unit = "primaries"},
+        {"unknown",      NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_UNSPECIFIED},     0, 0, FLAGS, .unit = "primaries"},
+        {"bt470m",       NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_BT470M},          0, 0, FLAGS, .unit = "primaries"},
+        {"bt470bg",      NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_BT470BG},         0, 0, FLAGS, .unit = "primaries"},
+        {"smpte170m",    NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_SMPTE170M},       0, 0, FLAGS, .unit = "primaries"},
+        {"smpte240m",    NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_SMPTE240M},       0, 0, FLAGS, .unit = "primaries"},
+        {"film",         NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_FILM},            0, 0, FLAGS, .unit = "primaries"},
+        {"bt2020",       NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_BT2020},          0, 0, FLAGS, .unit = "primaries"},
+        {"smpte428",     NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_SMPTE428},        0, 0, FLAGS, .unit = "primaries"},
+        {"smpte431",     NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_SMPTE431},        0, 0, FLAGS, .unit = "primaries"},
+        {"smpte432",     NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_SMPTE432},        0, 0, FLAGS, .unit = "primaries"},
+        {"jedec-p22",    NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_JEDEC_P22},       0, 0, FLAGS, .unit = "primaries"},
+        {"ebu3213",      NULL,  0, AV_OPT_TYPE_CONST, {.i64=AVCOL_PRI_EBU3213},         0, 0, FLAGS, .unit = "primaries"},
     {  "in_range", "set input color range",  OFFSET( in_range), AV_OPT_TYPE_INT, {.i64 = AVCOL_RANGE_UNSPECIFIED }, 0, 2, FLAGS, .unit = "range" },
     { "out_range", "set output color range", OFFSET(out_range), AV_OPT_TYPE_INT, {.i64 = AVCOL_RANGE_UNSPECIFIED }, 0, 2, FLAGS, .unit = "range" },
     { "auto",   NULL, 0, AV_OPT_TYPE_CONST, {.i64 = AVCOL_RANGE_UNSPECIFIED }, 0, 0, FLAGS, .unit = "range" },
