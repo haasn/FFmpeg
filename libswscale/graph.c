@@ -32,6 +32,7 @@
 
 #include "swscale_internal.h"
 #include "graph.h"
+#include "cms.h"
 
 static int pass_alloc_output(SwsPass *pass)
 {
@@ -461,6 +462,68 @@ static int add_legacy_sws_pass(SwsGraph *graph, SwsFormat src, SwsFormat dst,
     return 0;
 }
 
+/**************************
+ * Gamut and tone mapping *
+ **************************/
+
+static void free_cms(void *priv)
+{
+    SwsCms *lut = priv;
+    sws_cms_free(&lut);
+}
+
+static void run_cms(const SwsImg *out_base, const SwsImg *in_base,
+                      int y, int h, const SwsPass *pass)
+{
+    SwsCms *lut = pass->priv;
+    const SwsImg in  = shift_img(in_base,  y);
+    const SwsImg out = shift_img(out_base, y);
+    av_assert1(in.fmt == lut->src.format);
+
+    sws_cms_apply(lut, in.data[0], in.linesize[0], out.data[0],
+                  out.linesize[0], pass->width, h);
+}
+
+static int map_colors(SwsGraph *graph, SwsFormat src, SwsFormat dst,
+                      SwsPass *input, SwsPass **output)
+{
+    SwsCms *lut;
+    SwsPass *pass;
+    int ret;
+
+    lut = sws_cms_alloc();
+    if (!lut)
+        return AVERROR(ENOMEM);
+
+    lut->src        = src;
+    lut->dst        = dst;
+    lut->src.format = sws_cms_pick_pixfmt(src, 0);
+    lut->dst.format = sws_cms_pick_pixfmt(dst, 1);
+    lut->intent     = SWS_INTENT_PERCEPTUAL;
+    ret = sws_cms_update(lut);
+    if (ret <= 0 /* error or noop */) {
+        sws_cms_free(&lut);
+        return ret;
+    }
+
+    if (src.format != lut->src.format) {
+        ret = add_legacy_sws_pass(graph, src, lut->src, input, &input);
+        if (ret < 0)
+            return ret;
+    }
+
+    pass = pass_add(graph, lut, lut->dst.format, src.width, src.height,
+                    input, 1, run_cms);
+    if (!pass) {
+        sws_cms_free(&lut);
+        return AVERROR(ENOMEM);
+    }
+    pass->free = free_cms;
+
+    *output = pass;
+    return 0;
+}
+
 
 /***************************************
  * Main filter graph construction code *
@@ -468,10 +531,19 @@ static int add_legacy_sws_pass(SwsGraph *graph, SwsFormat src, SwsFormat dst,
 
 static int init_passes(SwsGraph *graph)
 {
-    const SwsFormat src = graph->src;
-    const SwsFormat dst = graph->dst;
+    SwsFormat src = graph->src;
+    SwsFormat dst = graph->dst;
     SwsPass *pass = NULL; /* read from main input image */
     int ret;
+
+    if (src.prim != dst.prim || src.trc != dst.trc) {
+        ret = map_colors(graph, src, dst, pass, &pass);
+        if (ret < 0)
+            return ret;
+        src.format = pass ? pass->format : src.format;
+        src.prim   = dst.prim;
+        src.trc    = dst.trc;
+    }
 
     if (!ff_fmt_equal(&src, &dst)) {
         ret = add_legacy_sws_pass(graph, src, dst, pass, &pass);
@@ -501,6 +573,7 @@ static void sws_graph_worker(void *priv, int jobnr, int threadnr, int nb_jobs,
     const SwsImg *output = pass->output.fmt != AV_PIX_FMT_NONE ? &pass->output : &graph->exec.output;
     const int slice_y = jobnr * pass->slice_h;
     const int slice_h = FFMIN(pass->slice_h, pass->height - slice_y);
+    av_assert1(output->fmt == pass->format);
 
     pass->run(output, input, slice_y, slice_h, pass);
 }
@@ -519,8 +592,10 @@ int sws_graph_create(SwsContext *ctx, const SwsFormat *dst, const SwsFormat *src
     graph->field = field;
     graph->opts_copy = *ctx;
 
-    graph->exec.input.fmt  = src->format;
-    graph->exec.output.fmt = dst->format;
+    /* Settle formats */
+    graph->incomplete = ff_infer_color_metadata(&graph->src, &graph->dst);
+    graph->exec.input.fmt  = graph->src.format;
+    graph->exec.output.fmt = graph->dst.format;
 
     ret = avpriv_slicethread_create(&graph->slicethread, (void *) graph,
                                     sws_graph_worker, NULL, ctx->threads);
