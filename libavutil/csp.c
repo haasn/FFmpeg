@@ -429,3 +429,218 @@ av_csp_trc_function av_csp_trc_func_inv_from_id(enum AVColorTransferCharacterist
         return NULL;
     return trc_inv_funcs[trc];
 }
+
+static AVColor eotf_linear(const double Lw, const double Lb, AVColor E)
+{
+    for (int i = 0; i < 3; i++)
+        E.c[i] = (Lw - Lb) * E.c[i] + Lb;
+    return E;
+}
+
+static AVColor eotf_linear_inv(const double Lw, const double Lb, AVColor L)
+{
+    for (int i = 0; i < 3; i++)
+        L.c[i] = (L.c[i] - Lb) / (Lw - Lb);
+    return L;
+}
+
+#define WRAP_SDR_OETF(name)                                         \
+static AVColor oetf_##name(AVColor L)                               \
+{                                                                   \
+    for (int i = 0; i < 3; i++)                                     \
+        L.c[i] = trc_##name(L.c[i]);                                \
+    return L;                                                       \
+}                                                                   \
+                                                                    \
+static AVColor oetf_##name##_inv(AVColor L)                         \
+{                                                                   \
+    for (int i = 0; i < 3; i++)                                     \
+        L.c[i] = trc_##name##_inv(L.c[i]);                          \
+    return L;                                                       \
+}
+
+WRAP_SDR_OETF(gamma22)
+WRAP_SDR_OETF(gamma28)
+WRAP_SDR_OETF(iec61966_2_1)
+
+#define WRAP_SDR_EOTF(name)                                         \
+static AVColor eotf_##name(double Lw, double Lb, AVColor E)         \
+{                                                                   \
+    return eotf_linear(Lw, Lb, oetf_##name##_inv(E));               \
+}                                                                   \
+                                                                    \
+static AVColor eotf_##name##_inv(double Lw, double Lb, AVColor L)   \
+{                                                                   \
+    return oetf_##name(eotf_linear_inv(Lw, Lb, L));                 \
+}
+
+WRAP_SDR_EOTF(gamma22)
+WRAP_SDR_EOTF(gamma28)
+WRAP_SDR_EOTF(iec61966_2_1)
+
+static AVColor eotf_bt1886(const double Lw, const double Lb, AVColor E)
+{
+    const double Lw_inv = pow(Lw, 1.0 / 2.4);
+    const double Lb_inv = pow(Lb, 1.0 / 2.4);
+    const double a = pow(Lw_inv - Lb_inv, 2.4);
+    const double b = Lb_inv / (Lw_inv - Lb_inv);
+
+    for (int i = 0; i < 3; i++)
+        E.c[i] = (-b > E.c[i]) ? 0.0 : a * pow(E.c[i] + b, 2.4);
+    return E;
+}
+
+static AVColor eotf_bt1886_inv(const double Lw, const double Lb, AVColor L)
+{
+    const double Lw_inv = pow(Lw, 1.0 / 2.4);
+    const double Lb_inv = pow(Lb, 1.0 / 2.4);
+    const double a = pow(Lw_inv - Lb_inv, 2.4);
+    const double b = Lb_inv / (Lw_inv - Lb_inv);
+
+    for (int i = 0; i < 3; i++)
+        L.c[i] = (0.0 > L.c[i]) ? 0.0 : pow(L.c[i] / a, 1.0 / 2.4) - b;
+    return L;
+}
+
+static AVColor eotf_smpte_st2084(const double Lw, const double Lb, AVColor E)
+{
+    for (int i = 0; i < 3; i++)
+        E.c[i] = trc_smpte_st2084_inv(E.c[i]);
+    return E;
+}
+
+static AVColor eotf_smpte_st2084_inv(const double Lw, const double Lb, AVColor L)
+{
+    for (int i = 0; i < 3; i++)
+        L.c[i] = trc_smpte_st2084(L.c[i]);
+    return L;
+}
+
+/* This implementation assumes an SMPTE RP 431-2 reference projector (DCI) */
+#define DCI_L 48.00
+#define DCI_P 52.37
+#define DCI_X (42.94 / DCI_L)
+#define DCI_Z (45.82 / DCI_L)
+
+static AVColor eotf_smpte_st428_1(const double Lw_Y, const double Lb_Y, AVColor E)
+{
+    const AVColor Lw = av_color(DCI_X * Lw_Y, Lw_Y, DCI_Z * Lw_Y);
+    const AVColor Lb = av_color(DCI_X * Lb_Y, Lb_Y, DCI_Z * Lb_Y);
+
+    for (int i = 0; i < 3; i++) {
+        E.c[i] = (0.0 > E.c[i]) ? 0.0 : pow(E.c[i], 2.6) * DCI_P / DCI_L;
+        E.c[i] = E.c[i] * (Lw.c[i] - Lb.c[i]) + Lb.c[i];
+    }
+    return E;
+}
+
+static AVColor eotf_smpte_st428_1_inv(const double Lw_Y, const double Lb_Y, AVColor L)
+{
+    const AVColor Lw = av_color(DCI_X * Lw_Y, Lw_Y, DCI_Z * Lw_Y);
+    const AVColor Lb = av_color(DCI_X * Lb_Y, Lb_Y, DCI_Z * Lb_Y);
+
+    for (int i = 0; i < 3; i++) {
+        L.c[i] = (L.c[i] - Lb.c[i]) / (Lw.c[i] - Lb.c[i]);
+        L.c[i] = (0.0 > L.c[i]) ? 0.0 : pow(L.c[i] * DCI_L / DCI_P, 1.0 / 2.6);
+    }
+    return L;
+}
+
+static AVColor eotf_arib_std_b67(const double Lw, const double Lb, AVColor E)
+{
+    const double gamma = fmax(1.2 + 0.42 * log10(Lw / 1000.0), 1.0);
+
+    /**
+     * Note: This equation is technically only accurate if the contrast ratio
+     * Lw:Lb is greater than 12:1; otherwise we would need to use a different,
+     * significantly more complicated solution. Ignore this as a highly
+     * degenerate case, since any real world reference display will have a
+     * static contrast ratio multiple orders of magnitude higher.
+     */
+    const double beta = sqrt(3 * pow(Lb / Lw, 1.0 / gamma));
+    double luma;
+
+    for (int i = 0; i < 3; i++)
+        E.c[i] = trc_arib_std_b67_inv((1 - beta) * E.c[i] + beta);
+
+    luma = 0.2627 * E.c[0] + 0.6780 * E.c[1] + 0.0593 * E.c[2];
+    luma = pow(fmax(luma, 0.0), gamma - 1.0);
+    for (int i = 0; i < 3; i++)
+        E.c[i] *= Lw * luma;
+    return E;
+}
+
+static AVColor eotf_arib_std_b67_inv(const double Lw, const double Lb, AVColor L)
+{
+    const double gamma = fmax(1.2 + 0.42 * log10(Lw / 1000.0), 1.0);
+    const double beta = sqrt(3 * pow(Lb / Lw, 1 / gamma));
+    double luma = 0.2627 * L.c[0] + 0.6780 * L.c[1] + 0.0593 * L.c[2];
+
+    if (luma > 0.0) {
+        luma = pow(luma / Lw, (1 - gamma) / gamma);
+        for (int i = 0; i < 3; i++)
+            L.c[i] *= luma / Lw;
+    } else {
+        L = (AVColor) {0};
+    }
+
+    for (int i = 0; i < 3; i++)
+        L.c[i] = (trc_arib_std_b67(L.c[i]) - beta) / (1 - beta);
+    return L;
+}
+
+static const av_csp_eotf_function eotf_funcs[AVCOL_TRC_NB] = {
+    [AVCOL_TRC_BT709] = eotf_bt1886,
+    [AVCOL_TRC_GAMMA22] = eotf_gamma22,
+    [AVCOL_TRC_GAMMA28] = eotf_gamma28,
+    [AVCOL_TRC_SMPTE170M] = eotf_bt1886,
+    [AVCOL_TRC_SMPTE240M] = eotf_bt1886,
+    [AVCOL_TRC_LINEAR] = eotf_linear,
+    /* There is no EOTF associated with these logarithmic encodings, since they
+     * are defined purely for transmission of scene referred data. */
+    [AVCOL_TRC_LOG] = NULL,
+    [AVCOL_TRC_LOG_SQRT] = NULL,
+    /* BT.1886 is already defined for values below 0.0, as far as physically
+     * meaningful, so we can directly use it for extended range encodings */
+    [AVCOL_TRC_IEC61966_2_4] = eotf_bt1886,
+    [AVCOL_TRC_BT1361_ECG] = eotf_bt1886,
+    [AVCOL_TRC_IEC61966_2_1] = eotf_iec61966_2_1,
+    [AVCOL_TRC_BT2020_10] = eotf_bt1886,
+    [AVCOL_TRC_BT2020_12] = eotf_bt1886,
+    [AVCOL_TRC_SMPTE2084] = eotf_smpte_st2084,
+    [AVCOL_TRC_SMPTE428] = eotf_smpte_st428_1,
+    [AVCOL_TRC_ARIB_STD_B67] = eotf_arib_std_b67,
+};
+
+av_csp_eotf_function av_csp_itu_eotf(enum AVColorTransferCharacteristic trc)
+{
+    if (trc >= AVCOL_TRC_NB)
+        return NULL;
+    return eotf_funcs[trc];
+}
+
+static const av_csp_eotf_function eotf_inv_funcs[AVCOL_TRC_NB] = {
+    [AVCOL_TRC_BT709] = eotf_bt1886_inv,
+    [AVCOL_TRC_GAMMA22] = eotf_gamma22_inv,
+    [AVCOL_TRC_GAMMA28] = eotf_gamma28_inv,
+    [AVCOL_TRC_SMPTE170M] = eotf_bt1886_inv,
+    [AVCOL_TRC_SMPTE240M] = eotf_bt1886_inv,
+    [AVCOL_TRC_LINEAR] = eotf_linear_inv,
+    [AVCOL_TRC_LOG] = NULL,
+    [AVCOL_TRC_LOG_SQRT] = NULL,
+    [AVCOL_TRC_IEC61966_2_4] = eotf_bt1886_inv,
+    [AVCOL_TRC_BT1361_ECG] = eotf_bt1886_inv,
+    [AVCOL_TRC_IEC61966_2_1] = eotf_iec61966_2_1_inv,
+    [AVCOL_TRC_BT2020_10] = eotf_bt1886_inv,
+    [AVCOL_TRC_BT2020_12] = eotf_bt1886_inv,
+    [AVCOL_TRC_SMPTE2084] = eotf_smpte_st2084_inv,
+    [AVCOL_TRC_SMPTE428] = eotf_smpte_st428_1_inv,
+    [AVCOL_TRC_ARIB_STD_B67] = eotf_arib_std_b67_inv,
+};
+
+av_csp_eotf_function av_csp_itu_eotf_inv(enum AVColorTransferCharacteristic trc)
+{
+    if (trc >= AVCOL_TRC_NB)
+        return NULL;
+    return eotf_inv_funcs[trc];
+}
