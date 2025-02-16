@@ -49,6 +49,7 @@ static inline AVFrame *pl_get_mapped_avframe(const struct pl_frame *frame)
 typedef struct pl_options_t {
     // Backwards compatibility shim of this struct
     struct pl_render_params params;
+    struct pl_deinterlace_params deinterlace_params;
     struct pl_deband_params deband_params;
     struct pl_sigmoid_params sigmoid_params;
     struct pl_color_adjustment color_adjustment;
@@ -211,6 +212,10 @@ typedef struct LibplaceboContext {
     int force_dither;
     int disable_fbos;
 
+    /* pl_deinterlace_params */
+    int deinterlace;
+    int skip_spatial_check;
+
     /* pl_deband_params */
     int deband;
     int deband_iterations;
@@ -372,6 +377,11 @@ static int update_settings(AVFilterContext *ctx)
 
     RET(av_parse_color(color_rgba, s->fillcolor, -1, s));
 
+    opts->deinterlace_params = *pl_deinterlace_params(
+        .algo = s->deinterlace,
+        .skip_spatial_check = s->skip_spatial_check,
+    );
+
     opts->deband_params = *pl_deband_params(
         .iterations = s->deband_iterations,
         .threshold = s->deband_threshold,
@@ -436,6 +446,7 @@ static int update_settings(AVFilterContext *ctx)
         .corner_rounding = s->corner_rounding,
 #endif
 
+        .deinterlace_params = &opts->deinterlace_params,
         .deband_params = s->deband ? &opts->deband_params : NULL,
         .sigmoid_params = s->sigmoid ? &opts->sigmoid_params : NULL,
         .color_adjustment = &opts->color_adjustment,
@@ -1357,6 +1368,12 @@ static const AVOption libplacebo_options[] = {
     { "sigmoid", "Enable sigmoid upscaling", OFFSET(sigmoid), AV_OPT_TYPE_BOOL, {.i64 = 1}, 0, 1, DYNAMIC },
     { "apply_filmgrain", "Apply film grain metadata", OFFSET(apply_filmgrain), AV_OPT_TYPE_BOOL, {.i64 = 1}, 0, 1, DYNAMIC },
     { "apply_dolbyvision", "Apply Dolby Vision metadata", OFFSET(apply_dovi), AV_OPT_TYPE_BOOL, {.i64 = 1}, 0, 1, DYNAMIC },
+
+    { "deinterlace", "Deinterlacing mode", OFFSET(deinterlace), AV_OPT_TYPE_INT, {.i64 = PL_DEINTERLACE_WEAVE}, 0, PL_DEINTERLACE_ALGORITHM_COUNT - 1, DYNAMIC, .unit = "deinterlace" },
+        { "weave", "Weave fields together (no-op)",    0, AV_OPT_TYPE_CONST, {.i64 = PL_DEINTERLACE_WEAVE}, 0, 0, STATIC, .unit = "deinterlace" },
+        { "bob",   "Naive bob deinterlacing",          0, AV_OPT_TYPE_CONST, {.i64 = PL_DEINTERLACE_BOB},   0, 0, STATIC, .unit = "deinterlace" },
+        { "yadif", "Yet another deinterlacing filter", 0, AV_OPT_TYPE_CONST, {.i64 = PL_DEINTERLACE_YADIF}, 0, 0, STATIC, .unit = "deinterlace" },
+    { "skip_spatial_check", "Skip yadif spatial check", OFFSET(skip_spatial_check), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, DYNAMIC },
 
     { "deband", "Enable debanding", OFFSET(deband), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, DYNAMIC },
     { "deband_iterations", "Deband iterations", OFFSET(deband_iterations), AV_OPT_TYPE_INT, {.i64 = 1}, 0, 16, DYNAMIC },
