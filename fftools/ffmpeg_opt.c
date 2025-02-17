@@ -76,6 +76,7 @@ char *filter_nbthreads;
 int filter_complex_nbthreads = 0;
 int vstats_version = 2;
 int auto_conversion_filters = 1;
+char *dump_filter_graph;
 int64_t stats_period = 500000;
 
 
@@ -1733,6 +1734,9 @@ const OptionDef options[] = {
     { "auto_conversion_filters", OPT_TYPE_BOOL, OPT_EXPERT,
         { &auto_conversion_filters },
         "enable automatic conversion filters globally" },
+    { "dump_filter_graph", OPT_TYPE_STRING, OPT_EXPERT,
+        { &dump_filter_graph },
+        "dump filter graph after insertion of auto-filters" },
     { "stats",               OPT_TYPE_BOOL, 0,
         { &print_stats },
         "print progress report during encoding", },

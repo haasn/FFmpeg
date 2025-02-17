@@ -23,6 +23,7 @@
 #include "ffmpeg.h"
 
 #include "libavfilter/avfilter.h"
+#include "libavfilter/filters.h"
 #include "libavfilter/buffersink.h"
 #include "libavfilter/buffersrc.h"
 
@@ -1985,6 +1986,18 @@ static int configure_filtergraph(FilterGraph *fg, FilterGraphThread *fgt)
         avfilter_graph_set_auto_convert(fgt->graph, AVFILTER_AUTO_CONVERT_NONE);
     if ((ret = avfilter_graph_config(fgt->graph, NULL)) < 0)
         goto fail;
+
+    /* Print the generated filter graph after insertion of auto filters */
+    if (dump_filter_graph) {
+        char *graph = avfilter_graph_dump(fgt->graph, dump_filter_graph);
+        if (graph)
+            av_log(NULL, AV_LOG_INFO, "%s", graph);
+        else
+            av_log(NULL, AV_LOG_ERROR, "Failed dumping filtergraph!\n");
+    }
+
+    avfilter_inout_free(&inputs);
+    avfilter_inout_free(&outputs);
 
     fgp->is_meta = graph_is_meta(fgt->graph);
 

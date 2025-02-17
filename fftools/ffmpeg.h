@@ -715,6 +715,7 @@ extern char *filter_nbthreads;
 extern int filter_complex_nbthreads;
 extern int vstats_version;
 extern int auto_conversion_filters;
+extern char *dump_filter_graph;
 
 extern const AVIOInterruptCB int_cb;
 

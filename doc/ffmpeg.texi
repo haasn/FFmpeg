@@ -2768,6 +2768,24 @@ filter (scale, aresample) in the graph.
 On by default, to explicitly disable it you need to specify
 @code{-noauto_conversion_filters}.
 
+@item -dump_filter_graph
+Print out the fully settled filter graph, after all automatic conversion
+and format restriction filters have been inserted. Accepts a key/value list of
+suboptions to influnce the output.
+@table @option
+@item format
+Choose the output format. Possible values are:
+
+@table @option
+@item none
+Don't print anything.
+@item pretty
+Pretty-print an ASCII art graph. This is the default.
+@item complex
+Print in a format suitable for consumption by @option{-filter_complex}.
+@end table
+@end table
+
 @item -bits_per_raw_sample[:@var{stream_specifier}] @var{value} (@emph{output,per-stream})
 Declare the number of bits per raw sample in the given output stream to be
 @var{value}. Note that this option sets the information provided to the
