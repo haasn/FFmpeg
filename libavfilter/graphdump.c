@@ -24,9 +24,32 @@
 #include "libavutil/channel_layout.h"
 #include "libavutil/bprint.h"
 #include "libavutil/mem.h"
+#include "libavutil/opt.h"
 #include "libavutil/pixdesc.h"
 #include "avfilter.h"
 #include "filters.h"
+
+enum {
+    FMT_NONE = 0,
+    FMT_PRETTY,
+    FMT_NB,
+};
+
+typedef struct GraphDumpOptions {
+    const AVClass *class;
+
+    int format;
+} GraphDumpOptions;
+
+#define OFFSET(x) offsetof(GraphDumpOptions, x)
+static const AVOption graph_dump_options[] = {
+    { "format",     "set the output format", OFFSET(format), AV_OPT_TYPE_INT, { .i64 = FMT_NONE }, 0, FMT_NB - 1, .unit = "format" },
+    {     "none",   "don't produce any output",         0, AV_OPT_TYPE_CONST, {.i64 = FMT_NONE},    .unit = "format" },
+    {     "pretty", "pretty printed ASCII art graph",   0, AV_OPT_TYPE_CONST, {.i64 = FMT_PRETTY},  .unit = "format" },
+    { NULL },
+};
+
+AVFILTER_DEFINE_CLASS(graph_dump);
 
 static int print_link_prop(AVBPrint *buf, AVFilterLink *link)
 {
@@ -61,7 +84,7 @@ static int print_link_prop(AVBPrint *buf, AVFilterLink *link)
     return buf->len;
 }
 
-static void avfilter_graph_dump_to_buf(AVBPrint *buf, AVFilterGraph *graph)
+static void dump_pretty(AVBPrint *buf, AVFilterGraph *graph)
 {
     unsigned i, j, x, e;
 
@@ -157,13 +180,30 @@ char *avfilter_graph_dump(AVFilterGraph *graph, const char *options)
 {
     AVBPrint buf;
     char *dump = NULL;
+    int ret;
 
-    av_bprint_init(&buf, 0, AV_BPRINT_SIZE_COUNT_ONLY);
-    avfilter_graph_dump_to_buf(&buf, graph);
-    dump = av_malloc(buf.len + 1);
-    if (!dump)
+    GraphDumpOptions opts = {
+        .class = &graph_dump_class,
+    };
+
+    static const char *shorthand[] = {
+        "format", NULL,
+    };
+
+    av_opt_set_defaults(&opts);
+    ret = av_opt_set_from_string(&opts, options, shorthand, "=", ":");
+    if (ret < 0)
         return NULL;
-    av_bprint_init_for_buffer(&buf, dump, buf.len + 1);
-    avfilter_graph_dump_to_buf(&buf, graph);
+
+    av_bprint_init(&buf, 0, AV_BPRINT_SIZE_AUTOMATIC);
+    switch (opts.format) {
+    case FMT_NONE:
+        break;
+    case FMT_PRETTY:
+        dump_pretty(&buf, graph);
+        break;
+    }
+
+    av_bprint_finalize(&buf, &dump);
     return dump;
 }
