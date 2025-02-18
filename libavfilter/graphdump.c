@@ -32,6 +32,7 @@
 enum {
     FMT_NONE = 0,
     FMT_PRETTY,
+    FMT_COMPLEX,
     FMT_NB,
 };
 
@@ -46,6 +47,7 @@ static const AVOption graph_dump_options[] = {
     { "format",     "set the output format", OFFSET(format), AV_OPT_TYPE_INT, { .i64 = FMT_NONE }, 0, FMT_NB - 1, .unit = "format" },
     {     "none",   "don't produce any output",         0, AV_OPT_TYPE_CONST, {.i64 = FMT_NONE},    .unit = "format" },
     {     "pretty", "pretty printed ASCII art graph",   0, AV_OPT_TYPE_CONST, {.i64 = FMT_PRETTY},  .unit = "format" },
+    {     "complex","complex filter graph",             0, AV_OPT_TYPE_CONST, {.i64 = FMT_COMPLEX}, .unit = "format" },
     { NULL },
 };
 
@@ -176,6 +178,121 @@ static void dump_pretty(AVBPrint *buf, AVFilterGraph *graph)
     }
 }
 
+/* Assign a unique ID to each link by keeping track of them in an array */
+static int get_link_id(AVFilterLink ***links, int *nb_links, AVFilterLink *link)
+{
+    int ret;
+    for (int i = 0; i < *nb_links; i++) {
+        if ((*links)[i] == link)
+            return i;
+    }
+
+    ret = av_dynarray_add_nofree(links, nb_links, link);
+    return ret ? ret : *nb_links - 1;
+}
+
+static const char *get_filter_name(const AVFilterContext *filter)
+{
+    /* Reuse the filter instance name if present */
+    return strchr(filter->name, '@') ? filter->name : filter->filter->name;
+}
+
+static void print_link_label(AVBPrint *buf, AVFilterLink *link, int id)
+{
+    if (link->srcpad->label)
+        av_bprintf(buf, "%s", link->srcpad->label);
+    else if (link->dstpad->label)
+        av_bprintf(buf, "%s", link->dstpad->label);
+    else
+        av_bprintf(buf, "L%d", id);
+}
+
+static int dump_complex(AVBPrint *buf, AVFilterGraph *graph)
+{
+    /* Keep track of seen filter links to assign a unique ID to each */
+    AVFilterLink **links = NULL;
+    int nb_links = 0;
+    int ret = AVERROR(ENOMEM);
+    char *filter_opts = NULL;
+
+    for (int i = 0; i < graph->nb_filters; i++) {
+        AVFilterContext *filter = graph->filters[i];
+        if (i == 0)
+            av_bprintf(buf, "Filter graph:\n");
+
+        ret = av_opt_serialize(filter, AV_OPT_FLAG_FILTERING_PARAM,
+                               AV_OPT_SERIALIZE_SKIP_DEFAULTS |
+                               AV_OPT_SERIALIZE_SEARCH_CHILDREN,
+                               &filter_opts, '=', ':');
+        if (ret < 0)
+            goto fail;
+
+        av_bprintf(buf, "  ");
+        for (int j = 0; j < filter->nb_inputs; j++) {
+            AVFilterLink *link = filter->inputs[j];
+            ret = get_link_id(&links, &nb_links, link);
+            if (ret < 0)
+                goto fail;
+            av_bprintf(buf, "[");
+            print_link_label(buf, link, ret);
+            av_bprintf(buf, "] ");
+        }
+
+        av_bprintf(buf, "%s", get_filter_name(filter));
+        if (filter_opts && filter_opts[0])
+            av_bprintf(buf, "=%s", filter_opts);
+        av_freep(&filter_opts);
+
+        for (int j = 0; j < filter->nb_outputs; j++) {
+            AVFilterLink *link = filter->outputs[j];
+            ret = get_link_id(&links, &nb_links, link);
+            if (ret < 0)
+                goto fail;
+            av_bprintf(buf, " [");
+            print_link_label(buf, link, ret);
+            av_bprintf(buf, "]");
+        }
+        av_bprintf(buf, ";\n");
+    }
+
+    /* Dump a summary of all seen links */
+    for (int i = 0; i < nb_links; i++) {
+        AVFilterLink *link = links[i];
+        if (i == 0)
+            av_bprintf(buf, "Filter links:\n");
+        av_bprintf(buf, "  [");
+        print_link_label(buf, link, i);
+        av_bprintf(buf, ": %s -> %s] ", get_filter_name(link->src),
+                   get_filter_name(link->dst));
+
+        switch (link->type) {
+        case AVMEDIA_TYPE_VIDEO:
+            av_bprintf(buf, "%s %dx%d [SAR %d:%d] csp:%s range:%s\n",
+                       av_get_pix_fmt_name(link->format), link->w, link->h,
+                       link->sample_aspect_ratio.num, link->sample_aspect_ratio.den,
+                       av_color_space_name(link->colorspace),
+                       av_color_range_name(link->color_range));
+            break;
+        case AVMEDIA_TYPE_AUDIO:
+            av_bprintf(buf, "%s %dHz ",
+                       av_get_sample_fmt_name(link->format), link->sample_rate);
+            av_channel_layout_describe_bprint(&link->ch_layout, buf);
+            av_bprintf(buf, "\n");
+            break;
+        default:
+            av_bprintf(buf, "unknown\n");
+            continue;
+        }
+    }
+
+    ret = 0;
+fail:
+    av_free(links);
+    av_free(filter_opts);
+    return ret;
+}
+
+
 char *avfilter_graph_dump(AVFilterGraph *graph, const char *options)
 {
     AVBPrint buf;
@@ -201,6 +318,13 @@ char *avfilter_graph_dump(AVFilterGraph *graph, const char *options)
         break;
     case FMT_PRETTY:
         dump_pretty(&buf, graph);
+        break;
+    case FMT_COMPLEX:
+        ret = dump_complex(&buf, graph);
+        if (ret < 0) {
+            av_bprint_finalize(&buf, NULL);
+            return NULL;
+        }
         break;
     }
 
