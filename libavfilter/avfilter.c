@@ -825,11 +825,13 @@ void avfilter_free(AVFilterContext *filter)
 
     for (i = 0; i < filter->nb_inputs; i++) {
         free_link(filter->inputs[i]);
+        av_freep(&filter->input_pads[i].label);
         if (filter->input_pads[i].flags  & AVFILTERPAD_FLAG_FREE_NAME)
             av_freep(&filter->input_pads[i].name);
     }
     for (i = 0; i < filter->nb_outputs; i++) {
         free_link(filter->outputs[i]);
+        av_freep(&filter->output_pads[i].label);
         if (filter->output_pads[i].flags & AVFILTERPAD_FLAG_FREE_NAME)
             av_freep(&filter->output_pads[i].name);
     }

@@ -564,6 +564,12 @@ int avfilter_graph_segment_create_filters(AVFilterGraphSegment *seg, int flags)
                 }
             }
 
+            /* Set all filter pad labels to their corresponding parsed labels */
+            for (size_t i = 0; i < FFMIN(p->nb_inputs, p->filter->nb_inputs); i++)
+                p->filter->input_pads[i].label = av_strdup(p->inputs[i]->label);
+            for (size_t i = 0; i < FFMIN(p->nb_outputs, p->filter->nb_outputs); i++)
+                p->filter->output_pads[i].label = av_strdup(p->outputs[i]->label);
+
             av_freep(&p->filter_name);
             av_freep(&p->instance_name);
 

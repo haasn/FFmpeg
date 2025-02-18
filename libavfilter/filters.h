@@ -44,6 +44,12 @@ struct AVFilterPad {
     const char *name;
 
     /**
+     * Parsed label for this filter pad in the filter graph, or NULL if
+     * anonymous or unknown.
+     */
+    const char *label;
+
+    /**
      * AVFilterPad type.
      */
     enum AVMediaType type;
