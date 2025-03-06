@@ -28,12 +28,25 @@
 #include "ops.h"
 #include "ops_internal.h"
 
+#if ARCH_X86
+extern const SwsOpTable ff_sws_op_tmpl_int_table_avx2_8bpc;
+extern const SwsOpTable ff_sws_op_tmpl_int_table_avx2_16bpc;
+extern const SwsOpTable ff_sws_op_tmpl_int_table_avx2_32bpc;
+extern const SwsOpTable ff_sws_op_tmpl_float_table_avx2_32bpc;
+#endif
+
 extern const SwsOpTable ff_sws_op_tmpl_int_table_c_8bpc;
 extern const SwsOpTable ff_sws_op_tmpl_int_table_c_16bpc;
 extern const SwsOpTable ff_sws_op_tmpl_int_table_c_32bpc;
 extern const SwsOpTable ff_sws_op_tmpl_float_table_c_32bpc;
 
 static const SwsOpTable * const sws_op_tables[] = {
+#if ARCH_X86
+    &ff_sws_op_tmpl_int_table_avx2_8bpc,
+    &ff_sws_op_tmpl_int_table_avx2_16bpc,
+    &ff_sws_op_tmpl_int_table_avx2_32bpc,
+    &ff_sws_op_tmpl_float_table_avx2_32bpc,
+#endif
     &ff_sws_op_tmpl_int_table_c_8bpc,
     &ff_sws_op_tmpl_int_table_c_16bpc,
     &ff_sws_op_tmpl_int_table_c_32bpc,
