@@ -156,6 +156,12 @@ typedef enum SwsFlags {
     SWS_BITEXACT       = 1 << 19,
 
     /**
+     * Force the use of the fallback (legacy) swscale scaler path. For
+     * debugging purposes only. May become non-functional at any point in time.
+     */
+    SWS_FORCE_LEGACY   = 1 << 20,
+
+    /**
      * Deprecated flags.
      */
     SWS_DIRECT_BGR      = 1 << 15, ///< This flag has no effect
