@@ -28,7 +28,16 @@
 #include "ops.h"
 #include "ops_internal.h"
 
+extern const SwsOpTable ff_sws_op_tmpl_int_table_c_8bpc;
+extern const SwsOpTable ff_sws_op_tmpl_int_table_c_16bpc;
+extern const SwsOpTable ff_sws_op_tmpl_int_table_c_32bpc;
+extern const SwsOpTable ff_sws_op_tmpl_float_table_c_32bpc;
+
 static const SwsOpTable * const sws_op_tables[] = {
+    &ff_sws_op_tmpl_int_table_c_8bpc,
+    &ff_sws_op_tmpl_int_table_c_16bpc,
+    &ff_sws_op_tmpl_int_table_c_32bpc,
+    &ff_sws_op_tmpl_float_table_c_32bpc,
 };
 
 #define Q(N) ((AVRational) { N, 1 })
