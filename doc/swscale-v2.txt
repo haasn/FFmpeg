@@ -1,0 +1,340 @@
+New swscale design to change everything (tm)
+============================================
+
+SwsGraph
+--------
+
+The entry point to the new architecture, SwsGraph is what coordinates
+multiple "passes" - for example, one pass might be upscaling chroma, and
+then the next pass can take the previously upscaled chroma and run it through
+the horizontal scaler, while the final pass does vertical scaling, dithering
+and output to the final image.
+
+SwsGraph is internally recreated whenever the image format or dimensions change
+in any way. sws_scale_frame() is itself just a light-weight wrapper that runs
+ff_sws_graph_create() whenever the format changes, splits interlaced images
+into separate fields, and calls ff_sws_graph_run() on each.
+
+From the point of view of SwsGraph itself, all inputs are progressive fields.
+
+SwsOp / SwsOpList
+-----------------
+
+This is the newly introduced abstraction layer between the high-level format
+handling logic and the low-level backing implementation. Each SwsOp is designed
+to be as small and atomic as possible.
+
+The basic idea is to split logic between three major components:
+
+1. The high-level format "business logic", which generates in a very
+   naive way a sequence of operations guaranteed to get you from point A
+   to point B. This logic is written with correctness in mind only, and
+   ignoring any performance concerns or low-level implementation decisions.
+   Semantically, everything is always decoded from the input format to
+   normalized (real valued) RGB, and then encoded back to output format.
+
+   This code lives in libswscale/format.c
+
+2. The optimizer. This is where the "magic" happens, so to speak. The
+   optimizer's job is to take the abstract sequence of operations
+   produced by the high-level format analysis code and incrementally
+   optimize it. Each optimization step is designed to be minute and provably
+   correct. This ensures that the resulting output is always bit-exact, no
+   matter how many layers of optimization we add.
+
+   This code lives in libswscale/ops.c
+
+3. The compiler / dispatch. Once we have a sequence of operations
+   as output by the optimizer, we "compile" this down to a set of
+   low-level primitives. These are then dispatched by the dispatch code
+   into a sequence of function calls that are applied, in sequence, to
+   each "chunk" of the input image.
+
+   This code lives in libswscale/ops.c, with the implementations currently
+   coming from libswscale/ops_tmpl_*.c
+
+This overall approach has a considerable number of benefits:
+
+1. It allows us to verify correctness of logic and spot semantic errors at a
+   very high level, by simply looking at the sequence of operations (available
+   by default at debug / verbose log level), without having to dig through the
+   multiple levels of complicated, interwoven format handling code that is
+   legacy swscale.
+
+2. Because most of the brains lives inside the the powerful optimizer, we get
+   fast paths "for free" for any suitable format conversion, rather than having
+   to enumerate them one by one. SIMD code itself can be written in a very
+   general way and does need to be tied to specific pixel formats - if an
+   efficient implementation happens to exist for the sequence of operations
+   being matched, it will be used automatically.
+
+3. We can in the future, with relative ease, compile these operations
+   down to SPIR-V (or even LLVM IR) and generate efficient GPU or
+   target-machine specific implementations. This also opens the window for
+   adding hardware frame support to libswscale, and even transparently using
+   GPU acceleration for CPU frames.
+
+4. Platform-specific SIMD can be reduced down to, in theory, a very minimum
+   set of optimized routines, even without reliance on the autovectorized C
+   templates.
+
+5. Platform-specific SIMD routines and fast paths can be added or removed, at
+   any time, without needing to adjust the high level code at all. If a
+   dedicated function exists for an operation, it will automatically be used,
+   by simply being registered in the op entry table.
+
+6. We can straightforwrdly verify the correctness of SIMD routines by
+   comparing the results against an "emulator" that simply performs the
+   corresponding op calculations with exact precision. (See e.g.
+   ff_sws_op_apply_q)
+
+   This essentially serves as a more powerful version of checkasm, that can
+   even catch bugs in the C implementation. We can also use it to prove
+   bit-exactness of our implementation with the theoretical, mathematically
+   perfect result.
+
+7. As a side effect, all platforms will be bit-exact with each other, as long
+   as they conform with a reasonable subset of standard IEEE semantics.
+   (Although we may wish to add some liberties for e.g. addition order for
+   filtering or linear operations, which could theoretically flip a bit here
+   and there)
+
+8. Platform specific code is self-contained within its own op implementation
+   and corresponding setup() code, eliminating all reads into SwsContext.
+
+Compiler and underlying implementation layer
+--------------------------------------------
+
+The basic idea is to have one "kernel" (or implementation) per operation,
+and then just chain a list of these kernels together as separate function
+calls. However, the naive way of doing this this comes with a hefty
+performance penalty as each separate kernel needs to read and write the
+entire image into memory.
+
+In practice, a much better approach I have found was to first divide the image
+into small chunks, and then iteratively run each kernel in sequence, until the
+entire chunk has been processed, before writing it to the output image and
+moving onto the next chunk. The chunk size I am currently using is 32 pixels,
+which seems to provide the best compromise between cache locality and SIMD
+efficiency, although this is a trivial number to change. In principle, chunks
+can be striped in any way over the image, but for unscaled conversions I have
+found that striping them as 32x1 horizontal strips provides the best
+performance. Each operation will read and write 32 pixels at a time to a fixed
+(thread-local) location in memory, thus ensuring all pixel data never leaves
+the L1 cache.
+
+The advantage of defining all operations in terms of a small, fixed block size
+is mainly that operations do not need any loops, conditionals, nor do they
+need to worry about input/output alignment. In theory, a SIMD implementation
+could even use a custom calling convention to keep those 32 pixels inside
+vector registers directly, avoiding the need even to go through L1 cache.
+This would also prevent the need to define "fused" operations, since at that
+point, the extra overhead of the function calls is almost negligible.
+
+For reads/writes, we define two variants of each function: one that is defined
+on a fixed-size chunk-aligned block, and one that can handle an arbitrary
+number of (unaligned) pixels. This serves both to handle the image edge,
+but also as a fallback for unaligned input/output pointers.
+
+All of these primitives are collected into a big SwsOpEntry[] table, and the
+compiler iterates over these and does a naive greedy algorithm to pick the
+highest-scoring candidate at each step, until all operations have been
+"compiled" into a list of function calls, which the run() callback for that
+graph pass iterates over.
+
+Lastly, one important deviation from "legacy" swscale is that I define all of
+my innermost math primitives exclusively on floating point types. I have found
+that in my benchmarks, on all tested platforms (x86, ARM, RISC-V), floating
+point code generally outperforms fixed point code in both speed and accuracy.
+Not only do floating point functions have better hardware support on modern
+CPUs (and especially GPUs), but they also allow us to eliminate a lot of the
+otherwise necessary shifting, expanding, rounding and/or dithering steps.
+
+This keeps dither noise at a minimum by only dithering once, at the end of the
+pipeline, and also ensures that we never lose precision (note that floating
+point numbers can accurately represent the entire 16-bit integer range, and
+then some, and they are also ideal for storing linear light data such as
+will be required inside the colorspace conversion pipeline).
+
+Examples of SwsOp in action
+---------------------------
+
+For illustration, here is the sequence of operations currently generated by
+my prototype, for a conversion from RGB24 to YUV444P:
+
+Unoptimized operation list:
+  [ u8 .... -> ....] SWS_OP_READ         : 3 elem(s) packed >> 0
+  [ u8 .... -> ....] SWS_OP_SWIZZLE      : 0123
+  [ u8 .... -> ....] SWS_OP_RSHIFT       : >> 0
+  [ u8 .... -> ....] SWS_OP_CLEAR        : {_ _ _ 0}
+  [ u8 .... -> ....] SWS_OP_CONVERT      : u8 -> f32
+  [f32 .... -> ....] SWS_OP_LINEAR       : diag3+alpha [[1/255 0 0 0 0] [0 1/255 0 0 0] [0 0 1/255 0 0] [0 0 0 1 1]]
+  [f32 .... -> ....] SWS_OP_LINEAR       : matrix3 [[0.299000 0.587000 0.114000 0 0] [-0.168736 -0.331264 1/2 0 0] [1/2 -0.418688 -57/701 0 0] [0 0 0 1 0]]
+  [f32 .... -> ....] SWS_OP_LINEAR       : diag3+off3 [[219 0 0 0 16] [0 224 0 0 128] [0 0 224 0 128] [0 0 0 1 0]]
+  [f32 .... -> ....] SWS_OP_DITHER       : 16x16 matrix
+  [f32 .... -> ....] SWS_OP_CLAMP        : 0 <= x <= {255 255 255 _}
+  [f32 .... -> ....] SWS_OP_CONVERT      : f32 -> u8
+  [ u8 .... -> ....] SWS_OP_LSHIFT       : << 0
+  [ u8 .... -> ....] SWS_OP_SWIZZLE      : 0123
+  [ u8 .... -> ....] SWS_OP_WRITE        : 3 elem(s) planar >> 0
+
+This is optimized into the following sequence:
+
+Optimized operation list:
+  [ u8 XXXX -> +++X] SWS_OP_READ         : 3 elem(s) packed >> 0
+  [ u8 ...X -> +++X] SWS_OP_CONVERT      : u8 -> f32
+  [f32 ...X -> ...X] SWS_OP_LINEAR       : matrix3+off3 [[0.256788 0.504129 0.097906 0 16] [-0.148223 -0.290993 112/255 0 128] [112/255 -0.367788 -0.071427 0 128] [0 0 0 1 0]]
+  [f32 ...X -> ...X] SWS_OP_DITHER       : 16x16 matrix
+  [f32 ...X -> ...X] SWS_OP_CLAMP        : 0 <= x <= {255 255 255 _}
+  [f32 ...X -> +++X] SWS_OP_CONVERT      : f32 -> u8
+  [ u8 ...X -> XXXX] SWS_OP_WRITE        : 3 elem(s) planar >> 0
+    (X = unused, + = exact, 0 = zero)
+
+And is ultimately (in my current prototype) being executed as this sequence
+of implementations / kernels:
+
+[swscaler @ 0x14f7f3c0] Input function matched 2 ops with score 121
+[swscaler @ 0x14f7f3c0] Generic function matched 1 ops with score 111
+[swscaler @ 0x14f7f3c0] Generic function matched 3 ops with score 133
+[swscaler @ 0x14f7f3c0] Output function matched 1 ops with score 110
+[swscaler @ 0x14f7f3c0] Using dedicated dispatch function
+
+1. Fused packed-read + conversion to f32
+2. 3x3 affine transform (3x3 matrix * input + offset)
+3. Fused dither+clamp+conversion to u8
+4. Planar write
+
+Resulting in:
+
+  rgb24 1920x1080 -> yuv444p 1920x1080, flags=0 dither=1, SSIM {Y=0.999997 U=0.999989 V=1.000000 A=1.000000}
+    time=2627 us, ref=3273 us, speedup=1.246x faster
+
+The extra metadata on the left of the operation list is just a dump of the
+internal state used by the optimizer during optimization. It currently just
+keeps track of which input components are required, and which output components
+are either an exact integer, constant zero, or garbage (undefined).
+
+In this example, you can see that the input values are exact (except for
+the alpha channel, which is undefined), until the first SWS_OP_LINEAR
+multiplies them by a noninteger constant. They regain their exact integer
+status only after the (truncating) conversion to U8 in the output step.
+
+Example of more aggressive optimization
+---------------------------------------
+
+Conversion pass for rgb24 -> yuva444p:
+Unoptimized operation list:
+  [ u8 .... -> ....] SWS_OP_READ         : 1 elem(s) packed >> 0
+  [ u8 .... -> ....] SWS_OP_SWIZZLE      : 0123
+  [ u8 .... -> ....] SWS_OP_RSHIFT       : >> 0
+  [ u8 .... -> ....] SWS_OP_CLEAR        : {_ 0 0 0}
+  [ u8 .... -> ....] SWS_OP_CONVERT      : u8 -> f32
+  [f32 .... -> ....] SWS_OP_LINEAR       : luma+alpha [[1/255 0 0 0 0] [0 1 0 0 0] [0 0 1 0 0] [0 0 0 1 1]]
+  [f32 .... -> ....] SWS_OP_LINEAR       : matrix3 [[1 0 701/500 0 0] [1 -0.344136 -0.714136 0 0] [1 443/250 0 0 0] [0 0 0 1 0]]
+  [f32 .... -> ....] SWS_OP_LINEAR       : diag3 [[65535 0 0 0 0] [0 65535 0 0 0] [0 0 65535 0 0] [0 0 0 1 0]]
+  [f32 .... -> ....] SWS_OP_DITHER       : 1x1 matrix
+  [f32 .... -> ....] SWS_OP_CLAMP        : 0 <= x <= {65535 65535 65535 _}
+  [f32 .... -> ....] SWS_OP_CONVERT      : f32 -> u16
+  [u16 .... -> ....] SWS_OP_LSHIFT       : << 0
+  [u16 .... -> ....] SWS_OP_SWIZZLE      : 0123
+  [u16 .... -> ....] SWS_OP_WRITE        : 3 elem(s) packed >> 0
+    (X = unused, + = exact, 0 = zero)
+
+Optimized operation list:
+  [ u8 XXXX -> +XXX] SWS_OP_READ         : 1 elem(s) packed >> 0
+  [ u8 .XXX -> +++X] SWS_OP_SWIZZLE      : 0003
+  [ u8 ...X -> +++X] SWS_OP_CONVERT      : u8 -> u16 (expand)
+  [u16 ...X -> XXXX] SWS_OP_WRITE        : 3 elem(s) packed >> 0
+    (X = unused, + = exact, 0 = zero)
+
+Here, the optimized has managed to eliminate all of the unnecessary linear
+operations on previously zero'd values, turn the resulting column matrix into
+a swizzle operation, avoid the unnecessary dither (and round trip via float)
+because the pixel values are guaranteed to be bit exact, and finally, turns
+the multiplication by 65535 / 255 = 257 into a simple integer expand operation.
+
+The resulting kernel requires four function calls per chunk and yields:
+  time=2256 us, ref=7262 us, speedup=3.219x faster
+
+Future considerations and limitations
+-------------------------------------
+
+My current prototype has a number of severe limitations and opportunities
+for improvements:
+
+1. It does not handle scaling at all. I am not yet entirely sure on how I want
+   to handle scaling; this includes handling of subsampled content. I have a
+   number of vague ideas in my head, but nothing where I can say with certainty
+   that it will work out well.
+
+   It's possible that we won't come up with a perfect solution here, and will
+   need to decide on which set of compromises we are comfortable accepting:
+
+   1. Do we need the ability to scale YUV -> YUV by handling luma and chroma
+      independently? When downscaling 100x100 4:2:0 to 50x50 4:4:4, should we
+      support the option of reusing the chroma plane directly (even though
+      this would introduce a subpixel shift for typical chroma siting)?
+
+   Looking towards zimg, I am also thinking that we probably also want to do
+   scaling on floating point values, since this is best for both performance
+   and accuracy.
+
+2. Since each operation is conceptually defined on 4-component pixels, we end
+   up defining a lot of variants of each implementation for each possible
+   *subset*. For example, we have four different implementations for
+   SWS_OP_SCALE in my current templates:
+    - op_scale1000
+    - op_scale1001
+    - op_scale1110
+    - op_scale1111
+
+   This reflects the four different arangements of pixel components that are
+   typically present (or absent). While best for performance, it does bloat the
+   resulting binaries and op tables considerably.
+
+   The only real alternative would be to simply branch inside the kernel, but
+   because these kernels are executed on every single 32-pixel chunk in the
+   image (~260K function calls for a single 4K frame!), the cost of branching
+   here is significantly higher than the cost of simply dealing with the
+   extra variants.
+
+3. I do not yet have any support for LUTs. But when I add them, something we
+   could do is have the optimized pass automatically "promote" a sequence of
+   operations to LUTs. For example, any sequence that looks like:
+
+   1. [u8] SWS_OP_CONVERT -> X
+   2. [X] ...
+   4. [X] SWS_OP_CONVERT -> Y
+   3. [Y] SWS_OP_WRITE
+
+   could be replaced by a LUT with 256 entries. This would require keeping
+   track of which components interact with other components, probably by adding
+   some sort of SWS_COMP_INDEPENDENT flag to the optimizer for components which
+   we know can cleanly separate from their neighbours. (And even in the absence
+   of such, we could theoretically still use a 256x256x256 3DLUT if we want to)
+
+   We may also want to introduce a SWS_COMP_SMALL flag to keep track of
+   pixels whose values we know will never exceed some fixed "LUT size cutoff",
+   to allow e.g 1024 element LUTs but not 65536.
+
+   We also definitely want to hook this up to the existing CMS code for
+   transformations between different primaries.
+
+4. Because we rely on AVRational math to generate the coefficients for
+   operations, we need to be able to represent all pixel values as an
+   AVRational. However, this presents a challenge for 32-bit formats (e.g.
+   GRAY32, RGBA128), because their size exceeds INT_MAX, which is the maximum
+   value representable by an AVRational.
+
+   It's possible we may want to introduce an AVRational64 for this, or
+   perhaps more flexibly, extend AVRational to an AVFloating type which is
+   represented as { AVRational n; int exp; }, representing n/d * 2^exp. This
+   would preserve our ability to represent all pixel values exactly, while
+   opening up the range arbitrarily.
+
+5. Is there ever a situation where float precision is not enough to guarantee
+   bit exact correctness? Perhaps, for 32 bit outputs, we would need to move
+   to 64 bit float intermediates. I think that 32 bit float is sufficient for
+   all remaining pixel formats, though we may wish to consider dropping to
+   16 bit floats on platforms where they exist natively in hardware, and when
+   SWS_BITEXACT is not set.
