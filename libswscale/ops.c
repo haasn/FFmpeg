@@ -439,7 +439,7 @@ static inline bool op_match(const SwsOp *op, const SwsOp *ref, int *score)
         return true;
     case SWS_OP_LSHIFT:
     case SWS_OP_RSHIFT:
-        return true;
+        return !ref->shift.amount || op->shift.amount == ref->shift.amount;
     case SWS_OP_SWIZZLE:
         for (int i = 0; i < 4; i++) {
             if (op->comps.flags[i] & SWS_COMP_GARBAGE)

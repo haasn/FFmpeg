@@ -582,99 +582,89 @@ WRAP_SWAP(planar, 3, true)
 WRAP_SWAP(planar, 4, true)
 #endif /* SWAP_BYTES */
 
+#if BIT_DEPTH != 8
 static av_always_inline void
-lshift(tmp_t *restrict inout, const uint8_t amount)
+lshift(tmp_t *restrict inout, const uint8_t amount,
+       const bool x, const bool y, const bool z, const bool w)
 {
     SWS_ASSUME(amount < BIT_DEPTH);
 
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        inout->x.px[i] <<= amount;
-        inout->y.px[i] <<= amount;
-        inout->z.px[i] <<= amount;
-        inout->w.px[i] <<= amount;
+        if (x)
+            inout->x.px[i] <<= amount;
+        if (y)
+            inout->y.px[i] <<= amount;
+        if (z)
+            inout->z.px[i] <<= amount;
+        if (w)
+            inout->w.px[i] <<= amount;
     }
 }
 
 static av_always_inline void
-rshift(tmp_t *restrict inout, const uint8_t amount)
+rshift(tmp_t *restrict inout, const uint8_t amount,
+       const bool x, const bool y, const bool z, const bool w)
 {
     SWS_ASSUME(amount < BIT_DEPTH);
 
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        inout->x.px[i] >>= amount;
-        inout->y.px[i] >>= amount;
-        inout->z.px[i] >>= amount;
-        inout->w.px[i] >>= amount;
+        if (x)
+            inout->x.px[i] >>= amount;
+        if (y)
+            inout->y.px[i] >>= amount;
+        if (z)
+            inout->z.px[i] >>= amount;
+        if (w)
+            inout->w.px[i] >>= amount;
     }
 }
 
-static void *setup_shift(const SwsOp *ops)
-{
-    /* Allow using this inside fused convert+shift */
-    if (ops->op == SWS_OP_CONVERT)
-        ops++;
-
-    return av_memdup(&ops->shift, sizeof(ops->shift));
-}
-
-static SWS_FUNC void
-wrap_lshift(tmp_t *restrict inout, int y, const void *restrict priv)
-{
-    const SwsShiftOp *restrict c = priv;
-    const uint8_t amount = c->amount;
-    switch (amount) {
-
-#if !defined(__clang__) && !CONFIG_SMALL
-    /* GCC optimizes shifts by unknown constants very poorly */
-    case 1:  lshift(inout, 1); break;
-    case 2:  lshift(inout, 2); break;
-    case 4:  lshift(inout, 4); break;
-    case 6:  lshift(inout, 6); break;
-    case 8:  lshift(inout, 8); break;
-#endif
-    default: lshift(inout, amount); break;
-    }
-}
-
-static SWS_FUNC void
-wrap_rshift(tmp_t *restrict inout, int y, const void *restrict priv)
-{
-    const SwsShiftOp *restrict c = priv;
-    const uint8_t amount = c->amount;
-
-    switch (amount) {
-#if !defined(__clang__) && !CONFIG_SMALL
-    case 1:  rshift(inout, 1); break;
-    case 2:  rshift(inout, 2); break;
-    case 4:  rshift(inout, 4); break;
-    case 6:  rshift(inout, 6); break;
-    case 8:  rshift(inout, 8); break;
-#endif
-    default: rshift(inout, amount); break;
-    }
-}
-
-static const SwsOpEntry op_lshift = {
-    .num_ops = 1,
-    .ops = (const SwsOp[]) {{
-        .type = PIXEL_TYPE,
-        .op   = SWS_OP_LSHIFT,
-    }},
-    .op    = wrap_lshift,
-    .setup = setup_shift,
+#define WRAP_SHIFT(N, X, Y, Z, W)                                               \
+static SWS_FUNC void                                                            \
+lshift##N##_##X##Y##Y##W(tmp_t *inout, int y, const void *priv)                 \
+{                                                                               \
+    lshift(inout, N, X, Y, Z, W);                                               \
+}                                                                               \
+                                                                                \
+static SWS_FUNC void                                                            \
+rshift##N##_##X##Y##Y##W(tmp_t *inout, int y, const void *priv)                 \
+{                                                                               \
+    rshift(inout, N, X, Y, Z, W);                                               \
+}                                                                               \
+                                                                                \
+static const SwsOpEntry op_lshift##N##_##X##Y##Z##W = {                         \
+    .num_ops = 1,                                                               \
+    .ops = (const SwsOp[]) {{                                                   \
+        .type = PIXEL_TYPE,                                                     \
+        .op   = SWS_OP_LSHIFT,                                                  \
+        .shift.amount = N,                                                      \
+        .comps.unused = { !X, !Y, !Z, !W },                                     \
+    }},                                                                         \
+    .op = lshift##N##_##X##Y##Z##W,                                             \
+};                                                                              \
+                                                                                \
+static const SwsOpEntry op_rshift##N##_##X##Y##Z##W = {                         \
+    .num_ops = 1,                                                               \
+    .ops = (const SwsOp[]) {{                                                   \
+        .type = PIXEL_TYPE,                                                     \
+        .op   = SWS_OP_RSHIFT,                                                  \
+        .shift.amount = N,                                                      \
+        .comps.unused = { !X, !Y, !Z, !W },                                     \
+    }},                                                                         \
+    .op = rshift##N##_##X##Y##Z##W,                                             \
 };
 
-static const SwsOpEntry op_rshift = {
-    .num_ops = 1,
-    .ops = (const SwsOp[]) {{
-        .type = PIXEL_TYPE,
-        .op   = SWS_OP_RSHIFT,
-    }},
-    .op    = wrap_rshift,
-    .setup = setup_shift,
-};
+WRAP_SHIFT(1, 1, 1, 1, 0)
+WRAP_SHIFT(2, 1, 1, 1, 0)
+WRAP_SHIFT(3, 1, 1, 1, 0)
+WRAP_SHIFT(4, 1, 1, 1, 0)
+WRAP_SHIFT(5, 1, 1, 1, 0)
+WRAP_SHIFT(6, 1, 1, 1, 0)
+WRAP_SHIFT(7, 1, 1, 1, 0)
+WRAP_SHIFT(8, 1, 1, 1, 0)
+#endif /* BIT_DEPTH != 8 */
 
 static av_always_inline void unpack(tmp_t *restrict inout, const SwsPackOp pack)
 {
@@ -819,8 +809,8 @@ WRAP_EXPAND8(1, 1, 1, 1)
 
 /* Fast path for fused 8 -> N bit expansion */
 static av_always_inline void
-upshift8(tmp_t *restrict inout, const uint8_t amount,
-         const bool x, const bool y, const bool z, const bool w)
+upshift(tmp_t *restrict inout, const uint8_t amount,
+        const bool x, const bool y, const bool z, const bool w)
 {
     const tmp_t in = *inout;
     SWS_ASSUME(amount < BIT_DEPTH);
@@ -838,22 +828,14 @@ upshift8(tmp_t *restrict inout, const uint8_t amount,
     }
 }
 
-#define WRAP_UPSHIFT8(X, Y, Z, W)                                               \
+#define WRAP_UPSHIFT8(N, X, Y, Z, W)                                            \
 static SWS_FUNC void                                                            \
-upshift8_##X##Y##Z##W(tmp_t *restrict inout, int y, const void *restrict priv)  \
+upshift##N##_##X##Y##Z##W(tmp_t *restrict inout, int y, const void *priv)       \
 {                                                                               \
-    const SwsShiftOp *restrict c = priv;                                        \
-    switch (c->amount) {                                                        \
-    case 1:  upshift8(inout, 1, X, Y, Z, W); break;                             \
-    case 2:  upshift8(inout, 2, X, Y, Z, W); break;                             \
-    case 4:  upshift8(inout, 4, X, Y, Z, W); break;                             \
-    case 6:  upshift8(inout, 6, X, Y, Z, W); break;                             \
-    case 8:  upshift8(inout, 8, X, Y, Z, W); break;                             \
-    default: upshift8(inout, c->amount, X, Y, Z, W); break;                     \
-    }                                                                           \
+    upshift(inout, N, X, Y, Z, W);                                              \
 }                                                                               \
                                                                                 \
-static const SwsOpEntry op_upshift8_##X##Y##Z##W = {                            \
+static const SwsOpEntry op_upshift##N##_##X##Y##Z##W = {                        \
     .num_ops = 2,                                                               \
     .ops = (const SwsOp[]) {{                                                   \
         .type = SWS_PIXEL_U8,                                                   \
@@ -863,16 +845,17 @@ static const SwsOpEntry op_upshift8_##X##Y##Z##W = {                            
     }, {                                                                        \
         .type = PIXEL_TYPE,                                                     \
         .op   = SWS_OP_LSHIFT,                                                  \
+        .shift.amount = N,                                                      \
         .comps.unused = { !X, !Y, !Z, !W },                                     \
     }},                                                                         \
-    .op    = upshift8_##X##Y##Z##W,                                             \
-    .setup = setup_shift,                                                       \
+    .op = upshift##N##_##X##Y##Z##W,                                            \
 };
 
-WRAP_UPSHIFT8(1, 0, 0, 0)
-WRAP_UPSHIFT8(1, 0, 0, 1)
-WRAP_UPSHIFT8(1, 1, 1, 0)
-WRAP_UPSHIFT8(1, 1, 1, 1)
+WRAP_UPSHIFT8(1, 1, 1, 1, 0)
+WRAP_UPSHIFT8(2, 1, 1, 1, 0)
+WRAP_UPSHIFT8(4, 1, 1, 1, 0)
+WRAP_UPSHIFT8(6, 1, 1, 1, 0)
+WRAP_UPSHIFT8(8, 1, 1, 1, 0)
 
 static const SwsOpEntry int_tmpl_entries[] = {
     OPS_COMMON
@@ -891,8 +874,6 @@ static const SwsOpEntry int_tmpl_entries[] = {
     op_write_planar2,
     op_write_planar3,
     op_write_planar4,
-    op_lshift,
-    op_rshift,
 
 #if BIT_DEPTH == 8
     op_read_nibbles1,
@@ -948,13 +929,28 @@ static const SwsOpEntry int_tmpl_entries[] = {
     op_from8_1001,
     op_from8_1110,
     op_from8_1111,
-
     op_to8_1000,
     op_to8_1001,
     op_to8_1110,
     op_to8_1111,
-
     op_expand8_1111,
+
+    op_lshift1_1110,
+    op_lshift2_1110,
+    op_lshift3_1110,
+    op_lshift4_1110,
+    op_lshift5_1110,
+    op_lshift6_1110,
+    op_lshift7_1110,
+    op_lshift8_1110,
+    op_rshift1_1110,
+    op_rshift2_1110,
+    op_rshift3_1110,
+    op_rshift4_1110,
+    op_rshift5_1110,
+    op_rshift6_1110,
+    op_rshift7_1110,
+    op_rshift8_1110,
 #endif
 
 #if BIT_DEPTH != 16
@@ -1008,10 +1004,11 @@ static const SwsOpEntry int_tmpl_entries[] = {
     op_swap_planar4,
 # endif
 # if BIT_DEPTH > 8
-    op_upshift8_1000,
-    op_upshift8_1001,
+    op_upshift1_1110,
+    op_upshift2_1110,
+    op_upshift4_1110,
+    op_upshift6_1110,
     op_upshift8_1110,
-    op_upshift8_1111,
     op_expand8_1000,
     op_expand8_1001,
     op_expand8_1110,
