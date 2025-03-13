@@ -26,7 +26,10 @@
 #include "ops.h"
 #include "ops_internal.h"
 
+extern SwsOpBackend backend_c;
+
 static const SwsOpBackend * const sws_op_backends[] = {
+    &backend_c,
 };
 
 #define Q(N) ((AVRational) { N, 1 })

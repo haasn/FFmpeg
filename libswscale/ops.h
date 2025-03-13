@@ -75,7 +75,7 @@ typedef struct SwsComps {
 } SwsComps;
 
 typedef struct SwsReadWriteOp {
-    /* Note: Unread pixel data is explicitly cleared to {0} for sanity */
+    /* Note: Unread pixel data is implicitly cleared to {0} */
 
     int elems;   /* number of elements (of type `op.type`) to read/write */
     bool planar; /* components live in separate planes */
