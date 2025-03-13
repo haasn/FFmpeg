@@ -91,8 +91,6 @@ typedef struct SwsComps {
 } SwsComps;
 
 typedef struct SwsReadWriteOp {
-    /* Note: Unread pixel data is explicitly cleared to {0} for sanity */
-
     int elems;   /* number of elements (of type `op.type`) to read/write */
     bool packed; /* read multiple elements from a single plane */
     int frac;    /* fractional pixel step factor (log2) */
