@@ -16,6 +16,7 @@ OBJS = alphablend.o                                     \
        input.o                                          \
        lut3d.o                                          \
        ops.o                                            \
+       ops_backend.o                                    \
        options.o                                        \
        output.o                                         \
        rgb2rgb.o                                        \
@@ -26,6 +27,11 @@ OBJS = alphablend.o                                     \
        version.o                                        \
        yuv2rgb.o                                        \
        vscale.o                                         \
+
+OPS-CFLAGS = -Wno-uninitialized \
+             -ffinite-math-only
+
+$(SUBDIR)ops_backend.o: CFLAGS += $(OPS-CFLAGS)
 
 # Objects duplicated from other libraries for shared builds
 SHLIBOBJS                    += log2_tab.o half2float.o
