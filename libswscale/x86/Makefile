@@ -10,6 +10,8 @@ OBJS-$(CONFIG_XMM_CLOBBER_TEST) += x86/w64xmmtest.o
 
 X86ASM-OBJS                     += x86/input.o                          \
                                    x86/output.o                         \
+                                   x86/ops_int.o                        \
+                                   x86/ops.o                            \
                                    x86/scale.o                          \
                                    x86/scale_avx2.o                          \
                                    x86/range_convert.o                  \
