@@ -287,77 +287,65 @@ WRAP_WRITE(write_bits,    1, 3, false)
 #endif /* BIT_DEPTH == 8 */
 
 #ifdef SWAP_BYTES
-DECL_FUNC_PATTERN(swap_bytes)
+DECL_IMPL(swap_bytes)
 {
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        if (X)
-            x[i] = SWAP_BYTES(x[i]);
-        if (Y)
-            y[i] = SWAP_BYTES(y[i]);
-        if (Z)
-            z[i] = SWAP_BYTES(z[i]);
-        if (W)
-            w[i] = SWAP_BYTES(w[i]);
+        x[i] = SWAP_BYTES(x[i]);
+        y[i] = SWAP_BYTES(y[i]);
+        z[i] = SWAP_BYTES(z[i]);
+        w[i] = SWAP_BYTES(w[i]);
     }
 
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-WRAP_COMMON_PATTERNS(swap_bytes, .op.op = SWS_OP_SWAP_BYTES);
+DECL_ENTRY_SIMPLE(swap_bytes, .op = SWS_OP_SWAP_BYTES);
 #endif /* SWAP_BYTES */
 
 #if BIT_DEPTH == 8
-DECL_FUNC_PATTERN(expand16)
+DECL_IMPL(expand16)
 {
     uint16_t xx[SWS_CHUNK_SIZE], yy[SWS_CHUNK_SIZE],
              zz[SWS_CHUNK_SIZE], ww[SWS_CHUNK_SIZE];
 
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        if (X)
-            xx[i] = x[i] << 8 | x[i];
-        if (Y)
-            yy[i] = y[i] << 8 | y[i];
-        if (Z)
-            zz[i] = z[i] << 8 | z[i];
-        if (W)
-            ww[i] = w[i] << 8 | w[i];
+        xx[i] = x[i] << 8 | x[i];
+        yy[i] = y[i] << 8 | y[i];
+        zz[i] = z[i] << 8 | z[i];
+        ww[i] = w[i] << 8 | w[i];
     }
 
     CONTINUE(uint16_t *, xx, yy, zz, ww);
 }
 
-WRAP_COMMON_PATTERNS(expand16,
-    .op.op = SWS_OP_CONVERT,
-    .op.convert.to = SWS_PIXEL_U16,
-    .op.convert.expand = true,
+DECL_ENTRY_SIMPLE(expand16,
+    .op = SWS_OP_CONVERT,
+    .convert.to = SWS_PIXEL_U16,
+    .convert.expand = true,
 );
 
-DECL_FUNC_PATTERN(expand32)
+DECL_IMPL(expand32)
 {
     uint32_t xx[SWS_CHUNK_SIZE], yy[SWS_CHUNK_SIZE],
              zz[SWS_CHUNK_SIZE], ww[SWS_CHUNK_SIZE];
 
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        if (X)
-            xx[i] = x[i] << 24 | x[i] << 16 | x[i] << 8 | x[i];
-        if (Y)
-            yy[i] = y[i] << 24 | y[i] << 16 | y[i] << 8 | y[i];
-        if (Z)
-            zz[i] = z[i] << 24 | z[i] << 16 | z[i] << 8 | z[i];
-        if (W)
-            ww[i] = w[i] << 24 | w[i] << 16 | w[i] << 8 | w[i];
+        xx[i] = x[i] << 24 | x[i] << 16 | x[i] << 8 | x[i];
+        yy[i] = y[i] << 24 | y[i] << 16 | y[i] << 8 | y[i];
+        zz[i] = z[i] << 24 | z[i] << 16 | z[i] << 8 | z[i];
+        ww[i] = w[i] << 24 | w[i] << 16 | w[i] << 8 | w[i];
     }
 
     CONTINUE(uint32_t *, xx, yy, zz, ww);
 }
 
-WRAP_COMMON_PATTERNS(expand32,
-    .op.op = SWS_OP_CONVERT,
-    .op.convert.to = SWS_PIXEL_U32,
-    .op.convert.expand = true,
+DECL_ENTRY_SIMPLE(expand32,
+    .op = SWS_OP_CONVERT,
+    .convert.to = SWS_PIXEL_U32,
+    .convert.expand = true,
 );
 #endif
 
@@ -431,42 +419,6 @@ WRAP_PACK_UNPACK(SWS_PIXEL_U16, uint16_t,  4,  4,  4,  0)
 WRAP_PACK_UNPACK(SWS_PIXEL_U32, uint32_t,  2, 10, 10, 10)
 WRAP_PACK_UNPACK(SWS_PIXEL_U32, uint32_t, 10, 10, 10,  2)
 
-#define WRAP_CLEAR_ALPHA(IDX)                                                   \
-DECL_IMPL(clear_alpha##IDX)                                                     \
-{                                                                               \
-    CALL(clear_const, 1 << IDX, PIXEL_MAX);                                     \
-}                                                                               \
-                                                                                \
-DECL_ENTRY_SIMPLE(clear_alpha##IDX,                                             \
-    .op = SWS_OP_CLEAR,                                                         \
-    .clear.value[IDX] = { PIXEL_MAX, 1 },                                       \
-    .comps.unused[IDX] = true,                                                  \
-);
-
-WRAP_CLEAR_ALPHA(0)
-WRAP_CLEAR_ALPHA(1)
-WRAP_CLEAR_ALPHA(3)
-
-#define WRAP_CLEAR_CHROMA(U, V)                                                 \
-DECL_IMPL(clear_chroma_##U##V)                                                  \
-{                                                                               \
-    CALL(clear_const, (1 << U) | (1 << V), 1 << (BIT_DEPTH - 1));               \
-}                                                                               \
-                                                                                \
-DECL_ENTRY_SIMPLE(clear_chroma_##U##V,                                          \
-    .op = SWS_OP_CLEAR,                                                         \
-    .clear.value[U] = { 1 << (BIT_DEPTH - 1), 1 },                              \
-    .clear.value[V] = { 1 << (BIT_DEPTH - 1), 1 },                              \
-    .comps.unused[U] = true,                                                    \
-    .comps.unused[V] = true,                                                    \
-);
-
-WRAP_CLEAR_CHROMA(0, 1) /* vuya */
-WRAP_CLEAR_CHROMA(1, 2) /* yuva */
-WRAP_CLEAR_CHROMA(2, 3) /* ayuv */
-WRAP_CLEAR_CHROMA(0, 2) /* uyva */
-WRAP_CLEAR_CHROMA(1, 3) /* xvyu */
-
 #if BIT_DEPTH != 8
 DECL_FUNC(lshift, const int amount)
 {
@@ -525,27 +477,23 @@ WRAP_SHIFT(7)
 WRAP_SHIFT(8)
 #endif /* BIT_DEPTH != 8 */
 
-DECL_FUNC_PATTERN(convert_float)
+DECL_IMPL(convert_float)
 {
     float xx[SWS_CHUNK_SIZE], yy[SWS_CHUNK_SIZE],
           zz[SWS_CHUNK_SIZE], ww[SWS_CHUNK_SIZE];
 
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        if (X)
-            xx[i] = x[i];
-        if (Y)
-            yy[i] = y[i];
-        if (Z)
-            zz[i] = z[i];
-        if (W)
-            ww[i] = w[i];
+        xx[i] = x[i];
+        yy[i] = y[i];
+        zz[i] = z[i];
+        ww[i] = w[i];
     }
 
     CONTINUE(float *, xx, yy, zz, ww);
 }
 
-WRAP_COMMON_PATTERNS(convert_float,
+DECL_ENTRY(convert_float,
     .op.op = SWS_OP_CONVERT,
     .op.convert.to = SWS_PIXEL_F32,
 );
@@ -637,28 +585,7 @@ static const SwsOpTable fn(op_table_int) = {
         fn(op_read_nibbles1),
         fn(op_write_bits1),
         fn(op_write_nibbles1),
-#endif
 
-#ifdef SWAP_BYTES
-        fn(op_swap_bytes_1000),
-        fn(op_swap_bytes_1001),
-        fn(op_swap_bytes_1110),
-        fn(op_swap_bytes_1111),
-#endif
-
-#if BIT_DEPTH == 8
-        fn(op_expand16_1000),
-        fn(op_expand16_1001),
-        fn(op_expand16_1110),
-        fn(op_expand16_1111),
-
-        fn(op_expand32_1000),
-        fn(op_expand32_1001),
-        fn(op_expand32_1110),
-        fn(op_expand32_1111),
-#endif
-
-#if BIT_DEPTH == 8
         fn(op_pack_1210),
         fn(op_pack_2330),
         fn(op_pack_3320),
@@ -672,6 +599,9 @@ static const SwsOpTable fn(op_table_int) = {
         fn(op_unpack_4440),
         fn(op_unpack_5550),
         fn(op_unpack_5650),
+
+        fn(op_expand16),
+        fn(op_expand32),
 #elif BIT_DEPTH == 16
         fn(op_pack_2101010),
         fn(op_pack_1010102),
@@ -679,38 +609,23 @@ static const SwsOpTable fn(op_table_int) = {
         fn(op_unpack_1010102),
 #endif
 
-        fn(op_clear_alpha0),
-        fn(op_clear_alpha1),
-        fn(op_clear_alpha3),
+#ifdef SWAP_BYTES
+        fn(op_swap_bytes),
+#endif
 
-        fn(op_clear_chroma_01),
-        fn(op_clear_chroma_12),
-        fn(op_clear_chroma_23),
-        fn(op_clear_chroma_02),
-        fn(op_clear_chroma_13),
+        fn(op_scale),
+        fn(op_convert_float),
 
         fn(op_clear_1110),
         fn(op_clear_0111),
-
         fn(op_clear_0011),
         fn(op_clear_1001),
         fn(op_clear_1100),
         fn(op_clear_0101),
         fn(op_clear_1010),
-
         fn(op_clear_1000),
         fn(op_clear_0100),
         fn(op_clear_0010),
-
-        fn(op_scale_1000),
-        fn(op_scale_1001),
-        fn(op_scale_1110),
-        fn(op_scale_1111),
-
-        fn(op_convert_float_1000),
-        fn(op_convert_float_1001),
-        fn(op_convert_float_1110),
-        fn(op_convert_float_1111),
 
         fn(op_swizzle_0123),
         fn(op_swizzle_3012),
@@ -754,24 +669,14 @@ static const SwsOpTable fn(op_table_int) = {
         fn(op_rshift_7),
         fn(op_rshift_8),
 
-        fn(op_convert_uint8_1000),
-        fn(op_convert_uint8_1001),
-        fn(op_convert_uint8_1110),
-        fn(op_convert_uint8_1111),
+        fn(op_convert_uint8),
 #endif /* BIT_DEPTH != 8 */
 
 #if BIT_DEPTH != 16
-        fn(op_convert_uint16_1000),
-        fn(op_convert_uint16_1001),
-        fn(op_convert_uint16_1110),
-        fn(op_convert_uint16_1111),
+        fn(op_convert_uint16),
 #endif
-
 #if BIT_DEPTH != 32
-        fn(op_convert_uint32_1000),
-        fn(op_convert_uint32_1001),
-        fn(op_convert_uint32_1110),
-        fn(op_convert_uint32_1111),
+        fn(op_convert_uint32),
 #endif
 
         {{0}}

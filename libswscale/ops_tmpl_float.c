@@ -58,26 +58,22 @@ DECL_SETUP(clamp)
     return SETUP_MEMDUP(c);
 }
 
-DECL_FUNC_PATTERN(clamp)
+DECL_IMPL(clamp)
 {
     const fn(ClampCoeffs) c = *(const fn(ClampCoeffs) *) impl->priv;
 
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        if (X)
-            x[i] = clipf(x[i], 0, c.max[0]);
-        if (Y)
-            y[i] = clipf(y[i], 0, c.max[1]);
-        if (Z)
-            z[i] = clipf(z[i], 0, c.max[2]);
-        if (W)
-            w[i] = clipf(w[i], 0, c.max[3]);
+        x[i] = clipf(x[i], 0, c.max[0]);
+        y[i] = clipf(y[i], 0, c.max[1]);
+        z[i] = clipf(z[i], 0, c.max[2]);
+        w[i] = clipf(w[i], 0, c.max[3]);
     }
 
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-WRAP_COMMON_PATTERNS(clamp,
+DECL_ENTRY(clamp,
     .op.op = SWS_OP_CLAMP,
     .setup = fn(setup_clamp),
     .free  = av_free,
@@ -116,8 +112,7 @@ DECL_SETUP(dither)
     return SETUP_MEMDUP(c);
 }
 
-DECL_FUNC(dither, const bool X, const bool Y, const bool Z, const bool W,
-          const int size_log2)
+DECL_FUNC(dither, const int size_log2)
 {
     const fn(DitherCoeffs) *restrict c = impl->priv;
     const int mask = (1 << size_log2) - 1;
@@ -130,42 +125,33 @@ DECL_FUNC(dither, const bool X, const bool Y, const bool Z, const bool W,
 
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        if (X)
-            x[i] += size_log2 ? c->matrix[row0][base + i] : (pixel_t) 0.5;
-        if (Y)
-            y[i] += size_log2 ? c->matrix[row1][base + i] : (pixel_t) 0.5;
-        if (Z)
-            z[i] += size_log2 ? c->matrix[row2][base + i] : (pixel_t) 0.5;
-        if (W)
-            w[i] += size_log2 ? c->matrix[row3][base + i] : (pixel_t) 0.5;
+        x[i] += size_log2 ? c->matrix[row0][base + i] : (pixel_t) 0.5;
+        y[i] += size_log2 ? c->matrix[row1][base + i] : (pixel_t) 0.5;
+        z[i] += size_log2 ? c->matrix[row2][base + i] : (pixel_t) 0.5;
+        w[i] += size_log2 ? c->matrix[row3][base + i] : (pixel_t) 0.5;
     }
 
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-#define WRAP_DITHER(N, X, Y, Z, W)                                              \
-DECL_IMPL(dither_##N##_##X##Y##Z##W)                                            \
+#define WRAP_DITHER(N)                                                          \
+DECL_IMPL(dither##N)                                                            \
 {                                                                               \
-    CALL(dither, X, Y, Z, W, N);                                                \
+    CALL(dither, N);                                                            \
 }                                                                               \
                                                                                 \
-DECL_ENTRY(dither_##N##_##X##Y##Z##W,                                           \
+DECL_ENTRY(dither##N,                                                           \
     .op.op = SWS_OP_DITHER,                                                     \
+    .op.dither.size_log2 = N,                                                   \
     .setup = fn(setup_dither),                                                  \
     .free  = av_free,                                                           \
-    .op.dither.size_log2 = N,                                                   \
-    .op.comps.unused = { !X, !Y, !Z, !W },                                      \
 );
 
-WRAP_DITHER(0, 1, 0, 0, 0)
-WRAP_DITHER(0, 1, 0, 0, 1)
-WRAP_DITHER(0, 1, 1, 1, 0)
-WRAP_DITHER(0, 1, 1, 1, 1)
-
-WRAP_DITHER(4, 1, 0, 0, 0)
-WRAP_DITHER(4, 1, 0, 0, 1)
-WRAP_DITHER(4, 1, 1, 1, 0)
-WRAP_DITHER(4, 1, 1, 1, 1)
+WRAP_DITHER(0)
+WRAP_DITHER(1)
+WRAP_DITHER(2)
+WRAP_DITHER(3)
+WRAP_DITHER(4)
 
 typedef struct {
     /* Stored in split form for convenience */
@@ -267,42 +253,19 @@ static const SwsOpTable fn(op_table_float) = {
     .block_w = SWS_CHUNK_SIZE,
     .block_h = 1,
     .entries = {
-        fn(op_convert_uint8_1000),
-        fn(op_convert_uint8_1001),
-        fn(op_convert_uint8_1110),
-        fn(op_convert_uint8_1111),
-
-        fn(op_convert_uint16_1000),
-        fn(op_convert_uint16_1001),
-        fn(op_convert_uint16_1110),
-        fn(op_convert_uint16_1111),
-
-        fn(op_convert_uint32_1000),
-        fn(op_convert_uint32_1001),
-        fn(op_convert_uint32_1110),
-        fn(op_convert_uint32_1111),
+        fn(op_convert_uint8),
+        fn(op_convert_uint16),
+        fn(op_convert_uint32),
 
         fn(op_clear_1110),
+        fn(op_scale),
+        fn(op_clamp),
 
-        fn(op_scale_1000),
-        fn(op_scale_1001),
-        fn(op_scale_1110),
-        fn(op_scale_1111),
-
-        fn(op_clamp_1000),
-        fn(op_clamp_1001),
-        fn(op_clamp_1110),
-        fn(op_clamp_1111),
-
-        fn(op_dither_0_1000),
-        fn(op_dither_0_1001),
-        fn(op_dither_0_1110),
-        fn(op_dither_0_1111),
-
-        fn(op_dither_4_1000),
-        fn(op_dither_4_1001),
-        fn(op_dither_4_1110),
-        fn(op_dither_4_1111),
+        fn(op_dither0),
+        fn(op_dither1),
+        fn(op_dither2),
+        fn(op_dither3),
+        fn(op_dither4),
 
         fn(op_linear_luma),
         fn(op_linear_alpha),

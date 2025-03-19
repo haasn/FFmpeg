@@ -25,29 +25,25 @@
 #endif
 
 #define WRAP_CONVERT_UINT(N)                                                    \
-DECL_FUNC_PATTERN(convert_uint##N)                                              \
+DECL_IMPL(convert_uint##N)                                                      \
 {                                                                               \
     uint##N##_t xx[SWS_CHUNK_SIZE], yy[SWS_CHUNK_SIZE],                         \
                 zz[SWS_CHUNK_SIZE], ww[SWS_CHUNK_SIZE];                         \
                                                                                 \
     SWS_LOOP                                                                    \
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {                                  \
-        if (X)                                                                  \
-            xx[i] = x[i];                                                       \
-        if (Y)                                                                  \
-            yy[i] = y[i];                                                       \
-        if (Z)                                                                  \
-            zz[i] = z[i];                                                       \
-        if (W)                                                                  \
-            ww[i] = w[i];                                                       \
+        xx[i] = x[i];                                                           \
+        yy[i] = y[i];                                                           \
+        zz[i] = z[i];                                                           \
+        ww[i] = w[i];                                                           \
     }                                                                           \
                                                                                 \
     CONTINUE(uint##N##_t *, xx, yy, zz, ww);                                    \
 }                                                                               \
                                                                                 \
-WRAP_COMMON_PATTERNS(convert_uint##N,                                           \
-    .op.op = SWS_OP_CONVERT,                                                    \
-    .op.convert.to = SWS_PIXEL_U##N,                                            \
+DECL_ENTRY_SIMPLE(convert_uint##N,                                              \
+    .op = SWS_OP_CONVERT,                                                       \
+    .convert.to = SWS_PIXEL_U##N,                                               \
 );
 
 #if BIT_DEPTH != 8
@@ -129,7 +125,7 @@ DECL_SETUP(scale)
     return 0;
 }
 
-DECL_FUNC_PATTERN(scale)
+DECL_IMPL(scale)
 {
     union {
         const void *ptr;
@@ -138,20 +134,16 @@ DECL_FUNC_PATTERN(scale)
 
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        if (X)
-            x[i] *= c.scale;
-        if (Y)
-            y[i] *= c.scale;
-        if (Z)
-            z[i] *= c.scale;
-        if (W)
-            w[i] *= c.scale;
+        x[i] *= c.scale;
+        y[i] *= c.scale;
+        z[i] *= c.scale;
+        w[i] *= c.scale;
     }
 
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-WRAP_COMMON_PATTERNS(scale,
+DECL_ENTRY(scale,
     .op.op = SWS_OP_SCALE,
     .setup = fn(setup_scale),
 );
