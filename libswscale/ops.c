@@ -29,9 +29,13 @@
 
 extern SwsOpBackend backend_c;
 extern SwsOpBackend backend_murder;
+extern SwsOpBackend backend_x86;
 
 const SwsOpBackend * const ff_sws_op_backends[] = {
     &backend_murder,
+#if ARCH_X86_64
+    &backend_x86,
+#endif
     &backend_c,
     NULL
 };
