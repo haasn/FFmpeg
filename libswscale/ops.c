@@ -1177,8 +1177,12 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
 
             case SWS_OP_SWIZZLE:
                 /* Identity swizzle */
-                for (int i = 0; i < 4; i++)
-                    noop &= next->comps.unused[i] || op->swizzle.in[i] == i;
+                for (int i = 0; i < 4; i++) {
+                    if (next->comps.unused[i])
+                        op->swizzle.in[i] = i; /* mask out unneeded comps */
+                    else if (op->swizzle.in[i] != i)
+                        noop = false;
+                }
                 if (noop) {
                     ff_sws_op_list_remove_at(ops, n, 1);
                     continue;
