@@ -60,7 +60,7 @@ static int rw_pixel_bits(const SwsOp *op)
     return elems * size * bits;
 }
 
-static void check_ops(const char *report, const SwsOp *ops)
+static void check_ops(const char *report, const uint32_t mask, const SwsOp *ops)
 {
     SwsOpChain chain0 = {0}, chain1 = {0};
     SwsOpExec exec0 = {0}, exec1 = {0};
@@ -78,7 +78,7 @@ static void check_ops(const char *report, const SwsOp *ops)
     for (int p = 0; p < 4; p++) {
         for (int y = 0; y < MAX_BLOCK_H; y++) {
             for (int x = 0; x < 4 * MAX_BLOCK_W; x++)
-                src0[p][y][x] = rnd();
+                src0[p][y][x] = rnd() & mask;
         }
     }
 
@@ -130,9 +130,10 @@ static void check_ops(const char *report, const SwsOp *ops)
     exec0.h = exec1.h = exec0.slice_h = exec1.slice_h = exec1.block_h;
 
     if (check_func(chain1.entry, "%s", report)) {
+        func_ref = chain0.entry; /* ignore any other asm versions */
+
         /* Reference function may have smaller block size, so make sure
          * to properly loop to cover the whole expected result */
-        av_assert0(func_ref == chain0.entry);
         for (int y = 0; y < exec1.block_h; y += exec0.block_h) {
             for (int i = 0; i < 4; i++) {
                 exec0.in[i]  = (void *) src0[i][y];
@@ -195,40 +196,47 @@ static void check_ops(const char *report, const SwsOp *ops)
     ff_sws_op_chain_uninit(&chain0);
 }
 
-#define CHECK(NAME, N_IN, N_OUT, IN, OUT, ...)  \
-  do {                                          \
-    check_ops(NAME, (SwsOp[]) {                 \
-        {                                       \
-            .op = SWS_OP_READ,                  \
-            .type = IN,                         \
-            .rw.elems = N_IN,                   \
-        },                                      \
-        __VA_ARGS__,                            \
-        {                                       \
-            .op = SWS_OP_WRITE,                 \
-            .type = OUT,                        \
-            .rw.elems = N_OUT,                  \
-        }, {0}                                  \
-    });                                         \
+#define CHECK_MASK(NAME, MASK, N_IN, N_OUT, IN, OUT, ...)                       \
+  do {                                                                          \
+    check_ops(NAME, MASK, (SwsOp[]) {                                           \
+        {                                                                       \
+            .op = SWS_OP_READ,                                                  \
+            .type = IN,                                                         \
+            .rw.elems = N_IN,                                                   \
+        },                                                                      \
+        __VA_ARGS__,                                                            \
+        {                                                                       \
+            .op = SWS_OP_WRITE,                                                 \
+            .type = OUT,                                                        \
+            .rw.elems = N_OUT,                                                  \
+        }, {0}                                                                  \
+    });                                                                         \
   } while (0)
 
-#define CHECK_COMMON(NAME, IN, OUT, ...)                        \
-    CHECK(FMT("%s_p1000", NAME), 1, 1, IN, OUT, __VA_ARGS__);   \
-    CHECK(FMT("%s_p1110", NAME), 3, 3, IN, OUT, __VA_ARGS__);   \
-    CHECK(FMT("%s_p1111", NAME), 4, 4, IN, OUT, __VA_ARGS__);   \
-    CHECK(FMT("%s_p1001", NAME), 4, 2, IN, OUT, __VA_ARGS__, {  \
-        .op = SWS_OP_SWIZZLE,                                   \
-        .type = OUT,                                            \
-        .swizzle = SWS_SWIZZLE(0, 3, 1, 2),                     \
+#define CHECK_COMMON_MASK(NAME, MASK, IN, OUT, ...)                             \
+    CHECK_MASK(FMT("%s_p1000", NAME), MASK, 1, 1, IN, OUT, __VA_ARGS__);        \
+    CHECK_MASK(FMT("%s_p1110", NAME), MASK, 3, 3, IN, OUT, __VA_ARGS__);        \
+    CHECK_MASK(FMT("%s_p1111", NAME), MASK, 4, 4, IN, OUT, __VA_ARGS__);        \
+    CHECK_MASK(FMT("%s_p1001", NAME), MASK, 4, 2, IN, OUT, __VA_ARGS__, {       \
+        .op = SWS_OP_SWIZZLE,                                                   \
+        .type = OUT,                                                            \
+        .swizzle = SWS_SWIZZLE(0, 3, 1, 2),                                     \
     })
+
+#define CHECK(NAME, N_IN, N_OUT, IN, OUT, ...) \
+    CHECK_MASK(NAME, 0xFFFFFFFF, N_IN, N_OUT, IN, OUT, __VA_ARGS__)
+
+#define CHECK_COMMON(NAME, IN, OUT, ...) \
+    CHECK_COMMON_MASK(NAME, 0xFFFFFFFF, IN, OUT, __VA_ARGS__)
 
 static void check_read_write(void)
 {
     for (SwsPixelType t = U8; t < SWS_PIXEL_TYPE_NB; t++) {
         const char *type = ff_sws_pixel_type_name(t);
         for (int i = 1; i <= 4; i++) {
+            /* Test N->N planar read/write */
             for (int o = 1; o <= i; o++) {
-                check_ops(FMT("planar_rw_%d_%d_%s", i, o, type), (SwsOp[]) {
+                check_ops(FMT("rw_%d_%d_%s", i, o, type), 0xFFFFFFFF, (SwsOp[]) {
                     {
                         .op = SWS_OP_READ,
                         .type = t,
@@ -237,26 +245,39 @@ static void check_read_write(void)
                         .op = SWS_OP_WRITE,
                         .type = t,
                         .rw.elems = o,
-                    }, {0}
-                });
-
-                if (i == 1 && o == 1)
-                    continue;
-
-                check_ops(FMT("packed_rw_%d_%d_%s", i, o, type), (SwsOp[]) {
-                    {
-                        .op = SWS_OP_READ,
-                        .type = t,
-                        .rw.elems = i,
-                        .rw.packed = i > 1,
-                    }, {
-                        .op = SWS_OP_WRITE,
-                        .type = t,
-                        .rw.elems = o,
-                        .rw.packed = o > 1,
                     }, {0}
                 });
             }
+
+            /* Test packed read/write */
+            if (i == 1)
+                continue;
+
+            check_ops(FMT("read_packed%d_%s", i, type), 0xFFFFFFFF, (SwsOp[]) {
+                {
+                    .op = SWS_OP_READ,
+                    .type = t,
+                    .rw.elems = i,
+                    .rw.packed = true,
+                }, {
+                    .op = SWS_OP_WRITE,
+                    .type = t,
+                    .rw.elems = i,
+                }, {0}
+            });
+
+            check_ops(FMT("write_packed%d_%s", i, type), 0xFFFFFFFF, (SwsOp[]) {
+                {
+                    .op = SWS_OP_READ,
+                    .type = t,
+                    .rw.elems = i,
+                }, {
+                    .op = SWS_OP_WRITE,
+                    .type = t,
+                    .rw.elems = i,
+                    .rw.packed = true,
+                }, {0}
+            });
         }
     }
 }
@@ -458,14 +479,23 @@ static void check_convert(void)
                     .type = i,
                     .convert.to = o,
                 });
-            } else if (isize > osize || !ff_sws_pixel_type_is_int(i)) {
-                /* Conversion is lossy, make sure to clamp input first */
+            } else if (!ff_sws_pixel_type_is_int(i)) {
                 const AVRational max = { (1 << osize * 8) - 1, 1 };
                 CHECK_COMMON(name, i, o, {
                     .op = SWS_OP_CLAMP,
                     .type = i,
                     .clamp.max = { max, max, max, max },
                 }, {
+                    .op = SWS_OP_CONVERT,
+                    .type = i,
+                    .convert.to = o,
+                });
+            } else if (isize > osize) {
+                uint32_t mask = (1 << osize * 8) - 1;
+                if (isize == 2)
+                    mask |= mask << 16;
+
+                CHECK_COMMON_MASK(name, mask, i, o, {
                     .op = SWS_OP_CONVERT,
                     .type = i,
                     .convert.to = o,
