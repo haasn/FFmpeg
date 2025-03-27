@@ -192,32 +192,34 @@ IF %1 > 3,  movu [r4 + mmsize], mw2
 
 %macro read8_packed 0
 op read8_packed2
-    mov r2, [execq + SwsOpExec.in0]
-    LOAD_CONT r3
-    movu mx, [r2]               ; YAYA low
-    movu mw, [r2 + mmsize]      ; YAYA high
-    pcmpeqb mz, mz, mz          ; FFFF
-    psrlw mz, mz, 8             ; F0F0
-    pand m4, mx, mz             ; Y0Y0 low
-    pand m5, mw, mz             ; Y0Y0 high
-    psrlw my, mx, 8             ; A0A0 low
-    psrlw m6, m6, 8             ; A0A0 high
-    packuswb mx, m4, m5         ; YYYY low+high
-    packuswb my, my, m6         ; AAAA low+high
+        mov r2, [execq + SwsOpExec.in0]
+        LOAD_CONT r3
+        movu mx, [r2]               ; YAYA low
+        movu mw, [r2 + mmsize]      ; YAYA high
+IF V2,  movu mx2, [r2 + 2*mmsize]   ; YAYA low
+IF V2,  movu mw2, [r2 + 3*mmsize]   ; YAYA high
+        pcmpeqb mz, mz, mz          ; FFFF
+        psrlw mz, mz, 8             ; F0F0
+        pand m6, mx, mz             ; Y0Y0 low
+        pand m8, mw, mz             ; Y0Y0 high
+        psrlw my, mx, 8             ; A0A0 low
+        psrlw mw, mw, 8             ; A0A0 high
+        packuswb mx, m6, m8         ; YYYY low+high
+        packuswb my, my, mw         ; AAAA low+high
 %if V2
-;    movu m3, [r2 + mmsize*2]
-;    movu m6, [r2 + mmsize*3]
-;    pand m7, m2, m3 ; Y0Y0
-;    pand m8, m2, m6 ; Y0Y0
-;    psrlw m3, m3, 8 ; A0A0
-;    psrlw m6, m6, 8 ; A0A0
-;    packuswb mx2, m7, m8 ; YYYY
-;    packuswb my2, m3, m6 ; AAAA
+        pand m6, mx2, mz            ; Y0Y0 low
+        pand m8, mw2, mz            ; Y0Y0 high
+        psrlw my2, mx2, 8           ; A0A0 low
+        psrlw mw2, mw2, 8           ; A0A0 high
+        packuswb mx2, m6, m8        ; YYYY low+high
+        packuswb my2, my2, mw2      ; AAAA low+high
 %endif
-    %if avx_enabled
-    vpermq mx, mx, q0213
-    vpermq my, my, q0213
-    %endif
+%if avx_enabled
+        vpermq mx, mx, q3120
+        vpermq my, my, q3120
+IF V2,  vpermq mx2, mx2, q3120
+IF V2,  vpermq my2, my2, q3120
+%endif
     CONTINUE r3
 %endmacro
 
@@ -329,6 +331,17 @@ IF W,   pmovzxbw ymw, xmw
 %macro conv16to8 0
 op convert_16to8
         LOAD_CONT r2
+%if V2
+        ; this code technically works for the !V2 case as well, but slower
+IF X,   packuswb ymx, ymx, ymx2
+IF Y,   packuswb ymy, ymy, ymy2
+IF Z,   packuswb ymz, ymz, ymz2
+IF W,   packuswb ymw, ymw, ymw2
+IF X,   vpermq ymx, ymx, q3120
+IF Y,   vpermq ymy, ymy, q3120
+IF Z,   vpermq ymz, ymz, q3120
+IF W,   vpermq ymw, ymw, q3120
+%else
 IF X,   vextracti128  xm8, ymx, 1
 IF Y,   vextracti128  xm9, ymy, 1
 IF Z,   vextracti128 xm10, ymz, 1
@@ -337,7 +350,7 @@ IF X,   packuswb xmx, xmx, xm8
 IF Y,   packuswb xmy, xmy, xm9
 IF Z,   packuswb xmz, xmz, xm10
 IF W,   packuswb xmw, xmw, xm11
-        ; TODO: V2
+%endif
         CONTINUE r2
 %endmacro
 

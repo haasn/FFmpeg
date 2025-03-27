@@ -139,7 +139,7 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
     op_write_planar2##EXT,   \
     op_write_planar3##EXT,   \
     op_write_planar4##EXT,   \
-    /*op_read8_packed2##EXT,*/   \
+    op_read8_packed2##EXT,   \
     op_swizzle_3012##EXT,    \
     op_swizzle_0003##EXT,    \
     op_swizzle_0001##EXT,    \
@@ -227,7 +227,7 @@ static av_const int get_mmsize(void)
  * Returns true if the operation's implementation only depends on the block
  * size, and not the underlying pixel type
  */
-static int op_is_type_invariant(const SwsOp *op)
+static bool op_is_type_invariant(const SwsOp *op)
 {
     switch (op->op) {
     case SWS_OP_READ:
@@ -238,6 +238,29 @@ static int op_is_type_invariant(const SwsOp *op)
     }
 
     return false;
+}
+
+/**
+ * Returns true if the operation is a full range clamp followed by a conversion
+ */
+static bool op_is_saturating_clamp(const SwsOp *op, const SwsOp *next)
+{
+    if (op->op == SWS_OP_CLAMP && next && next->op == SWS_OP_CONVERT) {
+        const int bits = 8 * ff_sws_pixel_type_size(next->convert.to);
+        const unsigned value_range = (1 << bits) - 1;
+
+        for (int i = 0; i < 4; i++) {
+            const AVRational max = next->clamp.max[i];
+            if (max.den == 0)
+                continue;
+            else if (max.den != 1 || max.num < value_range)
+                return false;
+        }
+
+        return true;
+    } else {
+        return false;
+    }
 }
 
 static int compile(SwsOpList *ops, SwsOpChain *chain)
@@ -259,11 +282,15 @@ static int compile(SwsOpList *ops, SwsOpChain *chain)
     do {
         int block_w = chain->block_w, block_h = chain->block_h;
         SwsOp *op = &ops->ops[0];
+        const SwsOp *next = ops->num_ops > 1 ? &ops->ops[1] : NULL;
 
         if (op_is_type_invariant(op)) {
             block_w *= ff_sws_pixel_type_size(op->type);
             op->type = SWS_PIXEL_U8;
         }
+
+        if (op_is_saturating_clamp(op, next))
+            ff_sws_op_list_remove_at(ops, 0, 1);
 
         ret = ff_sws_op_compile_tables(tables, FF_ARRAY_ELEMS(tables), ops,
                                        block_w, block_h, chain);
