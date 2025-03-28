@@ -103,9 +103,9 @@
     DECL_CLEAR_ALPHA(EXT, clear_alpha, 3)
 
 #define DECL_CONVERT(EXT, FROM, TO)                                             \
-    DECL_COMMON_PATTERNS(U##FROM, convert_##FROM##to##TO##EXT,                  \
+    DECL_COMMON_PATTERNS(FROM, convert_##FROM##_##TO##EXT,                      \
         .op.op = SWS_OP_CONVERT,                                                \
-        .op.convert.to = SWS_PIXEL_U##TO,                                       \
+        .op.convert.to = SWS_PIXEL_##TO,                                        \
     );
 
 static int setup_shift(const SwsOp *op, SwsOpPriv *out)
@@ -126,17 +126,21 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
     );
 
 #define DECL_FUNCS_16(EXT)                                                      \
-    DECL_CONVERT(EXT,  8, 16)                                                   \
-    DECL_CONVERT(EXT, 16,  8)                                                   \
+    DECL_CONVERT(EXT,  U8, U16)                                                 \
+    DECL_CONVERT(EXT, U16,  U8)                                                 \
     DECL_SHIFT16(EXT)
 
 #define DECL_FUNCS_32(EXT)                                                      \
-    DECL_CONVERT(EXT,  8, 32)                                                   \
-    DECL_CONVERT(EXT, 32,  8)                                                   \
-    DECL_CONVERT(EXT, 16, 32)                                                   \
-    DECL_CONVERT(EXT, 32, 16)
+    DECL_CONVERT(EXT,  U8, U32)                                                 \
+    DECL_CONVERT(EXT, U32,  U8)                                                 \
+    DECL_CONVERT(EXT, U16, U32)                                                 \
+    DECL_CONVERT(EXT, U32, U16)                                                 \
+    DECL_CONVERT(EXT,  U8, F32)                                                 \
+    DECL_CONVERT(EXT, F32,  U8)                                                 \
+    DECL_CONVERT(EXT, U16, F32)                                                 \
+    DECL_CONVERT(EXT, F32, U16)
 
-#define REF_OPS_U8(EXT)      \
+#define REF_OPS_8(EXT)       \
     op_read_planar1##EXT,    \
     op_read_planar2##EXT,    \
     op_read_planar3##EXT,    \
@@ -155,17 +159,21 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
     op_clear_alpha1##EXT,    \
     op_clear_alpha3##EXT,
 
-#define REF_OPS_U16(EXT)                        \
-    REF_COMMON_PATTERNS(convert_8to16##EXT),    \
-    REF_COMMON_PATTERNS(convert_16to8##EXT),    \
+#define REF_OPS_16(EXT)                         \
+    REF_COMMON_PATTERNS(convert_U8_U16##EXT),   \
+    REF_COMMON_PATTERNS(convert_U16_U8##EXT),   \
     REF_COMMON_PATTERNS(lshift16##EXT),         \
     REF_COMMON_PATTERNS(rshift16##EXT),
 
-#define REF_OPS_U32(EXT)                        \
-    REF_COMMON_PATTERNS(convert_8to32##EXT),    \
-    REF_COMMON_PATTERNS(convert_32to8##EXT),    \
-    REF_COMMON_PATTERNS(convert_16to32##EXT),   \
-    REF_COMMON_PATTERNS(convert_32to16##EXT),
+#define REF_OPS_32(EXT)                         \
+    REF_COMMON_PATTERNS(convert_U8_U32##EXT),   \
+    REF_COMMON_PATTERNS(convert_U32_U8##EXT),   \
+    REF_COMMON_PATTERNS(convert_U16_U32##EXT),  \
+    REF_COMMON_PATTERNS(convert_U32_U16##EXT),  \
+    REF_COMMON_PATTERNS(convert_U8_F32##EXT),   \
+    REF_COMMON_PATTERNS(convert_F32_U8##EXT),   \
+    REF_COMMON_PATTERNS(convert_U16_F32##EXT),  \
+    REF_COMMON_PATTERNS(convert_F32_U16##EXT),
 
 DECL_FUNCS_8(_m1_sse2)
 DECL_FUNCS_8(_m1_avx2)
@@ -176,62 +184,62 @@ DECL_FUNCS_16(_m2_avx2)
 
 DECL_FUNCS_32(_avx2)
 
-static const SwsOpTable ops_u8_m1_sse2 = {
+static const SwsOpTable ops8_m1_sse2 = {
     .cpu_flags = AV_CPU_FLAG_SSE2,
     .block_w = 16,
     .block_h = 1,
     .entries = {
-        REF_OPS_U8(_m1_sse2)
+        REF_OPS_8(_m1_sse2)
         {{0}}
     },
 };
 
-static const SwsOpTable ops_u8_m1_avx2 = {
+static const SwsOpTable ops8_m1_avx2 = {
     .cpu_flags = AV_CPU_FLAG_AVX2,
     .block_w = 32,
     .block_h = 1,
     .entries = {
-        REF_OPS_U8(_m1_avx2)
+        REF_OPS_8(_m1_avx2)
         {{0}}
     },
 };
 
-static const SwsOpTable ops_u8_m2_avx2 = {
+static const SwsOpTable ops8_m2_avx2 = {
     .cpu_flags = AV_CPU_FLAG_AVX2,
     .block_w = 64,
     .block_h = 1,
     .entries = {
-        REF_OPS_U8(_m2_avx2)
+        REF_OPS_8(_m2_avx2)
         {{0}}
     },
 };
 
-static const SwsOpTable ops_u16_m1_avx2 = {
+static const SwsOpTable ops16_m1_avx2 = {
     .cpu_flags = AV_CPU_FLAG_AVX2,
     .block_w = 16,
     .block_h = 1,
     .entries = {
-        REF_OPS_U16(_m1_avx2)
+        REF_OPS_16(_m1_avx2)
         {{0}}
     },
 };
 
-static const SwsOpTable ops_u16_m2_avx2 = {
+static const SwsOpTable ops16_m2_avx2 = {
     .cpu_flags = AV_CPU_FLAG_AVX2,
     .block_w = 32,
     .block_h = 1,
     .entries = {
-        REF_OPS_U16(_m2_avx2)
+        REF_OPS_16(_m2_avx2)
         {{0}}
     },
 };
 
-static const SwsOpTable ops_u32_avx2 = {
+static const SwsOpTable ops32_avx2 = {
     .cpu_flags = AV_CPU_FLAG_AVX2,
     .block_w = 16,
     .block_h = 1,
     .entries = {
-        REF_OPS_U32(_avx2)
+        REF_OPS_32(_avx2)
         {{0}}
     },
 };
@@ -269,12 +277,12 @@ static int compile(SwsOpList *ops, SwsOpChain *chain)
     int ret;
 
     static const SwsOpTable *const tables[] = {
-        &ops_u8_m1_sse2,
-        &ops_u8_m1_avx2,
-        &ops_u8_m2_avx2,
-        &ops_u16_m1_avx2,
-        &ops_u16_m2_avx2,
-        &ops_u32_avx2,
+        &ops8_m1_sse2,
+        &ops8_m1_avx2,
+        &ops8_m2_avx2,
+        &ops16_m1_avx2,
+        &ops16_m2_avx2,
+        &ops32_avx2,
     };
 
     /* Use at most two full vregs during the widest precision section */
