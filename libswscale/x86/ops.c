@@ -130,6 +130,12 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
     DECL_CONVERT(EXT, 16,  8)                                                   \
     DECL_SHIFT16(EXT)
 
+#define DECL_FUNCS_32(EXT)                                                      \
+    DECL_CONVERT(EXT,  8, 32)                                                   \
+    DECL_CONVERT(EXT, 32,  8)                                                   \
+    DECL_CONVERT(EXT, 16, 32)                                                   \
+    DECL_CONVERT(EXT, 32, 16)
+
 #define REF_OPS_U8(EXT)      \
     op_read_planar1##EXT,    \
     op_read_planar2##EXT,    \
@@ -155,12 +161,20 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
     REF_COMMON_PATTERNS(lshift16##EXT),         \
     REF_COMMON_PATTERNS(rshift16##EXT),
 
+#define REF_OPS_U32(EXT)                        \
+    REF_COMMON_PATTERNS(convert_8to32##EXT),    \
+    REF_COMMON_PATTERNS(convert_32to8##EXT),    \
+    REF_COMMON_PATTERNS(convert_16to32##EXT),   \
+    REF_COMMON_PATTERNS(convert_32to16##EXT),
+
 DECL_FUNCS_8(_m1_sse2)
 DECL_FUNCS_8(_m1_avx2)
 DECL_FUNCS_8(_m2_avx2)
 
 DECL_FUNCS_16(_m1_avx2)
 DECL_FUNCS_16(_m2_avx2)
+
+DECL_FUNCS_32(_avx2)
 
 static const SwsOpTable ops_u8_m1_sse2 = {
     .cpu_flags = AV_CPU_FLAG_SSE2,
@@ -212,6 +226,16 @@ static const SwsOpTable ops_u16_m2_avx2 = {
     },
 };
 
+static const SwsOpTable ops_u32_avx2 = {
+    .cpu_flags = AV_CPU_FLAG_AVX2,
+    .block_w = 16,
+    .block_h = 1,
+    .entries = {
+        REF_OPS_U32(_avx2)
+        {{0}}
+    },
+};
+
 static av_const int get_mmsize(void)
 {
     const int cpu_flags = av_get_cpu_flags();
@@ -240,29 +264,6 @@ static bool op_is_type_invariant(const SwsOp *op)
     return false;
 }
 
-/**
- * Returns true if the operation is a full range clamp followed by a conversion
- */
-static bool op_is_saturating_clamp(const SwsOp *op, const SwsOp *next)
-{
-    if (op->op == SWS_OP_CLAMP && next && next->op == SWS_OP_CONVERT) {
-        const int bits = 8 * ff_sws_pixel_type_size(next->convert.to);
-        const unsigned value_range = (1 << bits) - 1;
-
-        for (int i = 0; i < 4; i++) {
-            const AVRational max = next->clamp.max[i];
-            if (max.den == 0)
-                continue;
-            else if (max.den != 1 || max.num < value_range)
-                return false;
-        }
-
-        return true;
-    } else {
-        return false;
-    }
-}
-
 static int compile(SwsOpList *ops, SwsOpChain *chain)
 {
     int ret;
@@ -273,6 +274,7 @@ static int compile(SwsOpList *ops, SwsOpChain *chain)
         &ops_u8_m2_avx2,
         &ops_u16_m1_avx2,
         &ops_u16_m2_avx2,
+        &ops_u32_avx2,
     };
 
     /* Use at most two full vregs during the widest precision section */
@@ -282,15 +284,11 @@ static int compile(SwsOpList *ops, SwsOpChain *chain)
     do {
         int block_w = chain->block_w, block_h = chain->block_h;
         SwsOp *op = &ops->ops[0];
-        const SwsOp *next = ops->num_ops > 1 ? &ops->ops[1] : NULL;
 
         if (op_is_type_invariant(op)) {
             block_w *= ff_sws_pixel_type_size(op->type);
             op->type = SWS_PIXEL_U8;
         }
-
-        if (op_is_saturating_clamp(op, next))
-            ff_sws_op_list_remove_at(ops, 0, 1);
 
         ret = ff_sws_op_compile_tables(tables, FF_ARRAY_ELEMS(tables), ops,
                                        block_w, block_h, chain);

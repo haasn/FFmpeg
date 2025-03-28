@@ -354,6 +354,78 @@ IF W,   packuswb xmw, xmw, xm11
         CONTINUE r2
 %endmacro
 
+%macro conv8to32 0
+op convert_8to32
+        LOAD_CONT r2
+IF X,   vpsrldq xmx2, xmx, 8
+IF Y,   vpsrldq xmy2, xmy, 8
+IF Z,   vpsrldq xmz2, xmz, 8
+IF W,   vpsrldq xmw2, xmw, 8
+IF X,   pmovzxbd ymx, xmx
+IF Y,   pmovzxbd ymy, xmy
+IF Z,   pmovzxbd ymz, xmz
+IF W,   pmovzxbd ymw, xmw
+IF X,   pmovzxbd ymx2, xmx2
+IF Y,   pmovzxbd ymy2, xmy2
+IF Z,   pmovzxbd ymz2, xmz2
+IF W,   pmovzxbd ymw2, xmw2
+        CONTINUE r2
+%endmacro
+
+%macro conv32to8 0
+op convert_32to8
+        LOAD_CONT r2
+IF X,   packusdw ymx, ymx, ymx2
+IF Y,   packusdw ymy, ymy, ymy2
+IF Z,   packusdw ymz, ymz, ymz2
+IF W,   packusdw ymw, ymw, ymw2
+IF X,   vextracti128 xmx2, ymx, 1
+IF Y,   vextracti128 xmy2, ymy, 1
+IF Z,   vextracti128 xmz2, ymz, 1
+IF W,   vextracti128 xmw2, ymw, 1
+IF X,   packuswb xmx, xmx, xmx2
+IF Y,   packuswb xmy, xmy, xmy2
+IF Z,   packuswb xmz, xmz, xmz2
+IF W,   packuswb xmw, xmw, xmw2
+IF X,   vpshufd xmx, xmx, q3120
+IF Y,   vpshufd xmy, xmy, q3120
+IF Z,   vpshufd xmz, xmz, q3120
+IF W,   vpshufd xmw, xmw, q3120
+        CONTINUE r2
+%endmacro
+
+%macro conv16to32 0
+op convert_16to32
+        LOAD_CONT r2
+IF X,   vextracti128 xmx2, ymx, 1
+IF Y,   vextracti128 xmy2, ymy, 1
+IF Z,   vextracti128 xmz2, ymz, 1
+IF W,   vextracti128 xmw2, ymw, 1
+IF X,   pmovzxwd ymx, xmx
+IF Y,   pmovzxwd ymy, xmy
+IF Z,   pmovzxwd ymz, xmz
+IF W,   pmovzxwd ymw, xmw
+IF X,   pmovzxwd ymx2, xmx2
+IF Y,   pmovzxwd ymy2, xmy2
+IF Z,   pmovzxwd ymz2, xmz2
+IF W,   pmovzxwd ymw2, xmw2
+        CONTINUE r2
+%endmacro
+
+%macro conv32to16 0
+op convert_32to16
+        LOAD_CONT r2
+IF X,   packusdw ymx, ymx, ymx2
+IF Y,   packusdw ymy, ymy, ymy2
+IF Z,   packusdw ymz, ymz, ymz2
+IF W,   packusdw ymw, ymw, ymw2
+IF X,   vpermq ymx, ymx, q3120
+IF Y,   vpermq ymy, ymy, q3120
+IF Z,   vpermq ymz, ymz, q3120
+IF W,   vpermq ymw, ymw, q3120
+        CONTINUE r2
+%endmacro
+
 ;---------------------------------------------------------
 ; Shifting
 
@@ -417,6 +489,13 @@ IF W,   psrlw mw2, mw2, xm8
     decl_common_patterns rshift16
 %endmacro
 
+%macro funcs_u32 0
+    decl_common_patterns conv8to32
+    decl_common_patterns conv32to8
+    decl_common_patterns conv16to32
+    decl_common_patterns conv32to16
+%endmacro
+
 INIT_XMM sse2
 decl_v2 0, funcs_u8
 
@@ -425,3 +504,6 @@ decl_v2 0, funcs_u8
 decl_v2 1, funcs_u8
 decl_v2 0, funcs_u16
 decl_v2 1, funcs_u16
+
+INIT_YMM avx2
+funcs_u32
