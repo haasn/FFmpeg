@@ -32,60 +32,62 @@ IF X,   vpsrldq xmx2, xmx, 8
 IF Y,   vpsrldq xmy2, xmy, 8
 IF Z,   vpsrldq xmz2, xmz, 8
 IF W,   vpsrldq xmw2, xmw, 8
-IF X,   pmovzxbd ymx, xmx
-IF Y,   pmovzxbd ymy, xmy
-IF Z,   pmovzxbd ymz, xmz
-IF W,   pmovzxbd ymw, xmw
-IF X,   pmovzxbd ymx2, xmx2
-IF Y,   pmovzxbd ymy2, xmy2
-IF Z,   pmovzxbd ymz2, xmz2
-IF W,   pmovzxbd ymw2, xmw2
-IF X,   vcvtdq2ps ymx, ymx
-IF Y,   vcvtdq2ps ymy, ymy
-IF Z,   vcvtdq2ps ymz, ymz
-IF W,   vcvtdq2ps ymw, ymw
-IF X,   vcvtdq2ps ymx2, ymx2
-IF Y,   vcvtdq2ps ymy2, ymy2
-IF Z,   vcvtdq2ps ymz2, ymz2
-IF W,   vcvtdq2ps ymw2, ymw2
+IF X,   pmovzxbd mx, xmx
+IF Y,   pmovzxbd my, xmy
+IF Z,   pmovzxbd mz, xmz
+IF W,   pmovzxbd mw, xmw
+IF X,   pmovzxbd mx2, xmx2
+IF Y,   pmovzxbd my2, xmy2
+IF Z,   pmovzxbd mz2, xmz2
+IF W,   pmovzxbd mw2, xmw2
+IF X,   vcvtdq2ps mx, mx
+IF Y,   vcvtdq2ps my, my
+IF Z,   vcvtdq2ps mz, mz
+IF W,   vcvtdq2ps mw, mw
+IF X,   vcvtdq2ps mx2, mx2
+IF Y,   vcvtdq2ps my2, my2
+IF Z,   vcvtdq2ps mz2, mz2
+IF W,   vcvtdq2ps mw2, mw2
         CONTINUE r2
 %endmacro
 
 %macro conv16to32f 0
 op convert_U16_F32
         LOAD_CONT r2
-IF X,   vextracti128 xmx2, ymx, 1
-IF Y,   vextracti128 xmy2, ymy, 1
-IF Z,   vextracti128 xmz2, ymz, 1
-IF W,   vextracti128 xmw2, ymw, 1
-IF X,   pmovzxwd ymx, xmx
-IF Y,   pmovzxwd ymy, xmy
-IF Z,   pmovzxwd ymz, xmz
-IF W,   pmovzxwd ymw, xmw
-IF X,   pmovzxwd ymx2, xmx2
-IF Y,   pmovzxwd ymy2, xmy2
-IF Z,   pmovzxwd ymz2, xmz2
-IF W,   pmovzxwd ymw2, xmw2
-IF X,   vcvtdq2ps ymx, ymx
-IF Y,   vcvtdq2ps ymy, ymy
-IF Z,   vcvtdq2ps ymz, ymz
-IF W,   vcvtdq2ps ymw, ymw
-IF X,   vcvtdq2ps ymx2, ymx2
-IF Y,   vcvtdq2ps ymy2, ymy2
-IF Z,   vcvtdq2ps ymz2, ymz2
-IF W,   vcvtdq2ps ymw2, ymw2
+IF X,   vextracti128 xmx2, mx, 1
+IF Y,   vextracti128 xmy2, my, 1
+IF Z,   vextracti128 xmz2, mz, 1
+IF W,   vextracti128 xmw2, mw, 1
+IF X,   pmovzxwd mx, xmx
+IF Y,   pmovzxwd my, xmy
+IF Z,   pmovzxwd mz, xmz
+IF W,   pmovzxwd mw, xmw
+IF X,   pmovzxwd mx2, xmx2
+IF Y,   pmovzxwd my2, xmy2
+IF Z,   pmovzxwd mz2, xmz2
+IF W,   pmovzxwd mw2, xmw2
+IF X,   vcvtdq2ps mx, mx
+IF Y,   vcvtdq2ps my, my
+IF Z,   vcvtdq2ps mz, mz
+IF W,   vcvtdq2ps mw, mw
+IF X,   vcvtdq2ps mx2, mx2
+IF Y,   vcvtdq2ps my2, my2
+IF Z,   vcvtdq2ps mz2, mz2
+IF W,   vcvtdq2ps mw2, mw2
         CONTINUE r2
 %endmacro
 
 %macro conv32fto8 0
 op convert_F32_U8
         LOAD_CONT r2
+        ; TODO
         CONTINUE r2
 %endmacro
 
 %macro conv32fto16 0
 op convert_F32_U16
         LOAD_CONT r2
+        ; TODO
         CONTINUE r2
 %endmacro
 

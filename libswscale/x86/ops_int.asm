@@ -226,19 +226,19 @@ op convert_U16_U8
         LOAD_CONT r2
 %if V2
         ; this code technically works for the !V2 case as well, but slower
-IF X,   packuswb ymx, ymx, ymx2
-IF Y,   packuswb ymy, ymy, ymy2
-IF Z,   packuswb ymz, ymz, ymz2
-IF W,   packuswb ymw, ymw, ymw2
-IF X,   vpermq ymx, ymx, q3120
-IF Y,   vpermq ymy, ymy, q3120
-IF Z,   vpermq ymz, ymz, q3120
-IF W,   vpermq ymw, ymw, q3120
+IF X,   packuswb mx, mx, mx2
+IF Y,   packuswb my, my, my2
+IF Z,   packuswb mz, mz, mz2
+IF W,   packuswb mw, mw, mw2
+IF X,   vpermq mx, mx, q3120
+IF Y,   vpermq my, my, q3120
+IF Z,   vpermq mz, mz, q3120
+IF W,   vpermq mw, mw, q3120
 %else
-IF X,   vextracti128  xm8, ymx, 1
-IF Y,   vextracti128  xm9, ymy, 1
-IF Z,   vextracti128 xm10, ymz, 1
-IF W,   vextracti128 xm11, ymw, 1
+IF X,   vextracti128  xm8, mx, 1
+IF Y,   vextracti128  xm9, my, 1
+IF Z,   vextracti128 xm10, mz, 1
+IF W,   vextracti128 xm11, mw, 1
 IF X,   packuswb xmx, xmx, xm8
 IF Y,   packuswb xmy, xmy, xm9
 IF Z,   packuswb xmz, xmz, xm10
@@ -254,14 +254,14 @@ IF X,   vpsrldq xmx2, xmx, 8
 IF Y,   vpsrldq xmy2, xmy, 8
 IF Z,   vpsrldq xmz2, xmz, 8
 IF W,   vpsrldq xmw2, xmw, 8
-IF X,   pmovzxbd ymx, xmx
-IF Y,   pmovzxbd ymy, xmy
-IF Z,   pmovzxbd ymz, xmz
-IF W,   pmovzxbd ymw, xmw
-IF X,   pmovzxbd ymx2, xmx2
-IF Y,   pmovzxbd ymy2, xmy2
-IF Z,   pmovzxbd ymz2, xmz2
-IF W,   pmovzxbd ymw2, xmw2
+IF X,   pmovzxbd mx, xmx
+IF Y,   pmovzxbd my, xmy
+IF Z,   pmovzxbd mz, xmz
+IF W,   pmovzxbd mw, xmw
+IF X,   pmovzxbd mx2, xmx2
+IF Y,   pmovzxbd my2, xmy2
+IF Z,   pmovzxbd mz2, xmz2
+IF W,   pmovzxbd mw2, xmw2
 %ifidn %1, expand
 IF X,   pshufb mx, mx, [expand32_shuf]
 IF Y,   pshufb my, my, [expand32_shuf]
@@ -278,14 +278,14 @@ IF W,   pshufb mw2, mw2, [expand32_shuf]
 %macro conv32to8 0
 op convert_U32_U8
         LOAD_CONT r2
-IF X,   packusdw ymx, ymx, ymx2
-IF Y,   packusdw ymy, ymy, ymy2
-IF Z,   packusdw ymz, ymz, ymz2
-IF W,   packusdw ymw, ymw, ymw2
-IF X,   vextracti128 xmx2, ymx, 1
-IF Y,   vextracti128 xmy2, ymy, 1
-IF Z,   vextracti128 xmz2, ymz, 1
-IF W,   vextracti128 xmw2, ymw, 1
+IF X,   packusdw mx, mx, mx2
+IF Y,   packusdw my, my, my2
+IF Z,   packusdw mz, mz, mz2
+IF W,   packusdw mw, mw, mw2
+IF X,   vextracti128 xmx2, mx, 1
+IF Y,   vextracti128 xmy2, my, 1
+IF Z,   vextracti128 xmz2, mz, 1
+IF W,   vextracti128 xmw2, mw, 1
 IF X,   packuswb xmx, xmx, xmx2
 IF Y,   packuswb xmy, xmy, xmy2
 IF Z,   packuswb xmz, xmz, xmz2
@@ -300,32 +300,32 @@ IF W,   vpshufd xmw, xmw, q3120
 %macro conv16to32 0
 op convert_U16_U32
         LOAD_CONT r2
-IF X,   vextracti128 xmx2, ymx, 1
-IF Y,   vextracti128 xmy2, ymy, 1
-IF Z,   vextracti128 xmz2, ymz, 1
-IF W,   vextracti128 xmw2, ymw, 1
-IF X,   pmovzxwd ymx, xmx
-IF Y,   pmovzxwd ymy, xmy
-IF Z,   pmovzxwd ymz, xmz
-IF W,   pmovzxwd ymw, xmw
-IF X,   pmovzxwd ymx2, xmx2
-IF Y,   pmovzxwd ymy2, xmy2
-IF Z,   pmovzxwd ymz2, xmz2
-IF W,   pmovzxwd ymw2, xmw2
+IF X,   vextracti128 xmx2, mx, 1
+IF Y,   vextracti128 xmy2, my, 1
+IF Z,   vextracti128 xmz2, mz, 1
+IF W,   vextracti128 xmw2, mw, 1
+IF X,   pmovzxwd mx, xmx
+IF Y,   pmovzxwd my, xmy
+IF Z,   pmovzxwd mz, xmz
+IF W,   pmovzxwd mw, xmw
+IF X,   pmovzxwd mx2, xmx2
+IF Y,   pmovzxwd my2, xmy2
+IF Z,   pmovzxwd mz2, xmz2
+IF W,   pmovzxwd mw2, xmw2
         CONTINUE r2
 %endmacro
 
 %macro conv32to16 0
 op convert_U32_U16
         LOAD_CONT r2
-IF X,   packusdw ymx, ymx, ymx2
-IF Y,   packusdw ymy, ymy, ymy2
-IF Z,   packusdw ymz, ymz, ymz2
-IF W,   packusdw ymw, ymw, ymw2
-IF X,   vpermq ymx, ymx, q3120
-IF Y,   vpermq ymy, ymy, q3120
-IF Z,   vpermq ymz, ymz, q3120
-IF W,   vpermq ymw, ymw, q3120
+IF X,   packusdw mx, mx, mx2
+IF Y,   packusdw my, my, my2
+IF Z,   packusdw mz, mz, mz2
+IF W,   packusdw mw, mw, mw2
+IF X,   vpermq mx, mx, q3120
+IF Y,   vpermq my, my, q3120
+IF Z,   vpermq mz, mz, q3120
+IF W,   vpermq mw, mw, q3120
         CONTINUE r2
 %endmacro
 
