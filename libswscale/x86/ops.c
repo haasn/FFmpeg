@@ -55,12 +55,16 @@
         .op.rw = { .elems = ELEMS, .packed = PACKED },                          \
     );
 
-#define DECL_CLEAR_ALPHA(EXT, NAME, IDX)                                        \
-    DECL_ASM(U8, clear_alpha##IDX##EXT,                                         \
+/* Don't use DECL_ASM because we want to re-use the same impl for all types */
+#define DECL_CLEAR_ALPHA(EXT, TYPE, IDX, VALUE)                                 \
+    void ff_clear_alpha##IDX##EXT(const SwsOpExec *, const SwsOpImpl *);        \
+    static const SwsOpEntry op_clear_alpha##IDX##_##TYPE##EXT = {               \
+        .func = ff_clear_alpha##IDX##EXT,                                       \
+        .op.type = SWS_PIXEL_##TYPE,                                            \
         .op.op = SWS_OP_CLEAR,                                                  \
-        .op.clear.value[IDX] = { .num = 0xFF, .den = 1 },                       \
+        .op.clear.value[IDX] = { .num = VALUE, .den = 1 },                      \
         .op.comps.unused[IDX] = true,                                           \
-    );
+    };
 
 #define DECL_SWIZZLE(EXT, X, Y, Z, W)                                           \
     DECL_ASM(U8, swizzle_##X##Y##Z##W##EXT,                                     \
@@ -98,14 +102,21 @@
     DECL_SWIZZLE(EXT, 3, 0, 0, 0)                                               \
     DECL_SWIZZLE(EXT, 0, 0, 0, 1)                                               \
     DECL_SWIZZLE(EXT, 1, 0, 0, 0)                                               \
-    DECL_CLEAR_ALPHA(EXT, clear_alpha, 0)                                       \
-    DECL_CLEAR_ALPHA(EXT, clear_alpha, 1)                                       \
-    DECL_CLEAR_ALPHA(EXT, clear_alpha, 3)
+    DECL_CLEAR_ALPHA(EXT, U8, 0, 0xFF)                                          \
+    DECL_CLEAR_ALPHA(EXT, U8, 1, 0xFF)                                          \
+    DECL_CLEAR_ALPHA(EXT, U8, 3, 0xFF)
 
 #define DECL_CONVERT(EXT, FROM, TO)                                             \
     DECL_COMMON_PATTERNS(FROM, convert_##FROM##_##TO##EXT,                      \
         .op.op = SWS_OP_CONVERT,                                                \
         .op.convert.to = SWS_PIXEL_##TO,                                        \
+    );
+
+#define DECL_EXPAND(EXT, FROM, TO)                                              \
+    DECL_COMMON_PATTERNS(FROM, expand_##FROM##_##TO##EXT,                       \
+        .op.op = SWS_OP_CONVERT,                                                \
+        .op.convert.to = SWS_PIXEL_##TO,                                        \
+        .op.convert.expand = true,                                              \
     );
 
 static int setup_shift(const SwsOp *op, SwsOpPriv *out)
@@ -128,7 +139,11 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
 #define DECL_FUNCS_16(EXT)                                                      \
     DECL_CONVERT(EXT,  U8, U16)                                                 \
     DECL_CONVERT(EXT, U16,  U8)                                                 \
-    DECL_SHIFT16(EXT)
+    DECL_EXPAND(EXT,   U8, U16)                                                 \
+    DECL_SHIFT16(EXT)                                                           \
+    DECL_CLEAR_ALPHA(EXT, U16, 0, 0xFFFF)                                       \
+    DECL_CLEAR_ALPHA(EXT, U16, 1, 0xFFFF)                                       \
+    DECL_CLEAR_ALPHA(EXT, U16, 3, 0xFFFF)
 
 #define DECL_FUNCS_32(EXT)                                                      \
     DECL_CONVERT(EXT,  U8, U32)                                                 \
@@ -138,32 +153,37 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
     DECL_CONVERT(EXT,  U8, F32)                                                 \
     DECL_CONVERT(EXT, F32,  U8)                                                 \
     DECL_CONVERT(EXT, U16, F32)                                                 \
-    DECL_CONVERT(EXT, F32, U16)
+    DECL_CONVERT(EXT, F32, U16)                                                 \
+    DECL_EXPAND(EXT,   U8, U32)                                                 \
 
-#define REF_OPS_8(EXT)       \
-    op_read_planar1##EXT,    \
-    op_read_planar2##EXT,    \
-    op_read_planar3##EXT,    \
-    op_read_planar4##EXT,    \
-    op_write_planar1##EXT,   \
-    op_write_planar2##EXT,   \
-    op_write_planar3##EXT,   \
-    op_write_planar4##EXT,   \
-    op_read8_packed2##EXT,   \
-    op_swizzle_3012##EXT,    \
-    op_swizzle_0003##EXT,    \
-    op_swizzle_0001##EXT,    \
-    op_swizzle_3000##EXT,    \
-    op_swizzle_1000##EXT,    \
-    op_clear_alpha0##EXT,    \
-    op_clear_alpha1##EXT,    \
-    op_clear_alpha3##EXT,
+#define REF_OPS_8(EXT)                          \
+    op_read_planar1##EXT,                       \
+    op_read_planar2##EXT,                       \
+    op_read_planar3##EXT,                       \
+    op_read_planar4##EXT,                       \
+    op_write_planar1##EXT,                      \
+    op_write_planar2##EXT,                      \
+    op_write_planar3##EXT,                      \
+    op_write_planar4##EXT,                      \
+    op_read8_packed2##EXT,                      \
+    op_swizzle_3012##EXT,                       \
+    op_swizzle_0003##EXT,                       \
+    op_swizzle_0001##EXT,                       \
+    op_swizzle_3000##EXT,                       \
+    op_swizzle_1000##EXT,                       \
+    op_clear_alpha0_U8##EXT,                    \
+    op_clear_alpha1_U8##EXT,                    \
+    op_clear_alpha3_U8##EXT,
 
 #define REF_OPS_16(EXT)                         \
     REF_COMMON_PATTERNS(convert_U8_U16##EXT),   \
     REF_COMMON_PATTERNS(convert_U16_U8##EXT),   \
+    REF_COMMON_PATTERNS(expand_U8_U16##EXT),    \
     REF_COMMON_PATTERNS(lshift16##EXT),         \
-    REF_COMMON_PATTERNS(rshift16##EXT),
+    REF_COMMON_PATTERNS(rshift16##EXT),         \
+    op_clear_alpha0_U16##EXT,                   \
+    op_clear_alpha1_U16##EXT,                   \
+    op_clear_alpha3_U16##EXT,
 
 #define REF_OPS_32(EXT)                         \
     REF_COMMON_PATTERNS(convert_U8_U32##EXT),   \
@@ -173,7 +193,8 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
     REF_COMMON_PATTERNS(convert_U8_F32##EXT),   \
     REF_COMMON_PATTERNS(convert_F32_U8##EXT),   \
     REF_COMMON_PATTERNS(convert_U16_F32##EXT),  \
-    REF_COMMON_PATTERNS(convert_F32_U16##EXT),
+    REF_COMMON_PATTERNS(convert_F32_U16##EXT),  \
+    REF_COMMON_PATTERNS(expand_U8_U32##EXT),
 
 DECL_FUNCS_8(_m1_sse2)
 DECL_FUNCS_8(_m1_avx2)

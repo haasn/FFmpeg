@@ -20,6 +20,13 @@
 
 %include "ops_common.asm"
 
+SECTION_RODATA
+
+expand16_shuf: db  0,  0,  2,  2,  4,  4,  6,  6,  8,  8, 10, 10, 12, 12, 14, 14, \
+                  16, 16, 18, 18, 20, 20, 22, 22, 24, 24, 26, 26, 28, 28, 30, 30
+expand32_shuf: db  0,  0,  0,  0,  4,  4,  4,  4,  8,  8,  8,  8, 12, 12, 12, 12, \
+                  16, 16, 16, 16, 20, 20, 20, 20, 24, 24, 24, 24, 28, 28, 28, 28
+
 SECTION .text
 
 ;---------------------------------------------------------
@@ -182,23 +189,35 @@ op swizzle_1000
 ;---------------------------------------------------------
 ; Pixel type conversions
 
-%macro conv8to16 0
-op convert_U8_U16
+%macro conv8to16 1 ; type
+op %1_U8_U16
         LOAD_CONT r2
 %if V2
-IF X,   vextracti128 xmx2, ymx, 1
-IF Y,   vextracti128 xmy2, ymy, 1
-IF Z,   vextracti128 xmz2, ymz, 1
-IF W,   vextracti128 xmw2, ymw, 1
-IF X,   pmovzxbw ymx2, xmx2
-IF Y,   pmovzxbw ymy2, xmy2
-IF Z,   pmovzxbw ymz2, xmz2
-IF W,   pmovzxbw ymw2, xmw2
-%endif
-IF X,   pmovzxbw ymx, xmx
-IF Y,   pmovzxbw ymy, xmy
-IF Z,   pmovzxbw ymz, xmz
-IF W,   pmovzxbw ymw, xmw
+IF X,   vextracti128 xmx2, mx, 1
+IF Y,   vextracti128 xmy2, my, 1
+IF Z,   vextracti128 xmz2, mz, 1
+IF W,   vextracti128 xmw2, mw, 1
+IF X,   pmovzxbw mx2, xmx2
+IF Y,   pmovzxbw my2, xmy2
+IF Z,   pmovzxbw mz2, xmz2
+IF W,   pmovzxbw mw2, xmw2
+%endif ; V2
+IF X,   pmovzxbw mx, xmx
+IF Y,   pmovzxbw my, xmy
+IF Z,   pmovzxbw mz, xmz
+IF W,   pmovzxbw mw, xmw
+%ifidn %1, expand
+    %if V2
+IF X,   pshufb mx2, mx2, [expand16_shuf]
+IF Y,   pshufb my2, my2, [expand16_shuf]
+IF Z,   pshufb mz2, mz2, [expand16_shuf]
+IF W,   pshufb mw2, mw2, [expand16_shuf]
+    %endif
+IF X,   pshufb mx, mx, [expand16_shuf]
+IF Y,   pshufb my, my, [expand16_shuf]
+IF Z,   pshufb mz, mz, [expand16_shuf]
+IF W,   pshufb mw, mw, [expand16_shuf]
+%endif ; expand
         CONTINUE r2
 %endmacro
 
@@ -228,8 +247,8 @@ IF W,   packuswb xmw, xmw, xm11
         CONTINUE r2
 %endmacro
 
-%macro conv8to32 0
-op convert_U8_U32
+%macro conv8to32 1 ; type
+op %1_U8_U32
         LOAD_CONT r2
 IF X,   vpsrldq xmx2, xmx, 8
 IF Y,   vpsrldq xmy2, xmy, 8
@@ -243,6 +262,16 @@ IF X,   pmovzxbd ymx2, xmx2
 IF Y,   pmovzxbd ymy2, xmy2
 IF Z,   pmovzxbd ymz2, xmz2
 IF W,   pmovzxbd ymw2, xmw2
+%ifidn %1, expand
+IF X,   pshufb mx, mx, [expand32_shuf]
+IF Y,   pshufb my, my, [expand32_shuf]
+IF Z,   pshufb mz, mz, [expand32_shuf]
+IF W,   pshufb mw, mw, [expand32_shuf]
+IF X,   pshufb mx2, mx2, [expand32_shuf]
+IF Y,   pshufb my2, my2, [expand32_shuf]
+IF Z,   pshufb mz2, mz2, [expand32_shuf]
+IF W,   pshufb mw2, mw2, [expand32_shuf]
+%endif ; expand
         CONTINUE r2
 %endmacro
 
@@ -357,7 +386,8 @@ IF W,   psrlw mw2, mw2, xm8
 %endmacro
 
 %macro funcs_u16 0
-    decl_common_patterns conv8to16
+    decl_common_patterns conv8to16 convert
+    decl_common_patterns conv8to16 expand
     decl_common_patterns conv16to8
     decl_common_patterns lshift16
     decl_common_patterns rshift16
@@ -373,7 +403,8 @@ decl_v2 0, funcs_u16
 decl_v2 1, funcs_u16
 
 INIT_YMM avx2
-decl_common_patterns conv8to32
+decl_common_patterns conv8to32 convert
+decl_common_patterns conv8to32 expand
 decl_common_patterns conv32to8
 decl_common_patterns conv16to32
 decl_common_patterns conv32to16
