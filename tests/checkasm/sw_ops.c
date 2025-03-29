@@ -98,7 +98,7 @@ static void check_ops(const char *report, const uint32_t mask, const SwsOp *ops)
         const bool is_ref = !strcmp(backend->name, "c");
         if (is_ref || !chain1.entry) {
             SwsOpChain chain;
-            int ret = ff_sws_ops_compile_backend(backend, &oplist, &chain);
+            int ret = ff_sws_ops_compile_backend(NULL, backend, &oplist, &chain);
             if (ret == AVERROR(ENOTSUP))
                 continue;
             else if (ret < 0)
