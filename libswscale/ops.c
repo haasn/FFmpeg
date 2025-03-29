@@ -1587,7 +1587,7 @@ static int rw_pixel_bits(const SwsOp *op)
     return elems * size * bits;
 }
 
-int ff_sws_ops_compile_backend(const SwsOpBackend *backend,
+int ff_sws_ops_compile_backend(void *logctx, const SwsOpBackend *backend,
                                const SwsOpList *ops, SwsOpChain *out_chain)
 {
     SwsOpChain chain = {0};
@@ -1607,14 +1607,23 @@ int ff_sws_ops_compile_backend(const SwsOpBackend *backend,
     do {
         ret = backend->compile(&rest, &chain);
     } while (ret == AVERROR(EAGAIN));
-    ff_sws_op_list_free(&copy);
-    if (ret < 0)
-        goto fail;
 
+    if (ret == AVERROR(ENOTSUP)) {
+        av_log(logctx, AV_LOG_DEBUG, "Backend '%s' does not support operations:\n", backend->name);
+        ff_sws_op_list_print(logctx, AV_LOG_DEBUG, &rest);
+        goto fail;
+    } else if (ret < 0) {
+        av_log(logctx, AV_LOG_ERROR, "Failed to compile operations: %s\n", av_err2str(ret));
+        ff_sws_op_list_print(logctx, AV_LOG_ERROR, &rest);
+        goto fail;
+    }
+
+    ff_sws_op_list_free(&copy);
     *out_chain = chain;
     return 0;
 
 fail:
+    ff_sws_op_list_free(&copy);
     ff_sws_op_chain_uninit(&chain);
     return ret;
 }
@@ -1623,17 +1632,8 @@ int ff_sws_ops_compile(void *logctx, const SwsOpList *ops, SwsOpChain *chain)
 {
     for (int n = 0; ff_sws_op_backends[n]; n++) {
         const SwsOpBackend *backend = ff_sws_op_backends[n];
-        int ret = ff_sws_ops_compile_backend(backend, ops, chain);
-
-        if (ret == AVERROR(ENOTSUP)) {
-            av_log(logctx, AV_LOG_DEBUG, "Backend '%s' does not support operations:\n", backend->name);
-            ff_sws_op_list_print(logctx, AV_LOG_DEBUG, ops);
+        if (ff_sws_ops_compile_backend(logctx, backend, ops, chain) < 0)
             continue;
-        } else if (ret < 0) {
-            av_log(logctx, AV_LOG_ERROR, "Failed to compile operations: %s\n", av_err2str(ret));
-            ff_sws_op_list_print(logctx, AV_LOG_ERROR, ops);
-            continue;
-        }
 
         av_log(logctx, AV_LOG_VERBOSE, "Compiled using backend '%s': "
                "num_impl = %d, block size = %dx%d\n",

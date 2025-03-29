@@ -141,7 +141,7 @@ extern const int ff_sws_num_op_backends; /* excludes terminating NULL */
  *
  * Returns 0 on success, or a negative error code on failure.
  */
-int ff_sws_ops_compile_backend(const SwsOpBackend *backend,
+int ff_sws_ops_compile_backend(void *logctx, const SwsOpBackend *backend,
                                const SwsOpList *ops, SwsOpChain *chain);
 
 /**
