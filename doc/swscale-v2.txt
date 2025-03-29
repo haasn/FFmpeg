@@ -7,14 +7,16 @@ SwsGraph
 The entry point to the new architecture, SwsGraph is what coordinates
 multiple "passes". These can include cascaded scaling passes, error diffusion
 dithering, and so on. Or we could have separate passes for the vertical and
-horizontal scaling. In between each SwsPass is a fully allocated image buffer.
+horizontal scaling. In between each SwsPass lies a fully allocated image buffer.
+Graph passes may have different levels of threading, e.g. we can have a single
+threaded error diffusion pass following a multi-threaded scaling pass.
 
-SwsGraph is internally recreated whenever the image format or dimensions change
-in any way. sws_scale_frame() is itself just a light-weight wrapper that runs
-ff_sws_graph_create() whenever the format changes, splits interlaced images
-into separate fields, and calls ff_sws_graph_run() on each.
+SwsGraph is internally recreated whenever the image format, dimensions or
+settings change in any way. sws_scale_frame() is itself just a light-weight
+wrapper that runs ff_sws_graph_create() whenever the format changes, splits
+interlaced images into separate fields, and calls ff_sws_graph_run() on each.
 
-From the point of view of SwsGraph itself, all inputs are progressive fields.
+From the point of view of SwsGraph itself, all inputs are progressive.
 
 SwsOp / SwsOpList
 -----------------
@@ -85,7 +87,7 @@ This overall approach has a considerable number of benefits:
    guarantees that all pointers are properly aligned for the implementation
    being targeted, or else automatically calls the unaligned fallback code.
 
-6. We can straightforwrdly verify the correctness of implementations by
+6. We can straightforwardly verify the correctness of implementations by
    comparing the results against an "emulator" that simply performs the
    corresponding op calculations with exact precision. (See e.g.
    ff_sws_op_apply_q)
@@ -134,34 +136,14 @@ Optimized operation list:
   [ u8 ...X -> +++X] SWS_OP_CONVERT      : u8 -> f32
   [f32 ...X -> ...X] SWS_OP_LINEAR       : matrix3+off3 [[0.256788 0.504129 0.097906 0 16] [-0.148223 -0.290993 112/255 0 128] [112/255 -0.367788 -0.071427 0 128] [0 0 0 1 0]]
   [f32 ...X -> ...X] SWS_OP_DITHER       : 16x16 matrix
-  [f32 ...X -> ...X] SWS_OP_CLAMP        : 0 <= x <= {255 255 255 _}
   [f32 ...X -> +++X] SWS_OP_CONVERT      : f32 -> u8
   [ u8 ...X -> XXXX] SWS_OP_WRITE        : 3 elem(s) planar >> 0
     (X = unused, + = exact, 0 = zero)
 
-And is ultimately (in my current prototype) being executed as this sequence
-of implementations / kernels:
-
-[swscaler @ 0x14f7f3c0] Input function matched 2 ops with score 121
-[swscaler @ 0x14f7f3c0] Generic function matched 1 ops with score 111
-[swscaler @ 0x14f7f3c0] Generic function matched 3 ops with score 133
-[swscaler @ 0x14f7f3c0] Output function matched 1 ops with score 110
-[swscaler @ 0x14f7f3c0] Using dedicated dispatch function
-
-1. Fused packed-read + conversion to f32
-2. 3x3 affine transform (3x3 matrix * input + offset)
-3. Fused dither+clamp+conversion to u8
-4. Planar write
-
-Resulting in:
-
-  rgb24 1920x1080 -> yuv444p 1920x1080, flags=0 dither=1, SSIM {Y=0.999997 U=0.999989 V=1.000000 A=1.000000}
-    time=2627 us, ref=3273 us, speedup=1.246x faster
-
 The extra metadata on the left of the operation list is just a dump of the
-internal state used by the optimizer during optimization. It currently just
-keeps track of which input components are required, and which output components
-are either an exact integer, constant zero, or garbage (undefined).
+internal state used by the optimizer during optimization. It keeps track of
+knowledge about the pixel values, such as their range, whether or not they're
+exact integers, and so on.
 
 In this example, you can see that the input values are exact (except for
 the alpha channel, which is undefined), until the first SWS_OP_LINEAR
@@ -171,7 +153,7 @@ status only after the (truncating) conversion to U8 in the output step.
 Example of more aggressive optimization
 ---------------------------------------
 
-Conversion pass for rgb24 -> yuva444p:
+Conversion pass for gray -> rgb48:
 Unoptimized operation list:
   [ u8 .... -> ....] SWS_OP_READ         : 1 elem(s) packed >> 0
   [ u8 .... -> ....] SWS_OP_SWIZZLE      : 0123
@@ -196,45 +178,38 @@ Optimized operation list:
   [u16 ...X -> XXXX] SWS_OP_WRITE        : 3 elem(s) packed >> 0
     (X = unused, + = exact, 0 = zero)
 
-Here, the optimized has managed to eliminate all of the unnecessary linear
+Here, the optimizer has managed to eliminate all of the unnecessary linear
 operations on previously zero'd values, turn the resulting column matrix into
 a swizzle operation, avoid the unnecessary dither (and round trip via float)
 because the pixel values are guaranteed to be bit exact, and finally, turns
 the multiplication by 65535 / 255 = 257 into a simple integer expand operation.
 
-The resulting kernel requires four function calls per chunk and yields:
-  time=2256 us, ref=7262 us, speedup=3.219x faster
-
 Compiler and underlying implementation layer
 --------------------------------------------
+
+While the backend API is flexible enough to permit more exotic implementations
+(e.g. using JIT code generation), we establish a common framework for use in
+"traditional" SIMD implementations.
 
 The basic idea is to have one "kernel" (or implementation) per operation,
 and then just chain a list of these kernels together as separate function
 calls. For best performance, we want to keep data in vector registers in
-between function calls, and avoid any unnecessary memory accesses. Even when
-this is not possible, we still want to minimize the size of the temporary
-data that needs to be read and written during the execution of each operation.
+between function calls, and avoid any unnecessary memory accesses. Additionally,
+we want the per-kernel overhead to be as low as possible, with each kernel
+ideally just jumping directly into the next kernel.
 
 As a result, we arrive at a design where we first divide the image into small
-chunks, and then run each kernel in sequence, processing just that chunk,
-before writing it to the output image and moving onto the next chunk.
-
-The other advantage of defining all operations in terms of a small, fixed block
-size is that operations do not need any loops, conditionals, nor do they
-need to worry about input/output alignment, pointer arithmetic, etc. This is
-all handled by the shared dispatch wrapper.
-
-For reads/writes, we define two variants of each function: one that is defined
-on a fixed-size chunk-aligned block, and one that can handle an arbitrary
-number of (unaligned) pixels. This serves both to handle the image edge,
-but also as a fallback for unaligned input/output pointers.
+chunks, and then dispatch the "chain" of kernels on each chunk in sequence.
+Each kernel processes a fixed block of pixels, with the wrapping / dispatch
+code handling the image edge (where necessary) using a partial memcpy.
 
 To minimize the per-kernel function call, and to allow custom calling
 conventions for vector registers, we use a "continuation passing style". Each
 operation computes its result and then directly calls the next operation in the
-sequence, with the appropriate internal function signature. The C/template
-backend, for example, uses this to use GCC's own internal vector calling
-convention to keep data in vector registers between function calls, e.g.:
+sequence, with the appropriate internal function signature.
+
+The C reference backend reads data into the stack and then passes the array
+pointers to the next continuation:
 
   void convert8to16(GlobalContext *ctx, OpContext *op,
                     u8vec_t x, u8vec_t y, u8vec_t z, u8vec_t w)
@@ -247,7 +222,16 @@ convention to keep data in vector registers between function calls, e.g.:
       op->next(ctx, &op[1], x16, y16, z16, w16);
   }
 
-Each operation has access to a small per-op context storing just its private
+(Though with the use of C vector extensions this can theoretically use a vector
+calling convention as well)
+
+By contrast, the x86 backend always keeps the X/Y/Z/W values pinned in specific
+vector registers (ymm0-ymm3 for the lower half, and ymm4-ymm7 for the second
+half). This gives better parallelism by allowing us to process two full sets
+of vector registers at once, while still reserving ymm8-ymm15 for temporary
+data.
+
+Each operation has access to a 32 byte per-op context storing just its private
 data and the pointer to the next operation to call, together with a global
 context storing things like the image pointers, the current chunk coordinate,
 etc.
@@ -255,14 +239,15 @@ etc.
 In assembly, this can turn into a sequence as simple as:
 
   load $tmp, $arg1
-  add $arg1, sizeof(void*)
+  ...
+  add $arg1, 32
   jump $tmp
 
-The only way to minimize per-op overhead more, besides using runtime code
-generation to glue them directly together, would be to use "ret" instructions
-with a precomputed stack consisting purely of the addresses of the next
-kernel in the sequence, but this in not doable from C code so it's an idea
-to explore in a custom ASM backend.
+This design gives vastly better performance than the alternative of returning
+out to a central loop or "trampoline", partly because the fact that the order
+of kernels is always the same means the branch predictor can easily remember the
+target address of every distinct "jump" instruction, essentially eliminating
+them from the critical path.
 
 Future considerations and limitations
 -------------------------------------
@@ -308,11 +293,9 @@ for improvements:
    a bit of a chore when implementing these kernels.
 
    The only real alternative would be to either branch inside the kernel, or
-   to use separate kernels for each individual component. However, because
-   these kernels are executed on every single vector-sized chunk in the image
-   (several hundred thousand function calls for a single 4K frame!), both of
-   these alternatives are significantly more costly than simply dealing with
-   the extra variants.
+   to use separate kernels for each individual component and chain them all
+   together. I have not yet tested whether the latter approach would be faster
+   after the latest round of refactors to the kernel glue code.
 
 3. I do not yet have any support for LUTs. But when I add them, something we
    could do is have the optimized pass automatically "promote" a sequence of
@@ -324,10 +307,6 @@ for improvements:
    3. [Y] SWS_OP_WRITE
 
    could be replaced by a LUT with 256 entries.
-
-   We may also want to introduce a SWS_COMP_SMALL flag to keep track of
-   pixels whose values we know will never exceed some fixed "LUT size cutoff",
-   to allow e.g 1024 element LUTs but not 65536.
 
    We also definitely want to hook this up to the existing CMS code for
    transformations between different primaries.
@@ -344,18 +323,7 @@ for improvements:
    would preserve our ability to represent all pixel values exactly, while
    opening up the range arbitrarily.
 
-5. The use of floating point types, and 32-bit intermediates in general, is a
-   bit of a problem for the C code, because with the current default 16 pixel
-   chunk size, it would require a 512 bit vector register to avoid spilling
-   pixel data to the stack on every function call. A custom asm implementation
-   might get away with just using two vector registers together here, but
-   for C code that is not an attractive option.
-
-   We may want to consider introducing a 16-bit fixed precision type like we
-   use in legacy swscale, and preferring that whenever possible. That said,
-   this may turn out to be a non-issue when we start adding custom SIMD code.
-
-   We will need to re-benchmark when that time comes.
-
 5. Is there ever a situation where the use of floats introduces the risk of
-   non bit-exact output?
+   non bit-exact output? For this reason, and possible performance advantages,
+   we may want to explore the use of a fixed-point 16 bit path as an alternative
+   to the floating point math.
