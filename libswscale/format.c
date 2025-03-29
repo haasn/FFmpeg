@@ -1199,6 +1199,15 @@ static SwsLinearOp fmt_decode_range(const SwsFormat fmt, bool *incomplete)
     return c;
 }
 
+/* Generates constant 0.5 */
+static AVRational *generate_round_matrix(void)
+{
+    AVRational *m = av_refstruct_allocz(sizeof(*m));
+    if (m)
+        *m = (AVRational) {1, 2};
+    return m;
+}
+
 static AVRational *generate_bayer_matrix(const int size_log2)
 {
     const int size = 1 << size_log2;
@@ -1257,29 +1266,39 @@ static bool trc_is_hdr(enum AVColorTransferCharacteristic trc)
 static int fmt_dither(SwsContext *ctx, SwsOpList *ops,
                       const SwsPixelType type, const SwsFormat fmt)
 {
-    const int bpc = fmt.desc->comp[0].depth;
     SwsDither mode = ctx->dither;
     SwsDitherOp dither;
 
-    /* Visual threshold of perception: 12 bits for SDR, 14 bits for HDR;
-     * skip dithering and rounding entirely above this bit depth */
-    const int jnd_bits = trc_is_hdr(fmt.color.trc) ? 14 : 12;
-    if (bpc >= jnd_bits && !(ctx->flags & SWS_ACCURATE_RND))
-        return 0;
-
-    /* Use straight rounding for high bit depth, unless dithering is
-     * explicitly requested */
-    if (mode == SWS_DITHER_AUTO && bpc >= jnd_bits)
-        mode = SWS_DITHER_NONE;
-
-    /* Hardcode 16x16 matrix for now; in theory we could adjust this
-     * based on the expected level of precision in the output */
-    dither.size_log2 = mode == SWS_DITHER_NONE ? 0 : 4;
+    if (mode == SWS_DITHER_AUTO) {
+        /* Visual threshold of perception: 12 bits for SDR, 14 bits for HDR */
+        const int jnd_bits = trc_is_hdr(fmt.color.trc) ? 14 : 12;
+        const int bpc = fmt.desc->comp[0].depth;
+        mode = bpc >= jnd_bits ? SWS_DITHER_NONE : SWS_DITHER_BAYER;
+    }
 
     switch (mode) {
     case SWS_DITHER_NONE:
-    case SWS_DITHER_AUTO:
+        if (ctx->flags & SWS_ACCURATE_RND) {
+            /* Add constant 0.5 for correct rounding */
+            AVRational *bias = av_refstruct_allocz(sizeof(*bias));
+            if (!bias)
+                return AVERROR(ENOMEM);
+            *bias = (AVRational) {1, 2};
+            return ff_sws_op_list_append(ops, &(SwsOp) {
+                .op   = SWS_OP_DITHER,
+                .type = type,
+                .dither.matrix = bias,
+            });
+        } else {
+            return 0; /* No-op */
+        }
     case SWS_DITHER_BAYER:
+        /* Hardcode 16x16 matrix for now; in theory we could adjust this
+         * based on the expected level of precision in the output, since lower
+         * bit depth outputs can suffice with smaller dither matrices; however
+         * in practice we probably want to use error diffusion for such low bit
+         * depths anyway */
+        dither.size_log2 = 4;
         dither.matrix = generate_bayer_matrix(dither.size_log2);
         if (!dither.matrix)
             return AVERROR(ENOMEM);
