@@ -1494,13 +1494,74 @@ static void op_pass_setup(const SwsImg *out, const SwsImg *in, const SwsPass *pa
 }
 
 static av_always_inline void
+run_blocks(const SwsOpPass *p, const SwsImg *in_base, const SwsImg *out_base,
+           const bool copy_in, const bool copy_out,
+           const int y_start, const int y_end,
+           const int x_start, const int x_end)
+{
+    const SwsOpImpl *const impl = p->chain.impl;
+    const SwsFunc entry = p->chain.entry;
+    SwsOpExec exec = p->exec_base;
+    const ptrdiff_t offset_in  = x_start * p->pixel_bits_in  >> 3;
+    const ptrdiff_t offset_out = x_start * p->pixel_bits_out >> 3;
+
+    DECLARE_ALIGNED_64(uint8_t, tmp)[2][4][64];
+
+    for (int i = 0; i < 4; i++) {
+        if (copy_in) {
+            exec.in[i] = tmp[0][i];
+            exec.in_stride[i] = 64;
+        }
+        if (copy_out) {
+            exec.out[i] = tmp[1][i];
+            exec.out_stride[i] = 64;
+        }
+    }
+
+    for (exec.y = y_start; exec.y < y_end; exec.y += exec.block_h) {
+        SwsImg in  = ff_sws_img_shift(*in_base,  exec.y);
+        SwsImg out = ff_sws_img_shift(*out_base, exec.y);
+        for (int i = 0; i < 4; i++) {
+            if (!copy_in)
+                exec.in[i]  = in->data[i];
+            if (!copy_out)
+                exec.out[i] = out->data[i];
+        }
+
+        for (exec.x = x_start; exec.x < x_end; exec.x += exec.block_w) {
+            const int safe_w = x_end - exec.x;
+            if (copy_in) {
+                const int size = safe_w * p->pixel_bits_in >> 3;
+                for (int i = 0; in.data[i] && i < 4; i++) {
+                    memcpy(tmp[0][i], in.data[i], block_w);
+                }
+            }
+
+            entry(&exec, impl);
+
+            for (int i = 0; i < 4; i++) {
+                if (copy_in) {
+                    in.data[i] += block_step_in;
+                } else {
+                    exec.in[i] += block_step_in;
+                }
+
+                if (copy_out) {
+                } else {
+                    out_line[i] += block_step_out;
+                }
+            }
+        }
+    }
+}
+
+static av_always_inline void
 op_pass_run(const SwsImg *out_base, const SwsImg *in_base,
             const int y_start, const int h, const SwsPass *pass)
 {
     const SwsOpPass *p = pass->priv;
     const SwsFunc entry = p->chain.entry;
-    const SwsOpImpl *const impl = p->chain.impl;
-
+    const SwsOpImpl *impl = p->chain.impl;
     SwsOpExec exec = p->exec_base;
 
     /**
@@ -1525,10 +1586,17 @@ op_pass_run(const SwsImg *out_base, const SwsImg *in_base,
     const bool in_unpadded = p->aligned_w > safe_width(in_base, p->pixel_bits_in);
     const int safe_h = last_slice && in_unpadded ? h - 1 : h;
     const int aligned_h = safe_h / exec.block_h * exec.block_h; /* round down */
-    const int y_end = y_start + aligned_h;
+    const int y_main_end = y_start + aligned_h;
     const ptrdiff_t block_step_in  = (exec.block_w * p->pixel_bits_in)  >> 3;
     const ptrdiff_t block_step_out = (exec.block_w * p->pixel_bits_out) >> 3;
-    for (exec.y = y_start; exec.y < y_end; exec.y += exec.block_h) {
+
+    DECLARE_ALIGNED_64(uint8_t, buffer)[2][4][64];
+
+    /* TODO: no current backends require this */
+    av_assert0(exec.block_h == 1);
+
+    /* Main loop; covers everything but the last column (if unpadded) */
+    for (exec.y = y_start; exec.y < y_main_end; exec.y += exec.block_h) {
         const SwsImg in  = ff_sws_img_shift(*in_base,  exec.y);
         const SwsImg out = ff_sws_img_shift(*out_base, exec.y);
         for (int i = 0; i < 4; i++) {
@@ -1549,32 +1617,52 @@ op_pass_run(const SwsImg *out_base, const SwsImg *in_base,
     if (pass->width > p->aligned_w) {
         /* Output is not padded to a multiple of the block width, process the
          * last column separately using an intermediate buffer */
-        const ptrdiff_t x_base = p->aligned_w * p->pixel_bits_out >> 3;
+        const ptrdiff_t offset = p->aligned_w * p->pixel_bits_out >> 3;
         const int rest_w = pass->width - p->aligned_w;
 
-        DECLARE_ALIGNED_64(uint8_t, buffer)[4][64];
-        av_assert1(block_step_out <= FF_ARRAY_ELEMS(buffer[0]));
+        av_assert1(block_step_out <= FF_ARRAY_ELEMS(buffer[0][0]));
 
         exec.x = p->aligned_w;
-        for (int i = 0; i < 4; i++)
-            exec.out[i] = buffer[i];
+        for (int i = 0; i < 4; i++) {
+            exec.out[i] = buffer[0][i];
+            exec.out_stride[i] = sizeof(buffer[0][i]);
+        }
 
-        for (exec.y = y_start; exec.y < y_end; exec.y += exec.block_h) {
+        for (exec.y = y_start; exec.y < y_main_end; exec.y += exec.block_h) {
             const SwsImg in  = ff_sws_img_shift(*in_base,  exec.y);
             const SwsImg out = ff_sws_img_shift(*out_base, exec.y);
             for (int i = 0; i < 4; i++)
-                exec.in[i] = in.data[i] + x_base;
+                exec.in[i] = in.data[i] + offset;
 
             entry(&exec, impl);
             for (int i = 0; out.data[i] && i < 4; i++)
-                memcpy(out.data[i] + x_base, buffer[i], rest_w);
+                memcpy(out.data[i] + offset, buffer[0][i], rest_w);
         }
     }
 
     if (h > aligned_h) {
         /* Input is not padded to a multiple of the (aligned) block height,
          * process the entire last row separately */
-        abort(); /* TODO */
+        const SwsImg in  = ff_sws_img_shift(*in_base,  y_main_end);
+        const SwsImg out = ff_sws_img_shift(*out_base, y_main_end);
+        av_assert1(block_step_out <= FF_ARRAY_ELEMS(buffer[0][0]));
+        av_assert1(block_step_in  <= FF_ARRAY_ELEMS(buffer[1][0]));
+
+        exec.y = y_main_end;
+        for (int i = 0; i < 4; i++) {
+            exec.out[i] = buffer[0][i];
+            exec.in[i]  = buffer[1][i];
+            exec.out_stride[i] = sizeof(buffer[0][i]);
+            exec.in_stride[i]  = sizeof(buffer[1][i]);
+        }
+
+        for (exec.x = 0; exec.x < pass->width; exec.x += exec.block_w) {
+            for (int i = 0; in.data[i] && i < 4; i++)
+                memcpy(in.data[i], buffer[1][i], rest_w);
+            entry(&exec, impl);
+            for (int i = 0; out.data[i] && i < 4; i++)
+                memcpy(out.data[i], buffer[0][i], rest_w);
+        }
     }
 }
 
