@@ -68,6 +68,9 @@ Select full chroma input.
 
 @item bitexact
 Enable bitexact output.
+
+@item force_legacy
+Force the use of the older legacy scaler. For debugging only.
 @end table
 
 @item srcw @var{(API only)}
