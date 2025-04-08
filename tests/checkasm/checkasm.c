@@ -625,7 +625,7 @@ static inline double avg_cycles_per_call(const CheckasmPerf *const p)
     if (p->iterations) {
         const double cycles = (double)(10 * p->cycles) / p->iterations - state.nop_time;
         if (cycles > 0.0)
-            return cycles / 4.0; /* 4 calls per iteration */
+            return cycles / 32.0; /* 32 calls per iteration */
     }
     return 0.0;
 }
@@ -1262,3 +1262,4 @@ DEF_CHECKASM_CHECK_FUNC(uint16_t, "%04x")
 DEF_CHECKASM_CHECK_FUNC(uint32_t, "%08x")
 DEF_CHECKASM_CHECK_FUNC(int16_t,  "%6d")
 DEF_CHECKASM_CHECK_FUNC(int32_t,  "%9d")
+DEF_CHECKASM_CHECK_FUNC(float,    "%g")
