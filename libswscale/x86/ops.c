@@ -70,6 +70,20 @@
         .op.comps.unused[IDX] = true,                                           \
     };
 
+#define DECL_CLEAR_ZERO(EXT, IDX)                                               \
+    DECL_ASM(U8, clear_zero##IDX##EXT,                                          \
+        .op.op = SWS_OP_CLEAR,                                                  \
+        .op.c.q4[IDX] = { .num = 0, .den = 1 },                                 \
+        .op.comps.unused[IDX] = true,                                           \
+    );
+
+#define DECL_CLEAR(EXT, TYPE, SUFFIX, X, Y, Z, W)                               \
+    DECL_PATTERN(TYPE, clear##SUFFIX##EXT, X, Y, Z, W,                          \
+        .op.op = SWS_OP_CLEAR,                                                  \
+        .setup = ff_sws_setup_q4,                                               \
+        .flexible = true,                                                       \
+    );
+
 #define DECL_SWIZZLE(EXT, X, Y, Z, W)                                           \
     DECL_ASM(U8, swizzle_##X##Y##Z##W##EXT,                                     \
         .op.op = SWS_OP_SWIZZLE,                                                \
@@ -106,37 +120,17 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
         .setup = setup_shift,                                                   \
     );
 
-static int setup_min(const SwsOp *op, SwsOpPriv *out)
-{
-    for (int i = 0; i < 4; i++) {
-        if (op->c.q4[i].den)
-            out->f32[i] = (float) op->c.q4[i].num / op->c.q4[i].den;
-        else
-            out->f32[i] = FLT_MAX;
-    }
-    return 0;
-}
-
-static int setup_max(const SwsOp *op, SwsOpPriv *out)
-{
-    for (int i = 0; i < 4; i++) {
-        if (op->c.q4[i].den)
-            out->f32[i] = (float) op->c.q4[i].num / op->c.q4[i].den;
-        else
-            out->f32[i] = FLT_MIN;
-    }
-    return 0;
-}
-
 #define DECL_MIN_MAX(EXT)                                                       \
     DECL_COMMON_PATTERNS(F32, min##EXT,                                         \
         .op.op = SWS_OP_MIN,                                                    \
-        .setup = setup_min,                                                     \
+        .setup = ff_sws_setup_q4,                                               \
+        .flexible = true,                                                       \
     );                                                                          \
                                                                                 \
     DECL_COMMON_PATTERNS(F32, max##EXT,                                         \
         .op.op = SWS_OP_MAX,                                                    \
-        .setup = setup_max,                                                     \
+        .setup = ff_sws_setup_q4,                                               \
+        .flexible = true,                                                       \
     );
 
 #define DECL_SCALE(EXT)                                                         \
@@ -235,6 +229,19 @@ static int setup_linear(const SwsOp *op, SwsOpPriv *out)
     DECL_CLEAR_ALPHA(EXT, U8, 0, 0xFF)                                          \
     DECL_CLEAR_ALPHA(EXT, U8, 1, 0xFF)                                          \
     DECL_CLEAR_ALPHA(EXT, U8, 3, 0xFF)                                          \
+    DECL_CLEAR_ZERO(EXT, 0)                                                     \
+    DECL_CLEAR_ZERO(EXT, 1)                                                     \
+    DECL_CLEAR_ZERO(EXT, 3)                                                     \
+    DECL_CLEAR(EXT, U8, b, 1, 1, 1, 0)                                          \
+    DECL_CLEAR(EXT, U8, b, 0, 1, 1, 1)                                          \
+    DECL_CLEAR(EXT, U8, b, 0, 0, 1, 1)                                          \
+    DECL_CLEAR(EXT, U8, b, 1, 0, 0, 1)                                          \
+    DECL_CLEAR(EXT, U8, b, 1, 1, 0, 0)                                          \
+    DECL_CLEAR(EXT, U8, b, 0, 1, 0, 1)                                          \
+    DECL_CLEAR(EXT, U8, b, 1, 0, 1, 0)                                          \
+    DECL_CLEAR(EXT, U8, b, 1, 0, 0, 0)                                          \
+    DECL_CLEAR(EXT, U8, b, 0, 1, 0, 0)                                          \
+    DECL_CLEAR(EXT, U8, b, 0, 0, 1, 0)                                          \
                                                                                 \
 static const SwsOpTable ops8##EXT = {                                           \
     .cpu_flags = AV_CPU_FLAG_##FLAG,                                            \
@@ -279,6 +286,19 @@ static const SwsOpTable ops8##EXT = {                                           
         op_clear_alpha0_U8##EXT,                                                \
         op_clear_alpha1_U8##EXT,                                                \
         op_clear_alpha3_U8##EXT,                                                \
+        op_clear_zero0##EXT,                                                    \
+        op_clear_zero1##EXT,                                                    \
+        op_clear_zero3##EXT,                                                    \
+        REF_PATTERN(clearb##EXT, 1, 1, 1, 0),                                   \
+        REF_PATTERN(clearb##EXT, 0, 1, 1, 1),                                   \
+        REF_PATTERN(clearb##EXT, 0, 0, 1, 1),                                   \
+        REF_PATTERN(clearb##EXT, 1, 0, 0, 1),                                   \
+        REF_PATTERN(clearb##EXT, 1, 1, 0, 0),                                   \
+        REF_PATTERN(clearb##EXT, 0, 1, 0, 1),                                   \
+        REF_PATTERN(clearb##EXT, 1, 0, 1, 0),                                   \
+        REF_PATTERN(clearb##EXT, 1, 0, 0, 0),                                   \
+        REF_PATTERN(clearb##EXT, 0, 1, 0, 0),                                   \
+        REF_PATTERN(clearb##EXT, 0, 0, 1, 0),                                   \
         {{0}}                                                                   \
     },                                                                          \
 };
@@ -291,6 +311,16 @@ static const SwsOpTable ops8##EXT = {                                           
     DECL_CLEAR_ALPHA(EXT, U16, 0, 0xFFFF)                                       \
     DECL_CLEAR_ALPHA(EXT, U16, 1, 0xFFFF)                                       \
     DECL_CLEAR_ALPHA(EXT, U16, 3, 0xFFFF)                                       \
+    DECL_CLEAR(EXT, U16, w, 1, 1, 1, 0)                                         \
+    DECL_CLEAR(EXT, U16, w, 0, 1, 1, 1)                                         \
+    DECL_CLEAR(EXT, U16, w, 0, 0, 1, 1)                                         \
+    DECL_CLEAR(EXT, U16, w, 1, 0, 0, 1)                                         \
+    DECL_CLEAR(EXT, U16, w, 1, 1, 0, 0)                                         \
+    DECL_CLEAR(EXT, U16, w, 0, 1, 0, 1)                                         \
+    DECL_CLEAR(EXT, U16, w, 1, 0, 1, 0)                                         \
+    DECL_CLEAR(EXT, U16, w, 1, 0, 0, 0)                                         \
+    DECL_CLEAR(EXT, U16, w, 0, 1, 0, 0)                                         \
+    DECL_CLEAR(EXT, U16, w, 0, 0, 1, 0)                                         \
                                                                                 \
 static const SwsOpTable ops16##EXT = {                                          \
     .cpu_flags = AV_CPU_FLAG_##FLAG,                                            \
@@ -305,6 +335,16 @@ static const SwsOpTable ops16##EXT = {                                          
         op_clear_alpha0_U16##EXT,                                               \
         op_clear_alpha1_U16##EXT,                                               \
         op_clear_alpha3_U16##EXT,                                               \
+        REF_PATTERN(clearw##EXT, 1, 1, 1, 0),                                   \
+        REF_PATTERN(clearw##EXT, 0, 1, 1, 1),                                   \
+        REF_PATTERN(clearw##EXT, 0, 0, 1, 1),                                   \
+        REF_PATTERN(clearw##EXT, 1, 0, 0, 1),                                   \
+        REF_PATTERN(clearw##EXT, 1, 1, 0, 0),                                   \
+        REF_PATTERN(clearw##EXT, 0, 1, 0, 1),                                   \
+        REF_PATTERN(clearw##EXT, 1, 0, 1, 0),                                   \
+        REF_PATTERN(clearw##EXT, 1, 0, 0, 0),                                   \
+        REF_PATTERN(clearw##EXT, 0, 1, 0, 0),                                   \
+        REF_PATTERN(clearw##EXT, 0, 0, 1, 0),                                   \
         {{0}}                                                                   \
     },                                                                          \
 };
@@ -413,6 +453,13 @@ static bool op_is_type_invariant(const SwsOp *op)
     case SWS_OP_WRITE:
         return !op->rw.packed && !op->rw.frac;
     case SWS_OP_SWIZZLE:
+        return true;
+    case SWS_OP_CLEAR:
+        /* clear-to-zero is type invariant */
+        for (int i = 0; i < 4; i++) {
+            if (op->c.q4[i].num != 0)
+                return false;
+        }
         return true;
     }
 

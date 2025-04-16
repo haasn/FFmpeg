@@ -233,9 +233,46 @@ IF W,   pshufb mw2, m8
 %macro clear_alpha 3 ; idx, vreg, vreg2
 op clear_alpha%1
         LOAD_CONT r2
-        pcmpeqb %2, %2, %2
+        pcmpeqb %2, %2
 IF V2,  mova %3, %2
         CONTINUE r2
+%endmacro
+
+%macro clear_zero 3 ; idx, vreg, vreg2
+op clear_zero%1
+        LOAD_CONT r2
+        pxor %2, %2
+IF V2,  mova %3, %2
+        CONTINUE r2
+%endmacro
+
+%macro clear 2 ; suffix, size
+op clear%1
+        LOAD_CONT r2
+IF !X,  vpbroadcast%1 mx, [implq + SwsOpImpl.priv + 0 * %2]
+IF !Y,  vpbroadcast%1 my, [implq + SwsOpImpl.priv + 1 * %2]
+IF !Z,  vpbroadcast%1 mz, [implq + SwsOpImpl.priv + 2 * %2]
+IF !W,  vpbroadcast%1 mw, [implq + SwsOpImpl.priv + 3 * %2]
+    %if V2
+IF !X,  vpbroadcast%1 mx2, [implq + SwsOpImpl.priv + 0 * %2]
+IF !Y,  vpbroadcast%1 my2, [implq + SwsOpImpl.priv + 1 * %2]
+IF !Z,  vpbroadcast%1 mz2, [implq + SwsOpImpl.priv + 2 * %2]
+IF !W,  vpbroadcast%1 mw2, [implq + SwsOpImpl.priv + 3 * %2]
+    %endif
+        CONTINUE r2
+%endmacro
+
+%macro clear_funcs 2 ; suffix, size
+        decl_pattern 1, 1, 1, 0, clear %1, %2
+        decl_pattern 0, 1, 1, 1, clear %1, %2
+        decl_pattern 0, 0, 1, 1, clear %1, %2
+        decl_pattern 1, 0, 0, 1, clear %1, %2
+        decl_pattern 1, 1, 0, 0, clear %1, %2
+        decl_pattern 0, 1, 0, 1, clear %1, %2
+        decl_pattern 1, 0, 1, 0, clear %1, %2
+        decl_pattern 1, 0, 0, 0, clear %1, %2
+        decl_pattern 0, 1, 0, 0, clear %1, %2
+        decl_pattern 0, 0, 1, 0, clear %1, %2
 %endmacro
 
 ;---------------------------------------------------------
@@ -244,12 +281,14 @@ IF V2,  mova %3, %2
 ; mA := mB, mB := mC, ... mX := mA
 %macro vrotate 2-* ; A, B, C, ...
     %rep %0
-        %assign a %1 + 4
-        %assign b %2 + 4
+        %assign rot_a %1 + 4
+        %assign rot_b %2 + 4
         mova m%1, m%2
-        IF V2, mova m%[a], m%[b]
+        IF V2, mova m%[rot_a], m%[rot_b]
     %rotate 1
     %endrep
+    %undef rot_a
+    %undef rot_b
 %endmacro
 
 %macro swizzle_funcs 0
@@ -594,9 +633,14 @@ IF W,   psrlw mw2, xm8
     write_planar 4
     write8_packed2
     write8_packed4
+
     clear_alpha 0, mx, mx2
     clear_alpha 1, my, my2
     clear_alpha 3, mw, mw2
+    clear_zero  0, mx, mx2
+    clear_zero  1, my, my2
+    clear_zero  3, mw, mw2
+    clear_funcs b, 1
     swizzle_funcs
     decl_common_patterns shuffle
 %endmacro
@@ -607,6 +651,7 @@ IF W,   psrlw mw2, xm8
     decl_common_patterns conv16to8
     decl_common_patterns lshift16
     decl_common_patterns rshift16
+    clear_funcs w, 2
 %endmacro
 
 INIT_XMM ssse3
