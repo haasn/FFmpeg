@@ -375,6 +375,10 @@ static int op_match(const SwsOp *op, const SwsOpEntry *entry, const SwsComps nex
         return op->dither.size_log2 == ref->dither.size_log2 ? score : 0;
     case SWS_OP_MIN:
     case SWS_OP_MAX:
+        for (int i = 0; i < 4; i++) {
+            if (av_cmp_q(op->c.q4[i], ref->c.q4[i]) && !next.unused[i])
+                return 0;
+        }
         return score;
     case SWS_OP_LINEAR:
         /* All required elements must be present */
@@ -1203,21 +1207,15 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
                 break;
 
             case SWS_OP_SWIZZLE: {
+                bool seen[4] = {0};
                 bool has_duplicates = false;
                 for (int i = 0; i < 4; i++) {
-                    if (next->comps.unused[i]) {
-                        op->swizzle.in[i] = i; /* reset unneeded comps */
-                        op->comps = (SwsComps) {0}; /* force reinfer */
-                    } else {
-                        if (op->swizzle.in[i] != i)
-                            noop = false;
-                        for (int j = 0; !has_duplicates && j < i; j++) {
-                            if (next->comps.unused[j])
-                                continue;
-                            if (op->swizzle.in[i] == op->swizzle.in[j])
-                                has_duplicates = true;
-                        }
-                    }
+                    if (next->comps.unused[i])
+                        continue;
+                    if (op->swizzle.in[i] != i)
+                        noop = false;
+                    has_duplicates |= seen[op->swizzle.in[i]];
+                    seen[op->swizzle.in[i]] = true;
                 }
 
                 /* Identity swizzle */
@@ -1236,17 +1234,22 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
                     continue;
                 }
 
-                /* Try to push swizzles towards the output */
-                if (op_type_is_independent(next->op)) {
+                /* Try to push swizzles with duplicates towards the output */
+                if (1 && op_type_is_independent(next->op)) {
                     if (next->op == SWS_OP_CONVERT)
                         op->type = next->convert.to;
+                    if (next->op == SWS_OP_MIN || next->op == SWS_OP_MAX) {
+                        /* Un-swizzle the next operation */
+                        const SwsConst c = next->c;
+                        for (int i = 0; i < 4; i++) {
+                            if (!next->comps.unused[i])
+                                next->c.q4[op->swizzle.in[i]] = c.q4[i];
+                        }
+                    }
                     swap_ops(op, next);
                     progress = true;
                     continue;
                 }
-
-                /* TODO: also push swizzles past non-independent ops when
-                 * the swizzle does not contain duplicate elements */
                 break;
             }
 
