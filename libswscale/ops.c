@@ -1283,12 +1283,9 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
 
             case SWS_OP_MIN:
                 for (int i = 0; i < 4; i++) {
-                    AVRational max = prev->comps.max[i];
-                    if (!(prev->comps.flags[i] & SWS_COMP_EXACT)) {
-                        /* Assume floating point error does not exceed 0.5 */
-                        max = max.num ? av_add_q(max, av_make_q(1, 2)) : max;
-                    }
-                    if (av_cmp_q(max, op->c.q4[i]) >= 0 && !next->comps.unused[i])
+                    if (next->comps.unused[i] || !op->c.q4[i].den)
+                        continue;
+                    if (av_cmp_q(op->c.q4[i], prev->comps.max[i]) < 0)
                         noop = false;
                 }
 
@@ -1300,10 +1297,9 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
 
             case SWS_OP_MAX:
                 for (int i = 0; i < 4; i++) {
-                    AVRational min = prev->comps.min[i];
-                    if (!(prev->comps.flags[i] & SWS_COMP_EXACT))
-                        min = min.num ? av_sub_q(min, av_make_q(1, 2)) : min;
-                    if (av_cmp_q(op->c.q4[i], min) >= 0 && !next->comps.unused[i])
+                        if (next->comps.unused[i] || !op->c.q4[i].den)
+                        continue;
+                    if (av_cmp_q(prev->comps.min[i], op->c.q4[i]) < 0)
                         noop = false;
                 }
 
