@@ -232,20 +232,24 @@ WRAP_WRITE(write_bits,    1, 3, false)
 #endif /* BIT_DEPTH == 8 */
 
 #ifdef SWAP_BYTES
-DECL_IMPL(swap_bytes)
+DECL_PATTERN(swap_bytes)
 {
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        x[i] = SWAP_BYTES(x[i]);
-        y[i] = SWAP_BYTES(y[i]);
-        z[i] = SWAP_BYTES(z[i]);
-        w[i] = SWAP_BYTES(w[i]);
+        if (X)
+            x[i] = SWAP_BYTES(x[i]);
+        if (Y)
+            y[i] = SWAP_BYTES(y[i]);
+        if (Z)
+            z[i] = SWAP_BYTES(z[i]);
+        if (W)
+            w[i] = SWAP_BYTES(w[i]);
     }
 
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-DECL_ENTRY(swap_bytes, .op = SWS_OP_SWAP_BYTES);
+WRAP_COMMON_PATTERNS(swap_bytes, .op = SWS_OP_SWAP_BYTES);
 #endif /* SWAP_BYTES */
 
 #if BIT_DEPTH == 8

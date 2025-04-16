@@ -145,6 +145,27 @@ static inline int ff_setup_memdup(const void *c, size_t size, SwsOpPriv *out)
         __VA_ARGS__                                                             \
     }
 
+/* Helpers to define functions for common subsets of components */
+#define DECL_PATTERN(NAME, ...)                                                 \
+    DECL_FUNC(NAME, const bool X, const bool Y, const bool Z, const bool W,     \
+                  __VA_ARGS__)
+#define WRAP_PATTERN(FUNC, X, Y, Z, W, ...)                                     \
+    DECL_IMPL(FUNC##_##X##Y##Z##W)                                              \
+    {                                                                           \
+        CALL(FUNC, X, Y, Z, W);                                                 \
+    }                                                                           \
+                                                                                \
+    DECL_ENTRY(FUNC##_##X##Y##Z##W,                                             \
+        .op.comps.unused = { !X, !Y, !Z, !W },                                  \
+        __VA_ARGS__                                                             \
+    )
+
+#define WRAP_COMMON_PATTERNS(FUNC, ...)                                         \
+    WRAP_PATTERN(FUNC, 1, 0, 0, 0, __VA_ARGS__);                                \
+    WRAP_PATTERN(FUNC, 1, 0, 0, 1, __VA_ARGS__);                                \
+    WRAP_PATTERN(FUNC, 1, 1, 1, 0, __VA_ARGS__);                                \
+    WRAP_PATTERN(FUNC, 1, 1, 1, 1, __VA_ARGS__)
+
 /* Miscellaneous helpers */
 #define av_q2pixel(q) ((q).den ? (pixel_t) (q).num / (q).den : 0)
 
