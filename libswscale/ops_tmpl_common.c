@@ -25,25 +25,29 @@
 #endif
 
 #define WRAP_CONVERT_UINT(N)                                                    \
-DECL_IMPL(convert_uint##N)                                                      \
+DECL_PATTERN(convert_uint##N)                                                   \
 {                                                                               \
     uint##N##_t xx[SWS_CHUNK_SIZE], yy[SWS_CHUNK_SIZE],                         \
                 zz[SWS_CHUNK_SIZE], ww[SWS_CHUNK_SIZE];                         \
                                                                                 \
     SWS_LOOP                                                                    \
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {                                  \
-        xx[i] = x[i];                                                           \
-        yy[i] = y[i];                                                           \
-        zz[i] = z[i];                                                           \
-        ww[i] = w[i];                                                           \
+        if (X)                                                                  \
+            xx[i] = x[i];                                                       \
+        if (Y)                                                                  \
+            yy[i] = y[i];                                                       \
+        if (Z)                                                                  \
+            zz[i] = z[i];                                                       \
+        if (W)                                                                  \
+            ww[i] = w[i];                                                       \
     }                                                                           \
                                                                                 \
     CONTINUE(uint##N##_t *, xx, yy, zz, ww);                                    \
 }                                                                               \
                                                                                 \
-DECL_ENTRY(convert_uint##N,                                                     \
-    .op = SWS_OP_CONVERT,                                                       \
-    .convert.to = SWS_PIXEL_U##N,                                               \
+WRAP_COMMON_PATTERNS(convert_uint##N,                                           \
+    .op.op = SWS_OP_CONVERT,                                                    \
+    .op.convert.to = SWS_PIXEL_U##N,                                            \
 );
 
 #if BIT_DEPTH != 8
@@ -101,48 +105,60 @@ WRAP_CLEAR(1, 0, 0, 0) /* gray -> yuva */
 WRAP_CLEAR(0, 1, 0, 0) /* gray -> ayuv */
 WRAP_CLEAR(0, 0, 1, 0) /* gray -> vuya */
 
-DECL_IMPL(min)
+DECL_PATTERN(min)
 {
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        x[i] = FFMIN(x[i], impl->priv.px[0]);
-        y[i] = FFMIN(y[i], impl->priv.px[1]);
-        z[i] = FFMIN(z[i], impl->priv.px[2]);
-        w[i] = FFMIN(w[i], impl->priv.px[3]);
+        if (X)
+            x[i] = FFMIN(x[i], impl->priv.px[0]);
+        if (Y)
+            y[i] = FFMIN(y[i], impl->priv.px[1]);
+        if (Z)
+            z[i] = FFMIN(z[i], impl->priv.px[2]);
+        if (W)
+            w[i] = FFMIN(w[i], impl->priv.px[3]);
     }
 
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-DECL_IMPL(max)
+DECL_PATTERN(max)
 {
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        x[i] = FFMAX(x[i], impl->priv.px[0]);
-        y[i] = FFMAX(y[i], impl->priv.px[1]);
-        z[i] = FFMAX(z[i], impl->priv.px[2]);
-        w[i] = FFMAX(w[i], impl->priv.px[3]);
+        if (X)
+            x[i] = FFMAX(x[i], impl->priv.px[0]);
+        if (Y)
+            y[i] = FFMAX(y[i], impl->priv.px[1]);
+        if (Z)
+            z[i] = FFMAX(z[i], impl->priv.px[2]);
+        if (W)
+            w[i] = FFMAX(w[i], impl->priv.px[3]);
     }
 
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-DECL_ENTRY_EX(min, .op.op = SWS_OP_MIN, .setup = ff_sws_setup_q4, .flexible = true);
-DECL_ENTRY_EX(max, .op.op = SWS_OP_MAX, .setup = ff_sws_setup_q4, .flexible = true);
+WRAP_COMMON_PATTERNS(min, .op.op = SWS_OP_MIN, .setup = ff_sws_setup_q4, .flexible = true);
+WRAP_COMMON_PATTERNS(max, .op.op = SWS_OP_MAX, .setup = ff_sws_setup_q4, .flexible = true);
 
-DECL_IMPL(scale)
+DECL_PATTERN(scale)
 {
     const pixel_t scale = impl->priv.px[0];
 
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        x[i] *= scale;
-        y[i] *= scale;
-        z[i] *= scale;
-        w[i] *= scale;
+        if (X)
+            x[i] *= scale;
+        if (Y)
+            y[i] *= scale;
+        if (Z)
+            z[i] *= scale;
+        if (W)
+            w[i] *= scale;
     }
 
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-DECL_ENTRY_EX(scale, .op.op = SWS_OP_SCALE, .setup = ff_sws_setup_q, .flexible = true);
+WRAP_COMMON_PATTERNS(scale, .op.op = SWS_OP_SCALE, .setup = ff_sws_setup_q, .flexible = true);

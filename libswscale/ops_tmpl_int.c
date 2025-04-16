@@ -249,33 +249,37 @@ DECL_PATTERN(swap_bytes)
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-WRAP_COMMON_PATTERNS(swap_bytes, .op = SWS_OP_SWAP_BYTES);
+WRAP_COMMON_PATTERNS(swap_bytes, .op.op = SWS_OP_SWAP_BYTES);
 #endif /* SWAP_BYTES */
 
 #if BIT_DEPTH == 8
-DECL_IMPL(expand16)
+DECL_PATTERN(expand16)
 {
     uint16_t xx[SWS_CHUNK_SIZE], yy[SWS_CHUNK_SIZE],
              zz[SWS_CHUNK_SIZE], ww[SWS_CHUNK_SIZE];
 
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
-        xx[i] = x[i] << 8 | x[i];
-        yy[i] = y[i] << 8 | y[i];
-        zz[i] = z[i] << 8 | z[i];
-        ww[i] = w[i] << 8 | w[i];
+        if (X)
+            xx[i] = x[i] << 8 | x[i];
+        if (Y)
+            yy[i] = y[i] << 8 | y[i];
+        if (Z)
+            zz[i] = z[i] << 8 | z[i];
+        if (W)
+            ww[i] = w[i] << 8 | w[i];
     }
 
     CONTINUE(uint16_t *, xx, yy, zz, ww);
 }
 
-DECL_ENTRY(expand16,
-    .op = SWS_OP_CONVERT,
-    .convert.to = SWS_PIXEL_U16,
-    .convert.expand = true,
+WRAP_COMMON_PATTERNS(expand16,
+    .op.op = SWS_OP_CONVERT,
+    .op.convert.to = SWS_PIXEL_U16,
+    .op.convert.expand = true,
 );
 
-DECL_IMPL(expand32)
+DECL_PATTERN(expand32)
 {
     uint32_t xx[SWS_CHUNK_SIZE], yy[SWS_CHUNK_SIZE],
              zz[SWS_CHUNK_SIZE], ww[SWS_CHUNK_SIZE];
@@ -291,10 +295,10 @@ DECL_IMPL(expand32)
     CONTINUE(uint32_t *, xx, yy, zz, ww);
 }
 
-DECL_ENTRY(expand32,
-    .op = SWS_OP_CONVERT,
-    .convert.to = SWS_PIXEL_U32,
-    .convert.expand = true,
+WRAP_COMMON_PATTERNS(expand32,
+    .op.op = SWS_OP_CONVERT,
+    .op.convert.to = SWS_PIXEL_U32,
+    .op.convert.expand = true,
 );
 #endif
 
@@ -357,8 +361,10 @@ WRAP_PACK_UNPACK( 2, 10, 10, 10)
 WRAP_PACK_UNPACK(10, 10, 10,  2)
 
 #if BIT_DEPTH != 8
-DECL_FUNC(lshift, const int amount)
+DECL_PATTERN(lshift)
 {
+    const uint8_t amount = impl->priv.u8[0];
+
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
         x[i] <<= amount;
@@ -370,8 +376,10 @@ DECL_FUNC(lshift, const int amount)
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-DECL_FUNC(rshift, const int amount)
+DECL_PATTERN(rshift)
 {
+    const uint8_t amount = impl->priv.u8[0];
+
     SWS_LOOP
     for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
         x[i] >>= amount;
@@ -383,38 +391,20 @@ DECL_FUNC(rshift, const int amount)
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-#define WRAP_SHIFT(N)                                                           \
-DECL_IMPL(lshift_##N)                                                           \
-{                                                                               \
-    fn(lshift)(exec, impl, x, y, z, w, N);                                      \
-}                                                                               \
-                                                                                \
-DECL_IMPL(rshift_##N)                                                           \
-{                                                                               \
-    fn(rshift)(exec, impl, x, y, z, w, N);                                      \
-}                                                                               \
-                                                                                \
-DECL_ENTRY(lshift_##N,                                                          \
-    .op  = SWS_OP_LSHIFT,                                                       \
-    .c.u = N,                                                                   \
-);                                                                              \
-                                                                                \
-DECL_ENTRY(rshift_##N,                                                          \
-    .op  = SWS_OP_RSHIFT,                                                       \
-    .c.u = N,                                                                   \
+WRAP_COMMON_PATTERNS(lshift,
+    .op.op    = SWS_OP_LSHIFT,
+    .setup    = ff_sws_setup_u8,
+    .flexible = true,
 );
 
-WRAP_SHIFT(1)
-WRAP_SHIFT(2)
-WRAP_SHIFT(3)
-WRAP_SHIFT(4)
-WRAP_SHIFT(5)
-WRAP_SHIFT(6)
-WRAP_SHIFT(7)
-WRAP_SHIFT(8)
+WRAP_COMMON_PATTERNS(rshift,
+    .op.op    = SWS_OP_RSHIFT,
+    .setup    = ff_sws_setup_u8,
+    .flexible = true,
+);
 #endif /* BIT_DEPTH != 8 */
 
-DECL_IMPL(convert_float)
+DECL_PATTERN(convert_float)
 {
     float xx[SWS_CHUNK_SIZE], yy[SWS_CHUNK_SIZE],
           zz[SWS_CHUNK_SIZE], ww[SWS_CHUNK_SIZE];
@@ -430,9 +420,9 @@ DECL_IMPL(convert_float)
     CONTINUE(float *, xx, yy, zz, ww);
 }
 
-DECL_ENTRY(convert_float,
-    .op = SWS_OP_CONVERT,
-    .convert.to = SWS_PIXEL_F32,
+WRAP_COMMON_PATTERNS(convert_float,
+    .op.op = SWS_OP_CONVERT,
+    .op.convert.to = SWS_PIXEL_F32,
 );
 
 /**
@@ -533,8 +523,8 @@ static const SwsOpTable fn(op_table_int) = {
         fn(op_unpack_3320),
 
 
-        fn(op_expand16),
-        fn(op_expand32),
+        REF_COMMON_PATTERNS(expand16),
+        REF_COMMON_PATTERNS(expand32),
 #elif BIT_DEPTH == 16
         fn(op_pack_4440),
         fn(op_pack_5550),
@@ -550,13 +540,13 @@ static const SwsOpTable fn(op_table_int) = {
 #endif
 
 #ifdef SWAP_BYTES
-        fn(op_swap_bytes),
+        REF_COMMON_PATTERNS(swap_bytes),
 #endif
 
-        fn(op_min),
-        fn(op_max),
-        fn(op_scale),
-        fn(op_convert_float),
+        REF_COMMON_PATTERNS(min),
+        REF_COMMON_PATTERNS(max),
+        REF_COMMON_PATTERNS(scale),
+        REF_COMMON_PATTERNS(convert_float),
 
         fn(op_clear_1110),
         fn(op_clear_0111),
@@ -594,32 +584,16 @@ static const SwsOpTable fn(op_table_int) = {
         fn(op_expand_luma_01),
 
 #if BIT_DEPTH != 8
-        fn(op_lshift_1),
-        fn(op_lshift_2),
-        fn(op_lshift_3),
-        fn(op_lshift_4),
-        fn(op_lshift_5),
-        fn(op_lshift_6),
-        fn(op_lshift_7),
-        fn(op_lshift_8),
-
-        fn(op_rshift_1),
-        fn(op_rshift_2),
-        fn(op_rshift_3),
-        fn(op_rshift_4),
-        fn(op_rshift_5),
-        fn(op_rshift_6),
-        fn(op_rshift_7),
-        fn(op_rshift_8),
-
-        fn(op_convert_uint8),
+        REF_COMMON_PATTERNS(lshift),
+        REF_COMMON_PATTERNS(rshift),
+        REF_COMMON_PATTERNS(convert_uint8),
 #endif /* BIT_DEPTH != 8 */
 
 #if BIT_DEPTH != 16
-        fn(op_convert_uint16),
+        REF_COMMON_PATTERNS(convert_uint16),
 #endif
 #if BIT_DEPTH != 32
-        fn(op_convert_uint32),
+        REF_COMMON_PATTERNS(convert_uint32),
 #endif
 
         {{0}}

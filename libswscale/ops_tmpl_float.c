@@ -210,14 +210,14 @@ static const SwsOpTable fn(op_table_float) = {
     .block_w = SWS_CHUNK_SIZE,
     .block_h = 1,
     .entries = {
-        fn(op_convert_uint8),
-        fn(op_convert_uint16),
-        fn(op_convert_uint32),
+        REF_COMMON_PATTERNS(convert_uint8),
+        REF_COMMON_PATTERNS(convert_uint16),
+        REF_COMMON_PATTERNS(convert_uint32),
 
         fn(op_clear_1110),
-        fn(op_min),
-        fn(op_max),
-        fn(op_scale),
+        REF_COMMON_PATTERNS(min),
+        REF_COMMON_PATTERNS(max),
+        REF_COMMON_PATTERNS(scale),
 
         fn(op_dither0),
         fn(op_dither1),
