@@ -1235,7 +1235,7 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
                 }
 
                 /* Try to push swizzles with duplicates towards the output */
-                if (1 && op_type_is_independent(next->op)) {
+                if (has_duplicates && op_type_is_independent(next->op)) {
                     if (next->op == SWS_OP_CONVERT)
                         op->type = next->convert.to;
                     if (next->op == SWS_OP_MIN || next->op == SWS_OP_MAX) {
@@ -1288,14 +1288,7 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
                         /* Assume floating point error does not exceed 0.5 */
                         max = max.num ? av_add_q(max, av_make_q(1, 2)) : max;
                     }
-
-                    /* Redundant clamp on in-range component */
-                    if (av_cmp_q(op->c.q4[i], max) >= 0) {
-                        op->c.q4[i] = (AVRational) {0, 0};
-                    /* Redundant clamp of unneeded component */
-                    } else if (next->comps.unused[i])
-                        op->c.q4[i] = (AVRational) {0, 0};
-                    else if (op->c.q4[i].den)
+                    if (av_cmp_q(max, op->c.q4[i]) >= 0 && !next->comps.unused[i])
                         noop = false;
                 }
 
@@ -1310,11 +1303,7 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
                     AVRational min = prev->comps.min[i];
                     if (!(prev->comps.flags[i] & SWS_COMP_EXACT))
                         min = min.num ? av_sub_q(min, av_make_q(1, 2)) : min;
-                    if (av_cmp_q(min, op->c.q4[i]) >= 0) {
-                        op->c.q4[i] = (AVRational) {0, 0};
-                    } else if (next->comps.unused[i])
-                        op->c.q4[i] = (AVRational) {0, 0};
-                    else if (op->c.q4[i].den)
+                    if (av_cmp_q(op->c.q4[i], min) >= 0 && !next->comps.unused[i])
                         noop = false;
                 }
 
