@@ -158,6 +158,7 @@ int ff_sws_op_compile_tables(const SwsOpTable *const tables[], int num_tables,
 
 /* Setup helpers */
 int ff_sws_setup_u(const SwsOp *op, SwsOpPriv *out);
+int ff_sws_setup_u8(const SwsOp *op, SwsOpPriv *out);
 int ff_sws_setup_q(const SwsOp *op, SwsOpPriv *out);
 int ff_sws_setup_q4(const SwsOp *op, SwsOpPriv *out);
 

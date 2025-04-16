@@ -1592,22 +1592,24 @@ run_tail(const SwsOpPass *p, const SwsImg *out_base, const bool copy_out,
     const SwsFunc entry = p->chain.entry;
     SwsOpExec exec = p->exec_base;
 
-    const int offset_in  = x_tail * p->pixel_bits_in  >> 3;
-    const int offset_out = x_tail * p->pixel_bits_out >> 3;
-    const int rest_w     = exec.w - x_tail;
-    const int rest_size  = (rest_w * p->pixel_bits_in + 7) >> 3;
+    const int offset_in     = x_tail * p->pixel_bits_in  >> 3;
+    const int offset_out    = x_tail * p->pixel_bits_out >> 3;
+    const int rest_w        = exec.w - x_tail;
+    const int rest_size_in  = (rest_w * p->pixel_bits_in  + 7) >> 3;
+    const int rest_size_out = (rest_w * p->pixel_bits_out + 7) >> 3;
 
-    DECLARE_ALIGNED_64(uint8_t, tmp)[2][4][64];
+    DECLARE_ALIGNED_64(uint8_t, tmp)[2][4][64 * sizeof(uint32_t)];
+    av_assert1(rest_w <= 64);
 
     exec.x = x_tail;
     for (int i = 0; i < 4; i++) {
         if (copy_in) {
             exec.in[i] = tmp[0][i];
-            exec.in_stride[i] = 64;
+            exec.in_stride[i] = sizeof(tmp[0][i]);
         }
         if (copy_out) {
             exec.out[i] = tmp[1][i];
-            exec.out_stride[i] = 64;
+            exec.out_stride[i] = sizeof(tmp[1][i]);
         }
     }
 
@@ -1621,13 +1623,17 @@ run_tail(const SwsOpPass *p, const SwsImg *out_base, const bool copy_out,
                 exec.out[i] = out.data[i] + offset_out;
         }
 
-        for (int i = 0; copy_in && in.data[i] && i < 4; i++)
-            memcpy(tmp[0][i], in.data[i] + offset_in, rest_size);
+        if (copy_in) {
+            for (int i = 0; i < 4 && in.data[i]; i++)
+                memcpy(tmp[0][i], in.data[i] + offset_in, rest_size_in);
+        }
 
         entry(&exec, impl);
 
-        for (int i = 0; copy_out && out.data[i] && i < 4; i++)
-            memcpy(out.data[i], tmp[1][i] + offset_out, rest_size);
+        if (copy_out) {
+            for (int i = 0; i < 4 && out.data[i]; i++)
+                memcpy(out.data[i] + offset_out, tmp[1][i], rest_size_out);
+        }
     }
 }
 
@@ -1858,6 +1864,12 @@ int ff_sws_op_compile_tables(const SwsOpTable *const tables[], int num_tables,
 }
 
 #define q2pixel(type, q) ((q).den ? (type) (q).num / (q).den : 0)
+
+int ff_sws_setup_u8(const SwsOp *op, SwsOpPriv *out)
+{
+    out->u8[0] = op->c.u;
+    return 0;
+}
 
 int ff_sws_setup_u(const SwsOp *op, SwsOpPriv *out)
 {
