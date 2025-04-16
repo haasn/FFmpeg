@@ -410,9 +410,13 @@ static void check_clear(void)
         if (bits < 32) {
             const AVRational chroma = (AVRational) { 1 << (bits - 1), 1};
             const AVRational alpha  = (AVRational) { (1 << bits) - 1, 1};
+            const AVRational zero   = (AVRational) { 0, 1};
             const AVRational none = {0};
 
             const SwsConst patterns[] = {
+                /* Zero only */
+                {.q4 = {   none,   none,   none,   zero }},
+                {.q4 = {   zero,   none,   none,   none }},
                 /* Alpha only */
                 {.q4 = {   none,   none,   none,  alpha }},
                 {.q4 = {  alpha,   none,   none,   none }},
