@@ -655,10 +655,14 @@ void ff_sws_op_list_print(void *log, int lev, const SwsOpList *ops)
             break;
         case SWS_OP_SHUFFLE:
             av_log(log, lev, "%-20s: {%d %d %d %d %d %d %d %d}\n", "SWS_OP_SHUFFLE",
-                   op->shuffle.index[0 % size], op->shuffle.index[1 % size],
-                   op->shuffle.index[2 % size], op->shuffle.index[3 % size],
-                   op->shuffle.index[4 % size], op->shuffle.index[5 % size],
-                   op->shuffle.index[6 % size], op->shuffle.index[7 % size]);
+                   (0 & ~(size - 1)) + op->shuffle.index[0 % size],
+                   (1 & ~(size - 1)) + op->shuffle.index[1 % size],
+                   (2 & ~(size - 1)) + op->shuffle.index[2 % size],
+                   (3 & ~(size - 1)) + op->shuffle.index[3 % size],
+                   (4 & ~(size - 1)) + op->shuffle.index[4 % size],
+                   (5 & ~(size - 1)) + op->shuffle.index[5 % size],
+                   (6 & ~(size - 1)) + op->shuffle.index[6 % size],
+                   (7 & ~(size - 1)) + op->shuffle.index[7 % size]);
             break;
         case SWS_OP_LSHIFT:
             av_log(log, lev, "%-20s: << %u\n", "SWS_OP_LSHIFT", op->c.u);
