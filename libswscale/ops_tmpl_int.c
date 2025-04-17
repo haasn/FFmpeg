@@ -259,6 +259,47 @@ WRAP_COMMON_PATTERNS(swap_bytes,
 );
 #endif /* SWAP_BYTES */
 
+#if BIT_DEPTH >= 32
+static int fn(setup_shuffle)(const SwsOp *op, SwsOpPriv *out)
+{
+    for (int i = 0; i < sizeof(pixel_t); i++)
+        out->u8[i] = op->shuffle.index[i];
+    return 0;
+}
+
+static av_always_inline pixel_t
+fn(shuf)(const pixel_t x, SwsOpPriv priv)
+{
+    union { pixel_t px; uint8_t u8[sizeof(pixel_t)]; } out, in = { .px = x };
+    for (int i = 0; i < sizeof(pixel_t); i++)
+        out.u8[i] = in.u8[priv.u8[i]];
+    return out.px;
+}
+
+DECL_PATTERN(shuffle)
+{
+    SWS_LOOP
+    for (int i = 0; i < SWS_CHUNK_SIZE; i++) {
+        if (X)
+            x[i] = fn(shuf)(x[i], impl->priv);
+        if (Y)
+            y[i] = fn(shuf)(y[i], impl->priv);
+        if (Z)
+            z[i] = fn(shuf)(z[i], impl->priv);
+        if (W)
+            w[i] = fn(shuf)(w[i], impl->priv);
+    }
+
+    CONTINUE(pixel_t *, x, y, z, w);
+}
+
+WRAP_COMMON_PATTERNS(shuffle,
+    .op.op = SWS_OP_SHUFFLE,
+    .setup = fn(setup_shuffle),
+    .flexible = true,
+);
+#endif
+
 #if BIT_DEPTH == 8
 DECL_PATTERN(expand16)
 {
@@ -544,6 +585,7 @@ static const SwsOpTable fn(op_table_int) = {
         fn(op_pack_1010102),
         fn(op_unpack_2101010),
         fn(op_unpack_1010102),
+        REF_COMMON_PATTERNS(shuffle),
 #endif
 
 #ifdef SWAP_BYTES
