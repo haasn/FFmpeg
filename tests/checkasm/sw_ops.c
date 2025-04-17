@@ -338,16 +338,18 @@ static void check_read_write(void)
     }
 }
 
-static void check_swap_bytes(void)
+static void check_shuffle(void)
 {
     CHECK_COMMON("swap_bytes_16", U16, U16, {
-        .op   = SWS_OP_SWAP_BYTES,
+        .op   = SWS_OP_SHUFFLE,
         .type = U16,
+        .shuffle.index = {1, 0},
     });
 
     CHECK_COMMON("swap_bytes_32", U32, U32, {
-        .op   = SWS_OP_SWAP_BYTES,
+        .op   = SWS_OP_SHUFFLE,
         .type = U32,
+        .shuffle.index = {3, 2, 1, 0},
     });
 }
 
@@ -707,8 +709,8 @@ void checkasm_check_sw_ops(void)
 {
     check_read_write();
     report("read_write");
-    check_swap_bytes();
-    report("swap_bytes");
+    check_shuffle();
+    report("shuffle");
     check_pack_unpack();
     report("pack_unpack");
     check_clear();
