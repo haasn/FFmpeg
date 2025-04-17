@@ -249,7 +249,14 @@ DECL_PATTERN(swap_bytes)
     CONTINUE(pixel_t *, x, y, z, w);
 }
 
-WRAP_COMMON_PATTERNS(swap_bytes, .op.op = SWS_OP_SWAP_BYTES);
+WRAP_COMMON_PATTERNS(swap_bytes,
+    .op.op = SWS_OP_SHUFFLE,
+    .op.shuffle.index = {
+        BIT_DEPTH == 32 ? 3 : 1,
+        BIT_DEPTH == 32 ? 2 : 0,
+        BIT_DEPTH == 32 ? 1 : 0,
+    },
+);
 #endif /* SWAP_BYTES */
 
 #if BIT_DEPTH == 8
