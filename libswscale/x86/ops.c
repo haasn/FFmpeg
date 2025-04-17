@@ -57,6 +57,22 @@
         .op.rw = { .elems = ELEMS, .packed = PACKED },                          \
     );
 
+static int setup_shuffle(const SwsOp *op, SwsOpPriv *out)
+{
+    for (int i = 0; i < 8; i++) {
+        out->u8[i]     = op->shuffle.index[i];
+        out->u8[i + 8] = op->shuffle.index[i] + 8;
+    }
+    return 0;
+}
+
+#define DECL_SHUFFLE(EXT)                                                       \
+    DECL_COMMON_PATTERNS(U8, shuffle##EXT,                                      \
+        .op.op = SWS_OP_SHUFFLE,                                                \
+        .setup = setup_shuffle,                                                 \
+        .flexible = true,                                                       \
+    );
+
 /* Don't use DECL_ASM because we want to re-use the same impl for all types */
 #define DEF_CLEAR_ALPHA(EXT, IDX)                                               \
     void ff_clear_alpha##IDX##EXT(const SwsOpExec *, const SwsOpImpl *);
@@ -201,6 +217,7 @@ static int setup_linear(const SwsOp *op, SwsOpPriv *out)
     DECL_RW(EXT, read8_packed, READ, 4, true)                                   \
     DECL_RW(EXT, write8_packed, WRITE, 2, true)                                 \
     DECL_RW(EXT, write8_packed, WRITE, 4, true)                                 \
+    DECL_SHUFFLE(EXT)                                                           \
     DECL_SWIZZLE(EXT, 3, 0, 1, 2)                                               \
     DECL_SWIZZLE(EXT, 3, 0, 2, 1)                                               \
     DECL_SWIZZLE(EXT, 2, 1, 0, 3)                                               \
@@ -261,6 +278,7 @@ static const SwsOpTable ops8##EXT = {                                           
         op_read8_packed4##EXT,                                                  \
         op_write8_packed2##EXT,                                                 \
         op_write8_packed4##EXT,                                                 \
+        REF_COMMON_PATTERNS(shuffle##EXT),                                      \
         op_swizzle_3012##EXT,                                                   \
         op_swizzle_3021##EXT,                                                   \
         op_swizzle_2103##EXT,                                                   \
@@ -452,6 +470,7 @@ static bool op_is_type_invariant(const SwsOp *op)
     case SWS_OP_READ:
     case SWS_OP_WRITE:
         return !op->rw.packed && !op->rw.frac;
+    case SWS_OP_SHUFFLE:
     case SWS_OP_SWIZZLE:
         return true;
     case SWS_OP_CLEAR:
@@ -488,7 +507,16 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsOpChain *chain)
         SwsOp *op = &ops->ops[0];
 
         if (op_is_type_invariant(op)) {
-            block_w *= ff_sws_pixel_type_size(op->type);
+            const int size = ff_sws_pixel_type_size(op->type);
+            if (op->op == SWS_OP_SHUFFLE) {
+                /* We lose information about the shuffle size, so pre-fill the
+                 * entire array here */
+                const int mask = size - 1;
+                for (int i = size; i < 8; i++)
+                    op->shuffle.index[i] = (i & ~mask) + op->shuffle.index[i & mask];
+            }
+
+            block_w *= size;
             op->type = SWS_PIXEL_U8;
         }
 

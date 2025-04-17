@@ -208,10 +208,10 @@ IF V2,  write8_packed4_inner mx2, my2, mz2, mw2, r2 + 128
 %endmacro
 
 ;---------------------------------------------------------
-; Generic byte order shuffle (packed swizzle, endian, etc)
+; Generic byte shuffle (packed swizzle, endian swap, etc)
 
 %macro shuffle 0
-op shuffle_generic
+op shuffle
         VBROADCASTI128 m8, [implq + SwsOpImpl.priv]
         LOAD_CONT r2
 IF X,   pshufb mx, m8
