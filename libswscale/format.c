@@ -25,6 +25,7 @@
 
 #include "format.h"
 #include "csputils.h"
+#include "ops.h"
 #include "ops_internal.h"
 
 #define Q(N) ((AVRational) { N, 1 })
@@ -982,6 +983,17 @@ static SwsPixelType get_packed_type(SwsPackOp pack)
         return SWS_PIXEL_U8;
 }
 
+static SwsShuffleOp swap_bytes(SwsPixelType type)
+{
+    switch (ff_sws_pixel_type_size(type)) {
+    case 2: return (SwsShuffleOp) {{ 1, 0 }};
+    case 4: return (SwsShuffleOp) {{ 3, 2, 1, 0 }};
+    case 8: return (SwsShuffleOp) {{ 7, 6, 5, 4, 3, 2, 1, 0 }};
+    }
+
+    return (SwsShuffleOp) {{ 0 }};
+}
+
 #if HAVE_BIGENDIAN
 #  define NATIVE_ENDIAN_FLAG AV_PIX_FMT_FLAG_BE
 #else
@@ -1009,8 +1021,9 @@ int ff_sws_decode_pixfmt(SwsOpList *ops, enum AVPixelFormat fmt)
 
     if ((desc->flags & AV_PIX_FMT_FLAG_BE) != NATIVE_ENDIAN_FLAG) {
         RET(ff_sws_op_list_append(ops, &(SwsOp) {
-            .op   = SWS_OP_SWAP_BYTES,
-            .type = raw_type,
+            .op      = SWS_OP_SHUFFLE,
+            .type    = raw_type,
+            .shuffle = swap_bytes(raw_type),
         }));
     }
 
@@ -1099,8 +1112,9 @@ int ff_sws_encode_pixfmt(SwsOpList *ops, enum AVPixelFormat fmt)
 
     if ((desc->flags & AV_PIX_FMT_FLAG_BE) != NATIVE_ENDIAN_FLAG) {
         RET(ff_sws_op_list_append(ops, &(SwsOp) {
-            .op   = SWS_OP_SWAP_BYTES,
-            .type = raw_type,
+            .op      = SWS_OP_SHUFFLE,
+            .type    = raw_type,
+            .shuffle = swap_bytes(raw_type),
         }));
     }
 
