@@ -48,12 +48,12 @@ typedef enum SwsOpType {
     /* Input/output handling */
     SWS_OP_READ,            /* gather raw pixels from planes */
     SWS_OP_WRITE,           /* write raw pixels to planes */
-    SWS_OP_SWAP_BYTES,      /* swap byte order (for differing endianness) */
     SWS_OP_UNPACK,          /* split tightly packed data into components */
     SWS_OP_PACK,            /* compress components into tightly packed data */
+    SWS_OP_SHUFFLE,         /* change order of bytes within a pixel value */
 
     /* Pixel manipulation */
-    SWS_OP_CLEAR,           /* clear pixel values */
+    SWS_OP_CLEAR,           /* clear pixel values (q4) */
     SWS_OP_LSHIFT,          /* logical left shift of raw pixel values by (u8) */
     SWS_OP_RSHIFT,          /* right shift of raw pixel values by (u8) */
     SWS_OP_SWIZZLE,         /* rearrange channel order, or duplicate channels */
@@ -110,6 +110,13 @@ typedef struct SwsReadWriteOp {
 typedef struct SwsPackOp {
     int pattern[4]; /* bit depth pattern, from MSB to LSB */
 } SwsPackOp;
+
+typedef struct SwsShuffleOp {
+    /* Byte shuffle index. Only sizeof(pixel type) indices are active.
+     *   Out[x] := In[shuffle.order[x]] in memory order (ascending bytes)
+     */
+    uint8_t index[8];
+} SwsShuffleOp;
 
 typedef struct SwsSwizzleOp {
     /**
@@ -182,6 +189,7 @@ typedef struct SwsOp {
     union {
         SwsReadWriteOp  rw;
         SwsPackOp       pack;
+        SwsShuffleOp    shuffle;
         SwsSwizzleOp    swizzle;
         SwsConvertOp    convert;
         SwsDitherOp     dither;

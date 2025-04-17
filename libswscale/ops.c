@@ -115,7 +115,7 @@ SwsPixelType ff_sws_pixel_type_to_uint(SwsPixelType type)
 static bool op_type_is_independent(SwsOpType op)
 {
     switch (op) {
-    case SWS_OP_SWAP_BYTES:
+    case SWS_OP_SHUFFLE:
     case SWS_OP_LSHIFT:
     case SWS_OP_RSHIFT:
     case SWS_OP_CONVERT:
@@ -162,6 +162,22 @@ static AVRational expand_factor(SwsPixelType from, SwsPixelType to)
     return Q(scale);
 }
 
+static uint16_t shuffle16(uint16_t x, SwsShuffleOp shuffle)
+{
+    union { uint16_t u16; uint8_t u8[2]; } out, in = { .u16 = x };
+    for (int i = 0; i < 2; i++)
+        out.u8[i] = in.u8[shuffle.index[i]];
+    return out.u16;
+}
+
+static uint32_t shuffle32(uint32_t x, SwsShuffleOp shuffle)
+{
+    union { uint32_t u32; uint8_t u8[4]; } out, in = { .u32 = x };
+    for (int i = 0; i < 4; i++)
+        out.u8[i] = in.u8[shuffle.index[i]];
+    return out.u32;
+}
+
 void ff_sws_apply_op_q(const SwsOp *op, AVRational x[4])
 {
     switch (op->op) {
@@ -189,15 +205,15 @@ void ff_sws_apply_op_q(const SwsOp *op, AVRational x[4])
         x[0] = Q(val);
         return;
     }
-    case SWS_OP_SWAP_BYTES:
+    case SWS_OP_SHUFFLE:
         switch (ff_sws_pixel_type_size(op->type)) {
         case 2:
             for (int i = 0; i < 4; i++)
-                x[i].num = av_bswap16(x[i].num);
+                x[i].num = shuffle16(x[i].num, op->shuffle);
             break;
         case 4:
             for (int i = 0; i < 4; i++)
-                x[i].num = av_bswap32(x[i].num);
+                x[i].num = shuffle32(x[i].num, op->shuffle);
             break;
         }
         return;
@@ -278,7 +294,7 @@ void ff_sws_apply_op_q(const SwsOp *op, AVRational x[4])
  * `op->linear.mask`, but may not contain any columns explicitly ignored by
  * `op->comps.unused`.
  *
- * For SWS_OP_READ, SWS_OP_WRITE, SWS_OP_SWAP_BYTES and SWS_OP_SWIZZLE, the
+ * For SWS_OP_READ, SWS_OP_WRITE, SWS_OP_SHUFFLE and SWS_OP_SWIZZLE, the
  * exact type is not checked, just the size.
  *
  * Components set in `next.unused` are ignored when matching. If `flexible`
@@ -288,6 +304,7 @@ void ff_sws_apply_op_q(const SwsOp *op, AVRational x[4])
 static int op_match(const SwsOp *op, const SwsOpEntry *entry, const SwsComps next)
 {
     const SwsOp *ref = &entry->op;
+    const int size = ff_sws_pixel_type_size(op->type);
     int score = 10;
     if (op->op != ref->op)
         return 0;
@@ -295,10 +312,10 @@ static int op_match(const SwsOp *op, const SwsOpEntry *entry, const SwsComps nex
     switch (op->op) {
     case SWS_OP_READ:
     case SWS_OP_WRITE:
-    case SWS_OP_SWAP_BYTES:
+    case SWS_OP_SHUFFLE:
     case SWS_OP_SWIZZLE:
         /* Only the size matters for these operations */
-        if (ff_sws_pixel_type_size(op->type) != ff_sws_pixel_type_size(ref->type))
+        if (size != ff_sws_pixel_type_size(ref->type))
             return 0;
         break;
     default:
@@ -340,7 +357,11 @@ static int op_match(const SwsOp *op, const SwsOpEntry *entry, const SwsComps nex
             op->rw.frac   != ref->rw.frac)
             return 0;
         return score;
-    case SWS_OP_SWAP_BYTES:
+    case SWS_OP_SHUFFLE:
+        for (int i = 0; i < size; i++) {
+            if (op->shuffle.index[i] != ref->shuffle.index[i])
+                return 0;
+        }
         return score;
     case SWS_OP_PACK:
     case SWS_OP_UNPACK:
@@ -608,6 +629,7 @@ void ff_sws_op_list_print(void *log, int lev, const SwsOpList *ops)
 
     for (int i = 0; i < ops->num_ops; i++) {
         const SwsOp *op = &ops->ops[i];
+        const int size = ff_sws_pixel_type_size(op->type);
         av_log(log, lev, "  [%3s %c%c%c%c -> %c%c%c%c] ",
                ff_sws_pixel_type_name(op->type),
                op->comps.unused[0] ? 'X' : '.',
@@ -631,8 +653,12 @@ void ff_sws_op_list_print(void *log, int lev, const SwsOpList *ops)
                    op->rw.elems,  op->rw.packed ? "packed" : "planar",
                    op->rw.frac);
             break;
-        case SWS_OP_SWAP_BYTES:
-            av_log(log, lev, "SWS_OP_SWAP_BYTES\n");
+        case SWS_OP_SHUFFLE:
+            av_log(log, lev, "%-20s: {%d %d %d %d %d %d %d %d}\n", "SWS_OP_SHUFFLE",
+                   op->shuffle.index[0 % size], op->shuffle.index[1 % size],
+                   op->shuffle.index[2 % size], op->shuffle.index[3 % size],
+                   op->shuffle.index[4 % size], op->shuffle.index[5 % size],
+                   op->shuffle.index[6 % size], op->shuffle.index[7 % size]);
             break;
         case SWS_OP_LSHIFT:
             av_log(log, lev, "%-20s: << %u\n", "SWS_OP_LSHIFT", op->c.u);
@@ -756,7 +782,7 @@ static void op_list_update_comps(SwsOpList *ops)
             for (int i = 0; i < op->rw.elems; i++)
                 av_assert1(!(prev.flags[i] & SWS_COMP_GARBAGE));
             /* fall through */
-        case SWS_OP_SWAP_BYTES:
+        case SWS_OP_SHUFFLE:
         case SWS_OP_LSHIFT:
         case SWS_OP_RSHIFT:
         case SWS_OP_MIN:
@@ -872,7 +898,7 @@ static void op_list_update_comps(SwsOpList *ops)
             for (int i = op->rw.elems; i < 4; i++)
                 op->comps.unused[i] |= next.unused[i];
             break;
-        case SWS_OP_SWAP_BYTES:
+        case SWS_OP_SHUFFLE:
         case SWS_OP_LSHIFT:
         case SWS_OP_RSHIFT:
         case SWS_OP_CONVERT:
@@ -1076,6 +1102,7 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
             SwsOp *op = &ops->ops[n];
             SwsOp *prev = n ? &ops->ops[n - 1] : &dummy;
             SwsOp *next = n + 1 < ops->num_ops ? &ops->ops[n + 1] : &dummy;
+            const int size = ff_sws_pixel_type_size(op->type);
 
             /* common helper variables */
             bool changed = false;
@@ -1108,10 +1135,23 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
                 }
                 break;
 
-            case SWS_OP_SWAP_BYTES:
-                /* Redundant (double) swap */
-                if (next->op == SWS_OP_SWAP_BYTES) {
-                    ff_sws_op_list_remove_at(ops, n, 2);
+            case SWS_OP_SHUFFLE:
+                for (int i = 0; i < size; i++) {
+                    if (op->shuffle.index[i] != i)
+                        noop = false;
+                }
+
+                if (noop) {
+                    ff_sws_op_list_remove_at(ops, n, 1);
+                    continue;
+                }
+
+                /* Transitive shuffle */
+                if (next->op == SWS_OP_SHUFFLE && next->type == op->type) {
+                    const SwsShuffleOp orig = op->shuffle;
+                    for (int i = 0; i < 4; i++)
+                        op->shuffle.index[i] = orig.index[next->shuffle.index[i]];
+                    ff_sws_op_list_remove_at(ops, n + 1, 1);
                     continue;
                 }
                 break;
@@ -1194,9 +1234,7 @@ int ff_sws_op_list_optimize(SwsOpList *ops)
 
                 /* Prefer to clear as late as possible, to avoid doing
                  * redundant work */
-                if ((op_type_is_independent(next->op) && next->op != SWS_OP_SWAP_BYTES) ||
-                    next->op == SWS_OP_SWIZZLE)
-                {
+                if (op_type_is_independent(next->op) || next->op == SWS_OP_SWIZZLE) {
                     if (next->op == SWS_OP_CONVERT)
                         op->type = next->convert.to;
                     ff_sws_apply_op_q(next, op->c.q4);
