@@ -338,21 +338,6 @@ static void check_read_write(void)
     }
 }
 
-static void check_shuffle(void)
-{
-    CHECK_COMMON("swap_bytes_16", U16, U16, {
-        .op   = SWS_OP_SHUFFLE,
-        .type = U16,
-        .shuffle.index = {1, 0},
-    });
-
-    CHECK_COMMON("swap_bytes_32", U32, U32, {
-        .op   = SWS_OP_SHUFFLE,
-        .type = U32,
-        .shuffle.index = {3, 2, 1, 0},
-    });
-}
-
 static void check_pack_unpack(void)
 {
     const struct {
@@ -482,46 +467,67 @@ static void check_shift(void)
     }
 }
 
+static const int swizzles[][4] = {
+    /* Pure swizzle */
+    {3, 0, 1, 2},
+    {3, 0, 2, 1},
+    {2, 1, 0, 3},
+    {3, 2, 1, 0},
+    {3, 1, 0, 2},
+    {3, 2, 0, 1},
+    {1, 2, 0, 3},
+    {1, 0, 2, 3},
+    {2, 0, 1, 3},
+    {2, 3, 1, 0},
+    {2, 1, 3, 0},
+    {1, 2, 3, 0},
+    {1, 3, 2, 0},
+    {0, 2, 1, 3},
+    {0, 2, 3, 1},
+    {0, 3, 1, 2},
+    {3, 1, 2, 0},
+    {0, 3, 2, 1},
+    /* Luma expansion */
+    {0, 0, 0, 3},
+    {3, 0, 0, 0},
+    {0, 0, 0, 1},
+    {1, 0, 0, 0},
+};
+
 static void check_swizzle(void)
 {
     for (SwsPixelType t = U8; t < SWS_PIXEL_TYPE_NB; t++) {
         const char *type = ff_sws_pixel_type_name(t);
-        static const int patterns[][4] = {
-            /* Pure swizzle */
-            {3, 0, 1, 2},
-            {3, 0, 2, 1},
-            {2, 1, 0, 3},
-            {3, 2, 1, 0},
-            {3, 1, 0, 2},
-            {3, 2, 0, 1},
-            {1, 2, 0, 3},
-            {1, 0, 2, 3},
-            {2, 0, 1, 3},
-            {2, 3, 1, 0},
-            {2, 1, 3, 0},
-            {1, 2, 3, 0},
-            {1, 3, 2, 0},
-            {0, 2, 1, 3},
-            {0, 2, 3, 1},
-            {0, 3, 1, 2},
-            {3, 1, 2, 0},
-            {0, 3, 2, 1},
-            /* Luma expansion */
-            {0, 0, 0, 3},
-            {3, 0, 0, 0},
-            {0, 0, 0, 1},
-            {1, 0, 0, 0},
-        };
-
-        for (int i = 0; i < FF_ARRAY_ELEMS(patterns); i++) {
-            const int x = patterns[i][0], y = patterns[i][1],
-                      z = patterns[i][2], w = patterns[i][3];
+        for (int i = 0; i < FF_ARRAY_ELEMS(swizzles); i++) {
+            const int x = swizzles[i][0], y = swizzles[i][1],
+                      z = swizzles[i][2], w = swizzles[i][3];
             CHECK(FMT("swizzle_%d%d%d%d_%s", x, y, z, w, type), 4, 4, t, t, {
                 .op = SWS_OP_SWIZZLE,
                 .type = t,
                 .swizzle = SWS_SWIZZLE(x, y, z, w),
             });
         }
+    }
+}
+
+static void check_shuffle(void)
+{
+    /* Only one possible 16-bit shuffle */
+    CHECK_COMMON("shuffle_10_u16", U16, U16, {
+        .op   = SWS_OP_SHUFFLE,
+        .type = U16,
+        .shuffle.index = {1, 0},
+    });
+
+    /* Check all possible 4-element swizzles */
+    for (int i = 0; i < FF_ARRAY_ELEMS(swizzles); i++) {
+        const int x = swizzles[i][0], y = swizzles[i][1],
+                  z = swizzles[i][2], w = swizzles[i][3];
+        CHECK_COMMON(FMT("shuffle_%d%d%d%d_u32", x, y, z, w), U32, U32, {
+            .type    = U32,
+            .op      = SWS_OP_SHUFFLE,
+            .shuffle = {{x, y, z, w}},
+        });
     }
 }
 
