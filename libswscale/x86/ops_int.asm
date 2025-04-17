@@ -434,6 +434,31 @@ op swizzle_1000
     CONTINUE r2
 %endmacro
 
+%macro packed_swizzle 0
+op packed_swizzle
+    mov r2, [execq + SwsOpExec.in0]
+    mov r3, [execq + SwsOpExec.out0]
+    VBROADCASTI128 m8, [implq + SwsOpImpl.priv]
+%assign offset 4
+%rep 4
+    movu m0, [r2 + (offset + 0) * mmsize]
+    movu m1, [r2 + (offset + 1) * mmsize]
+    movu m2, [r2 + (offset + 2) * mmsize]
+    movu m3, [r2 + (offset + 3) * mmsize]
+    pshufb m0, m0, m8
+    pshufb m1, m1, m8
+    pshufb m2, m2, m8
+    pshufb m3, m3, m8
+    movu [r3 + (offset + 0) * mmsize], m0
+    movu [r3 + (offset + 1) * mmsize], m1
+    movu [r3 + (offset + 2) * mmsize], m2
+    movu [r3 + (offset + 3) * mmsize], m3
+%assign offset offset + 4
+%endrep
+%undef offset
+    RET
+%endmacro
+
 ;---------------------------------------------------------
 ; Pixel type conversions
 
@@ -657,12 +682,14 @@ IF W,   psrlw mw2, xm8
 INIT_XMM ssse3
 decl_v2 0, funcs_u8
 decl_v2 1, funcs_u8
+packed_swizzle
 
 INIT_YMM avx2
 decl_v2 0, funcs_u8
 decl_v2 1, funcs_u8
 decl_v2 0, funcs_u16
 decl_v2 1, funcs_u16
+packed_swizzle
 
 INIT_YMM avx2
 decl_common_patterns conv8to32 convert

@@ -100,6 +100,30 @@ static int setup_shuffle(const SwsOp *op, SwsOpPriv *out)
         .flexible = true,                                                       \
     );
 
+static int setup_packed_swizzle(const SwsOp *op, SwsOpPriv *out)
+{
+    for (int i = 0; i < 16; i++)
+        out->u8[i] = (i & ~3) + op->swizzle.in[i & 3];
+    return 0;
+}
+
+#define DECL_PACKED_SWIZZLE(SIZE, EXT, FLAG)                                    \
+    DECL_ASM(U8, packed_swizzle##EXT,                                           \
+        .op.op = SWS_OP_SWIZZLE,                                                \
+        .setup = setup_packed_swizzle,                                          \
+        .flexible = true,                                                       \
+    );                                                                          \
+                                                                                \
+static const SwsOpTable packed_swizzle##EXT = {                                 \
+    .cpu_flags = AV_CPU_FLAG_##FLAG,                                            \
+    .block_w = SIZE,                                                            \
+    .block_h = 1,                                                               \
+    .entries = {                                                                \
+        op_packed_swizzle##EXT,                                                 \
+        {{0}}                                                                   \
+    },                                                                          \
+};
+
 #define DECL_SWIZZLE(EXT, X, Y, Z, W)                                           \
     DECL_ASM(U8, swizzle_##X##Y##Z##W##EXT,                                     \
         .op.op = SWS_OP_SWIZZLE,                                                \
@@ -449,6 +473,9 @@ DECL_FUNCS_16(32, _m2_avx2, AVX2)
 
 DECL_FUNCS_32(16, _avx2,    AVX2)
 
+DECL_PACKED_SWIZZLE(64,  _ssse3, SSSE3)
+DECL_PACKED_SWIZZLE(128, _avx2,  AVX2)
+
 static av_const int get_mmsize(void)
 {
     const int cpu_flags = av_get_cpu_flags();
@@ -485,6 +512,21 @@ static bool op_is_type_invariant(const SwsOp *op)
     return false;
 }
 
+
+static bool is_packed_swizzle(const SwsOpList *ops)
+{
+    const SwsOp *read  = &ops->ops[0];
+    const SwsOp *op    = &ops->ops[1];
+    const SwsOp *write = &ops->ops[2];
+    return ops->num_ops == 3 &&
+           read->type == write->type &&
+           read->rw.packed && write->rw.packed &&
+           read->rw.elems == write->rw.elems &&
+           !read->rw.frac && !write->rw.frac &&
+           op->op == SWS_OP_SWIZZLE &&
+           op->type == SWS_PIXEL_U8;
+}
+
 static int compile(SwsContext *ctx, SwsOpList *ops, SwsOpChain *chain)
 {
     int ret;
@@ -498,9 +540,23 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsOpChain *chain)
         &ops32_avx2,
     };
 
+    static const SwsOpTable *const tables_shuf[] = {
+        &packed_swizzle_ssse3,
+        &packed_swizzle_avx2,
+    };
+
     /* Use at most two full vregs during the widest precision section */
     chain->block_w = 2 * get_mmsize() / ff_sws_op_list_max_size(ops);
     chain->block_h = 1;
+
+    /* Special fast path for in-place packed swizzle */
+    if (is_packed_swizzle(ops)) {
+        ops->ops++;
+        ops->num_ops = 1;
+        chain->block_w = 4 * get_mmsize();
+        return ff_sws_op_compile_tables(tables_shuf, FF_ARRAY_ELEMS(tables_shuf),
+                                        ops, chain->block_w, chain->block_h, chain);
+    }
 
     do {
         int block_w = chain->block_w, block_h = chain->block_h;
