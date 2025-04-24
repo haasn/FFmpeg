@@ -164,3 +164,14 @@ endstruc
         %2
     %endif
 %endmacro
+
+; move at least N pixels
+%macro MOVSZ 2+ ; size, args
+    %if %1 <= 4
+        movd %2
+    %elif %1 <= 8
+        movq %2
+    %else
+        movu %2
+    %endif
+%endmacro

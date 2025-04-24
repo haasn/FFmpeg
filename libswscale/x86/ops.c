@@ -494,7 +494,7 @@ static bool op_is_type_invariant(const SwsOp *op)
 
 /* Tries to reduce a series of operations to an in-place shuffle mask.
  * Returns the block size, 0 or a negative error code. */
-static int solve_shuffle(const SwsOpList *ops, SwsFunc *func, uint8_t shuffle[16])
+static int solve_shuffle(const SwsOpList *ops, SwsOpChain *chain, int mmsize)
 {
     const SwsOp read = ops->ops[0];
     const int read_size = ff_sws_pixel_type_size(read.type);
@@ -503,7 +503,7 @@ static int solve_shuffle(const SwsOpList *ops, SwsFunc *func, uint8_t shuffle[16
     if (!ops->num_ops || read.op != SWS_OP_READ)
         return AVERROR(EINVAL);
     if (read.rw.frac || (!read.rw.packed && read.rw.elems > 1))
-        return 0;
+        return AVERROR(ENOTSUP);
 
     for (int i = 0; i < read.rw.elems; i++)
         mask[i] = 0x01010101 * i * read_size + 0x03020100;
@@ -532,14 +532,14 @@ static int solve_shuffle(const SwsOpList *ops, SwsFunc *func, uint8_t shuffle[16
                 if (!op->c.q4[i].den)
                     continue;
                 if (op->c.q4[i].num != 0)
-                    return 0;
+                    return AVERROR(ENOTSUP);
                 mask[i] = 0x80808080ul; /* pshufb implicit clear to zero */
             }
             break;
 
         case SWS_OP_CONVERT: {
             if (!op->convert.expand)
-                return 0;
+                return AVERROR(ENOTSUP);
             for (int i = 0; i < 4; i++) {
                 switch (ff_sws_pixel_type_size(op->type)) {
                 case 1: mask[i] = 0x01010101 * (mask[i] & 0xFF);   break;
@@ -550,54 +550,73 @@ static int solve_shuffle(const SwsOpList *ops, SwsFunc *func, uint8_t shuffle[16
         }
 
         case SWS_OP_WRITE: {
+            if (op->rw.frac || !op->rw.packed)
+                return AVERROR(ENOTSUP);
+
+            /* Initialize to no-op */
+            SwsOpPriv priv;
+            SwsFunc func = NULL;
+            for (int i = 0; i < 16; i++)
+                priv.u8[i] = 0x80;
+
             const int write_size  = ff_sws_pixel_type_size(op->type);
             const int read_chunk  = read.rw.elems * read_size;
             const int write_chunk = op->rw.elems * write_size;
-            const int num_groups  = 16 / FFMAX(read_chunk, write_chunk);
-            const int in_total    = num_groups * read_chunk;
-            const int out_total   = num_groups * write_chunk;
-            if (op->rw.frac || !op->rw.packed)
-                return 0;
-
-            /* Initialize to no-op */
-            for (int i = 0; i < 16; i++)
-                shuffle[i] = i;
-
-            for (int n = 0; n < num_groups; n++) {
+            const int groups_per_lane = 16 / FFMAX(read_chunk, write_chunk);
+            for (int n = 0; n < groups_per_lane; n++) {
                 const int base_in  = n * read_chunk;
                 const int base_out = n * write_chunk;
                 for (int i = 0; i < op->rw.elems; i++) {
                     const int offset = base_out + i * write_size;
                     for (int b = 0; b < write_size; b++)
-                        shuffle[offset + b] = base_in + (mask[i] >> (b * 8));
+                        priv.u8[offset + b] = base_in + (mask[i] >> (b * 8));
                 }
             }
 
-#define ASSIGN_SHUFFLE_FUNC(IN, OUT)                                            \
+            const int in_per_lane  = groups_per_lane * read_chunk;
+            const int out_per_lane = groups_per_lane * write_chunk;
+            if (in_per_lane < 16 || out_per_lane < 16)
+                mmsize = 16; /* avoid cross-lane shuffle */
+
+            const int num_lanes = mmsize / 16;
+            const int in_total  = num_lanes * in_per_lane;
+            const int out_total = num_lanes * out_per_lane;
+
+#define ASSIGN_SHUFFLE_FUNC(IN, OUT, EXT)                                       \
 do {                                                                            \
-    DECL_FUNC(packed_shuffle##IN##_##OUT##_sse4);                               \
+    DECL_FUNC(packed_shuffle##IN##_##OUT##_##EXT);                              \
     if (in_total == IN && out_total == OUT)                                     \
-        *func = ff_packed_shuffle##IN##_##OUT##_sse4;                           \
+        func = ff_packed_shuffle##IN##_##OUT##_##EXT;                           \
 } while (0)
 
-            ASSIGN_SHUFFLE_FUNC( 5, 15);
-            ASSIGN_SHUFFLE_FUNC( 4, 16);
-            ASSIGN_SHUFFLE_FUNC( 2, 12);
-            ASSIGN_SHUFFLE_FUNC(10, 15);
-            ASSIGN_SHUFFLE_FUNC( 8, 16);
-            ASSIGN_SHUFFLE_FUNC( 4, 12);
-            ASSIGN_SHUFFLE_FUNC(15, 15);
-            ASSIGN_SHUFFLE_FUNC(12, 16);
-            ASSIGN_SHUFFLE_FUNC( 6, 12);
-            ASSIGN_SHUFFLE_FUNC(16, 12);
-            ASSIGN_SHUFFLE_FUNC(16, 16);
-            ASSIGN_SHUFFLE_FUNC( 8, 12);
-            ASSIGN_SHUFFLE_FUNC(12, 12);
-            return out_total;
+            ASSIGN_SHUFFLE_FUNC( 5, 15, sse4);
+            ASSIGN_SHUFFLE_FUNC( 4, 16, sse4);
+            ASSIGN_SHUFFLE_FUNC( 2, 12, sse4);
+            ASSIGN_SHUFFLE_FUNC(10, 15, sse4);
+            ASSIGN_SHUFFLE_FUNC( 8, 16, sse4);
+            ASSIGN_SHUFFLE_FUNC( 4, 12, sse4);
+            ASSIGN_SHUFFLE_FUNC(15, 15, sse4);
+            ASSIGN_SHUFFLE_FUNC(12, 16, sse4);
+            ASSIGN_SHUFFLE_FUNC( 6, 12, sse4);
+            ASSIGN_SHUFFLE_FUNC(16, 12, sse4);
+            ASSIGN_SHUFFLE_FUNC(16, 16, sse4);
+            ASSIGN_SHUFFLE_FUNC( 8, 12, sse4);
+            ASSIGN_SHUFFLE_FUNC(12, 12, sse4);
+            ASSIGN_SHUFFLE_FUNC(32, 32, avx2);
+            if (!func)
+                return AVERROR(ENOTSUP);
+
+            const int regs = 4 * 4; /* four reps of 4 regs per iter */
+            const int tail = in_total <= 4 ? 4 : in_total <= 8 ? 8 : mmsize;
+
+            chain->block_size  = regs * groups_per_lane * num_lanes;
+            chain->read_bytes  = (regs - 1) * in_total  + tail;
+            chain->write_bytes = (regs - 1) * out_total + mmsize;
+            return ff_sws_op_chain_append(chain, func, NULL, priv);
         }
 
         default:
-            return 0;
+            return AVERROR(ENOTSUP);
         }
     }
 
@@ -633,8 +652,9 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsOpChain *chain)
 {
     const int cpu_flags = av_get_cpu_flags();
     const int mmsize = get_mmsize(cpu_flags);
-    SwsOpPriv priv = {0};
-    SwsFunc func = NULL;
+    av_assert1(ops->num_ops > 0);
+    const SwsOp read = ops->ops[0];
+    const SwsOp write = ops->ops[ops->num_ops - 1];
     int ret;
 
     if (mmsize < 0)
@@ -651,13 +671,23 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsOpChain *chain)
     };
 
     /* Special fast path for in-place packed shuffle */
-    if ((ret = solve_shuffle(ops, &func, priv.u8)) > 0) {
-        chain->block_size = 4 * ret / ff_sws_op_list_max_size(ops);
-        return ff_sws_op_chain_append(chain, func, NULL, priv);
-    }
+    ret = solve_shuffle(ops, chain, mmsize);
+    if (ret != AVERROR(ENOTSUP))
+        return ret;
 
     /* Use at most two full vregs during the widest precision section */
     chain->block_size = 2 * mmsize / ff_sws_op_list_max_size(ops);
+
+    /* 3-component reads/writes process one extra garbage word */
+    if (read.rw.packed && read.rw.elems == 3) {
+        const int pixel_size = 3 * ff_sws_pixel_type_size(read.type);
+        chain->read_bytes = chain->block_size * pixel_size + 4;
+    }
+
+    if (write.rw.packed && write.rw.elems == 3) {
+        const int pixel_size = 3 * ff_sws_pixel_type_size(write.type);
+        chain->write_bytes = chain->block_size * pixel_size + 4;
+    }
 
     do {
         int block_size = chain->block_size;

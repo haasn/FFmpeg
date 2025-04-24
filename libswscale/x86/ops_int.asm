@@ -564,17 +564,10 @@ op packed_shuffle%1_%2
         VBROADCASTI128 m8, [implq + SwsOpImpl.priv]
 %assign offset 0
 %rep 4
-    %if %1 == 8
-        vpbroadcastq m0, [r2 + (offset + 0) * %1]
-        vpbroadcastq m1, [r2 + (offset + 1) * %1]
-        vpbroadcastq m2, [r2 + (offset + 2) * %1]
-        vpbroadcastq m3, [r2 + (offset + 3) * %1]
-    %else
-        movu m0, [r2 + (offset + 0) * %1]
-        movu m1, [r2 + (offset + 1) * %1]
-        movu m2, [r2 + (offset + 2) * %1]
-        movu m3, [r2 + (offset + 3) * %1]
-    %endif
+        MOVSZ %1, m0, [r2 + (offset + 0) * %1]
+        MOVSZ %1, m1, [r2 + (offset + 1) * %1]
+        MOVSZ %1, m2, [r2 + (offset + 2) * %1]
+        MOVSZ %1, m3, [r2 + (offset + 3) * %1]
         pshufb m0, m0, m8
         pshufb m1, m1, m8
         pshufb m2, m2, m8
@@ -841,6 +834,8 @@ decl_v2 0, funcs_u8
 decl_v2 1, funcs_u8
 decl_v2 0, funcs_u16
 decl_v2 1, funcs_u16
+
+packed_shuffle 32, 32
 
 INIT_YMM avx2
 decl_v2 1, rw_packed 32
