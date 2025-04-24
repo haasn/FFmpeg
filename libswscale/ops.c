@@ -1558,7 +1558,7 @@ static void op_pass_setup(const SwsImg *out, const SwsImg *in, const SwsPass *pa
     }
 
     if (can_fuse) {
-        av_log(pass->graph->ctx, AV_LOG_DEBUG,
+        av_log(pass->graph->ctx, AV_LOG_TRACE,
                "Fusing together %d lines of %d blocks into %dx%d = %d blocks\n",
                h, p->num_blocks, h, fused_blocks, h * fused_blocks);
         av_assert1(fused_blocks > 0);
@@ -1603,7 +1603,6 @@ run_main(const SwsOpPass *p, const SwsImg *out_base, const SwsImg *in_base,
     }
 }
 
-
 /* Dispatch kernel over the last column part of the image using memcpy
  * into a padded buffer */
 static av_always_inline void
@@ -1611,6 +1610,8 @@ run_tail(const SwsOpPass *p, const SwsImg *out_base, const bool copy_out,
          const SwsImg *in_base, const bool copy_in, const int y_start,
          const int y_end, const int x_tail)
 {
+    DECLARE_ALIGNED_64(uint8_t, tmp)[2][4][sizeof(uint32_t[128])];
+
     const SwsOpImpl *const impl = p->chain.impl;
     const SwsFunc entry = p->chain.entry;
     SwsOpExec exec = p->exec_base;
@@ -1621,17 +1622,14 @@ run_tail(const SwsOpPass *p, const SwsImg *out_base, const bool copy_out,
     const int rest_size_in  = (rest_w * p->pixel_bits_in  + 7) >> 3;
     const int rest_size_out = (rest_w * p->pixel_bits_out + 7) >> 3;
 
-    DECLARE_ALIGNED_64(uint8_t, tmp)[2][4][64 * sizeof(uint32_t)];
-    av_assert1(rest_w <= 64);
-
     exec.x = x_tail;
     for (int i = 0; i < 4; i++) {
         if (copy_in) {
-            exec.in[i] = tmp[0][i];
+            exec.in[i] = (void *) tmp[0][i];
             exec.in_stride[i] = sizeof(tmp[0][i]);
         }
         if (copy_out) {
-            exec.out[i] = tmp[1][i];
+            exec.out[i] = (void *) tmp[1][i];
             exec.out_stride[i] = sizeof(tmp[1][i]);
         }
     }
@@ -1647,15 +1645,19 @@ run_tail(const SwsOpPass *p, const SwsImg *out_base, const bool copy_out,
         }
 
         if (copy_in) {
-            for (int i = 0; i < 4 && in.data[i]; i++)
+            for (int i = 0; i < 4 && in.data[i]; i++) {
+                av_assert2(tmp[0][i] + rest_size_in < (uint8_t *) tmp[1]);
                 memcpy(tmp[0][i], in.data[i] + offset_in, rest_size_in);
+            }
         }
 
         entry(&exec, impl);
 
         if (copy_out) {
-            for (int i = 0; i < 4 && out.data[i]; i++)
+            for (int i = 0; i < 4 && out.data[i]; i++) {
+                av_assert2(tmp[1][i] + rest_size_out < (uint8_t *) tmp[2]);
                 memcpy(out.data[i] + offset_out, tmp[1][i], rest_size_out);
+            }
         }
     }
 }
