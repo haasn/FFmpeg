@@ -1482,6 +1482,7 @@ typedef struct SwsOpPass {
     int pixel_bits_in;
     int pixel_bits_out;
     int num_blocks;
+    int fused_blocks;
     bool memcpy_in;
     bool memcpy_out;
 } SwsOpPass;
@@ -1502,43 +1503,66 @@ static void op_pass_free(void *ptr)
     av_free(p);
 }
 
-/* Processing extra pixels is fine as long as they're within linesize */
-static int safe_width(const SwsImg *img, const int pixel_bits)
-{
-    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(img->fmt);
-    int safe_w_min = INT_MAX;
-
-    for (int i = 0; i < 4; i++) {
-        const int sub_x  = (i == 1 || i == 2) ? desc->log2_chroma_w : 0;
-        const int safe_w = (img->linesize[i] * 8) / pixel_bits << sub_x;
-        if (!img->linesize[i])
-            continue;
-        av_assert2(safe_w > 0);
-        safe_w_min = FFMIN(safe_w_min, safe_w);
-    }
-
-    return safe_w_min;
-}
-
 static void op_pass_setup(const SwsImg *out, const SwsImg *in, const SwsPass *pass)
 {
+    const AVPixFmtDescriptor *indesc  = av_pix_fmt_desc_get(in->fmt);
+    const AVPixFmtDescriptor *outdesc = av_pix_fmt_desc_get(out->fmt);
+
     SwsOpPass *p = pass->priv;
     SwsOpExec *exec = &p->exec_base;
-    const int w = pass->width;
-
     const SwsOpChain *chain = &p->chain;
-    const int num_blocks  = (w + exec->block_size - 1) / exec->block_size;
-    const int read_width  = num_blocks * chain->read_size;
-    const int write_width = num_blocks * chain->write_size;
+    const int w = pass->width;
+    const int h = pass->height;
 
     /* Set up main loop parameters */
-    p->num_blocks = (w + exec->block_size - 1) / exec->block_size;
-    p->memcpy_in  = read_width  > safe_width(in,  p->pixel_bits_in);
-    p->memcpy_out = write_width > safe_width(out, p->pixel_bits_out);
+    p->num_blocks = (w + chain->block_size - 1) / chain->block_size;
+    p->memcpy_in  = false;
+    p->memcpy_out = false;
 
-    for (int i = 0; i < 4; i++) {
-        exec->in_stride[i]  = in->linesize[i];
+    /**
+     * Check if we can fuse subsequent lines into a single long line. This
+     * requires the following conditions be met:
+     * - The linesize must be a multiple of the block size
+     * - The number of extra blocks must be the same for all planes
+     */
+    bool can_fuse = true;
+    int fused_blocks = 0;
+
+    for (int i = 0; i < 4 && in->data[i]; i++) {
+        const int sub_x = (i == 1 || i == 2) ? indesc->log2_chroma_w : 0;
+        const int block_w = (chain->block_size + sub_x) >> sub_x;
+        /* Over-read only matters for the last block */
+        const int block_size = (block_w * p->pixel_bits_in) >> 3;
+        const int read_size  = (chain->read_bytes + sub_x) >> sub_x;
+        const int total_read = (p->num_blocks - 1) * block_size + read_size;
+        p->memcpy_in |= total_read > in->linesize[i]; /* over-read */
+        exec->in_stride[i] = in->linesize[i];
+
+        const int blocks = in->linesize[i] / block_size;
+        if (!fused_blocks)
+            fused_blocks = blocks;
+        can_fuse &= blocks * read_size == in->linesize[i] && fused_blocks == blocks;
+    }
+
+    for (int i = 0; i < 4 && out->data[i]; i++) {
+        const int sub_x = (i == 1 || i == 2) ? outdesc->log2_chroma_w : 0;
+        const int block_w = (chain->block_size + sub_x) >> sub_x;
+        const int block_size = (block_w * p->pixel_bits_out) >> 3;
+        const int write_size = (chain->write_bytes + sub_x) >> sub_x;
+        const int total_write = (p->num_blocks - 1) * block_size + write_size;
+        p->memcpy_out |= total_write > out->linesize[i]; /* over-write */
         exec->out_stride[i] = out->linesize[i];
+
+        const int blocks = out->linesize[i] / block_size;
+        can_fuse &= blocks * write_size == out->linesize[i] && fused_blocks == blocks;
+    }
+
+    if (can_fuse) {
+        av_log(pass->graph->ctx, AV_LOG_DEBUG,
+               "Fusing together %d lines of %d blocks into %dx%d = %d blocks\n",
+               h, p->num_blocks, h, fused_blocks, h * fused_blocks);
+        av_assert1(fused_blocks > 0);
+        p->fused_blocks = fused_blocks;
     }
 }
 
@@ -1553,6 +1577,12 @@ run_main(const SwsOpPass *p, const SwsImg *out_base, const SwsImg *in_base,
 
     const ptrdiff_t block_step_in  = (exec.block_size * p->pixel_bits_in)  >> 3;
     const ptrdiff_t block_step_out = (exec.block_size * p->pixel_bits_out) >> 3;
+
+    if (p->fused_blocks) {
+        const int h = y_end - y_start;
+        x_end += p->fused_blocks * exec.block_size * (h - 1);
+        y_end = y_start + 1;
+    }
 
     for (exec.y = y_start; exec.y < y_end; exec.y++) {
         const SwsImg in  = ff_sws_img_shift(*in_base,  exec.y);
@@ -1784,10 +1814,10 @@ int ff_sws_compile_pass(SwsGraph *graph, SwsOpList *ops, int flags, SwsFormat ds
     if (ret < 0)
         goto fail;
 
-    if (!p->chain.read_size)
-        p->chain.read_size = p->chain.block_size;
-    if (!p->chain.write_size)
-        p->chain.write_size = p->chain.block_size;
+    if (!p->chain.read_bytes)
+        p->chain.read_bytes = p->chain.block_size * p->pixel_bits_in >> 3;
+    if (!p->chain.write_bytes)
+        p->chain.write_bytes = p->chain.block_size * p->pixel_bits_out >> 3;
     p->exec_base.block_size = p->chain.block_size;
 
     pass = ff_sws_graph_add_pass(graph, dst.format, dst.width, dst.height, input,
