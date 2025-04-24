@@ -232,7 +232,6 @@ static int setup_linear(const SwsOp *op, SwsOpPriv *out)
     DECL_RW(EXT, U8, write_planar,  WRITE, 4, false, 0)                         \
     DECL_RW(EXT, U8, read_nibbles,  READ,  1, false, 1)                         \
     DECL_RW(EXT, U8, read_bits,     READ,  1, false, 3)                         \
-    DECL_RW(EXT, U8, write_nibbles, WRITE, 1, false, 1)                         \
     DECL_RW(EXT, U8, write_bits,    WRITE, 1, false, 3)                         \
     DECL_PACKED_RW(EXT, 8)                                                      \
     DECL_FUNC(p1000_shuffle##EXT)                                               \
