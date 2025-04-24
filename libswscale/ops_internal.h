@@ -42,7 +42,7 @@ typedef struct __attribute__((packed)) SwsOpExec {
     int32_t x, y;               /* Coordinates of the current block */
     int32_t w, h;               /* Overall dimensions being processed */
     int32_t slice_y, slice_h;   /* Start and height of current slice */
-    int32_t block_w, block_h;   /* Configured processing block size */
+    int32_t block_size;         /* Configured processing block size */
 } SwsOpExec;
 
 typedef struct SwsOpImpl SwsOpImpl;
@@ -79,8 +79,8 @@ static_assert(offsetof(SwsOpImpl, priv) == 16, "SwsOpImpl layout mismatch");
 
 /* Compiled chain of operations, which can be dispatched efficiently */
 typedef struct SwsOpChain {
-    int block_w, block_h; /* Block size for this chain */
-    SwsFunc entry; /* First function to call */
+    int block_size; /* Block size for this chain */
+    SwsFunc entry;  /* First function to call */
 
     /* Chain of successive implementations */
 #define SWS_MAX_OPS 16
@@ -141,8 +141,7 @@ typedef struct SwsOpEntry {
 
 typedef struct SwsOpTable {
     unsigned cpu_flags;   /* required CPU flags for this table */
-    int block_w;          /* fixed block size of this table */
-    int block_h;
+    int block_size;       /* fixed block size of this table */
     SwsOpEntry entries[]; /* terminated by {0} */
 } SwsOpTable;
 
@@ -153,7 +152,7 @@ typedef struct SwsOpTable {
  * Returns 0, AVERROR(EAGAIN), or a negative error code.
  */
 int ff_sws_op_compile_tables(const SwsOpTable *const tables[], int num_tables,
-                             SwsOpList *ops, const int block_w, const int block_h,
+                             SwsOpList *ops, const int block_size,
                              SwsOpChain *chain);
 
 /* Setup helpers */

@@ -1529,7 +1529,7 @@ static void op_pass_setup(const SwsImg *out, const SwsImg *in, const SwsPass *pa
     /* Set up main loop parameters */
     p->safe_w_in  = safe_width(in,  p->pixel_bits_in);
     p->safe_w_out = safe_width(out, p->pixel_bits_out);
-    p->aligned_w = (w + exec->block_w - 1) / exec->block_w * exec->block_w;
+    p->aligned_w = (w + exec->block_size - 1) / exec->block_size * exec->block_size;
 
     for (int i = 0; i < 4; i++) {
         exec->in_stride[i]  = in->linesize[i];
@@ -1546,10 +1546,10 @@ run_main(const SwsOpPass *p, const SwsImg *out_base, const SwsImg *in_base,
     const SwsFunc entry = p->chain.entry;
     SwsOpExec exec = p->exec_base;
 
-    const ptrdiff_t block_step_in  = (exec.block_w * p->pixel_bits_in)  >> 3;
-    const ptrdiff_t block_step_out = (exec.block_w * p->pixel_bits_out) >> 3;
+    const ptrdiff_t block_step_in  = (exec.block_size * p->pixel_bits_in)  >> 3;
+    const ptrdiff_t block_step_out = (exec.block_size * p->pixel_bits_out) >> 3;
 
-    for (exec.y = y_start; exec.y < y_end; exec.y += exec.block_h) {
+    for (exec.y = y_start; exec.y < y_end; exec.y++) {
         const SwsImg in  = ff_sws_img_shift(*in_base,  exec.y);
         const SwsImg out = ff_sws_img_shift(*out_base, exec.y);
         for (int i = 0; i < 4; i++) {
@@ -1557,7 +1557,7 @@ run_main(const SwsOpPass *p, const SwsImg *out_base, const SwsImg *in_base,
             exec.out[i] = out.data[i];
         }
 
-        for (exec.x = 0; exec.x < x_end; exec.x += exec.block_w) {
+        for (exec.x = 0; exec.x < x_end; exec.x += exec.block_size) {
             entry(&exec, impl);
 
             for (int i = 0; i < 4; i++) {
@@ -1601,7 +1601,7 @@ run_tail(const SwsOpPass *p, const SwsImg *out_base, const bool copy_out,
         }
     }
 
-    for (exec.y = y_start; exec.y < y_end; exec.y += exec.block_h) {
+    for (exec.y = y_start; exec.y < y_end; exec.y++) {
         SwsImg in  = ff_sws_img_shift(*in_base,  exec.y);
         SwsImg out = ff_sws_img_shift(*out_base, exec.y);
         for (int i = 0; i < 4; i++) {
@@ -1650,14 +1650,11 @@ op_pass_run(const SwsImg *out, const SwsImg *in, const int y, const int h,
     const int last_slice = y + h == pass->height;
     const bool in_unpadded = last_slice && p->aligned_w > p->safe_w_in;
     const bool out_unpadded = p->aligned_w > p->safe_w_out;
-    const int block_w = p->exec_base.block_w;
-    const int block_h = 1; /* = p->exec_base.block_h; not currently needed */
-    const int aligned_h = h / block_h * block_h; /* round down */
+    const int block_size = p->exec_base.block_size;
     const int x_end = p->aligned_w;
-    const int y_end = y + aligned_h;
-    const int y_end_safe = y_end - block_h;
-    const int x_end_safe = x_end - block_w;
-    av_assert0(block_h == p->exec_base.block_h);
+    const int y_end = y + h;
+    const int y_end_safe = y_end - 1;
+    const int x_end_safe = x_end - block_size;
 
     if (out_unpadded) {
         /* Run last column separately */
@@ -1731,8 +1728,8 @@ int ff_sws_ops_compile(SwsContext *ctx, const SwsOpList *ops, SwsOpChain *chain)
             continue;
 
         av_log(ctx, AV_LOG_VERBOSE, "Compiled using backend '%s': "
-               "num_impl = %d, block size = %dx%d\n",
-               backend->name, chain->num_impl, chain->block_w, chain->block_h);
+               "num_impl = %d, block size = %d\n",
+               backend->name, chain->num_impl, chain->block_size);
         return 0;
     }
 
@@ -1781,11 +1778,10 @@ int ff_sws_compile_pass(SwsGraph *graph, SwsOpList *ops, int flags, SwsFormat ds
     ret = ff_sws_ops_compile(ctx, ops, &p->chain);
     if (ret < 0)
         goto fail;
-    p->exec_base.block_w = p->chain.block_w;
-    p->exec_base.block_h = p->chain.block_h;
 
+    p->exec_base.block_size = p->chain.block_size;
     pass = ff_sws_graph_add_pass(graph, dst.format, dst.width, dst.height, input,
-                                 p->chain.block_h, p, op_pass_run);
+                                 1, p, op_pass_run);
     if (!pass) {
         ret = AVERROR(ENOMEM);
         goto fail;
@@ -1802,7 +1798,7 @@ fail:
 }
 
 int ff_sws_op_compile_tables(const SwsOpTable *const tables[], int num_tables,
-                             SwsOpList *ops, const int block_w, const int block_h,
+                             SwsOpList *ops, const int block_size,
                              SwsOpChain *chain)
 {
     static const SwsOp dummy = { .comps.unused = { true, true, true, true }};
@@ -1815,8 +1811,7 @@ int ff_sws_op_compile_tables(const SwsOpTable *const tables[], int num_tables,
 
     for (int n = 0; n < num_tables; n++) {
         const SwsOpTable *table = tables[n];
-        if (table->block_w && table->block_w != block_w ||
-            table->block_h && table->block_h != block_h ||
+        if (table->block_size && table->block_size != block_size ||
             table->cpu_flags & ~cpu_flags)
             continue;
 
