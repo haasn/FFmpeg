@@ -1481,9 +1481,9 @@ typedef struct SwsOpPass {
     SwsOpExec exec_base;
     int pixel_bits_in;
     int pixel_bits_out;
-    int safe_w_in;
-    int safe_w_out;
-    int aligned_w;
+    int num_blocks;
+    bool memcpy_in;
+    bool memcpy_out;
 } SwsOpPass;
 
 static void op_pass_reset(SwsOpPass *p)
@@ -1526,10 +1526,15 @@ static void op_pass_setup(const SwsImg *out, const SwsImg *in, const SwsPass *pa
     SwsOpExec *exec = &p->exec_base;
     const int w = pass->width;
 
+    const SwsOpChain *chain = &p->chain;
+    const int num_blocks  = (w + exec->block_size - 1) / exec->block_size;
+    const int read_width  = num_blocks * chain->read_size;
+    const int write_width = num_blocks * chain->write_size;
+
     /* Set up main loop parameters */
-    p->safe_w_in  = safe_width(in,  p->pixel_bits_in);
-    p->safe_w_out = safe_width(out, p->pixel_bits_out);
-    p->aligned_w = (w + exec->block_size - 1) / exec->block_size * exec->block_size;
+    p->num_blocks = (w + exec->block_size - 1) / exec->block_size;
+    p->memcpy_in  = read_width  > safe_width(in,  p->pixel_bits_in);
+    p->memcpy_out = write_width > safe_width(out, p->pixel_bits_out);
 
     for (int i = 0; i < 4; i++) {
         exec->in_stride[i]  = in->linesize[i];
@@ -1540,7 +1545,7 @@ static void op_pass_setup(const SwsImg *out, const SwsImg *in, const SwsPass *pa
 /* Dispatch kernel over the "main" part of the image, no extra padding */
 static av_always_inline void
 run_main(const SwsOpPass *p, const SwsImg *out_base, const SwsImg *in_base,
-         const int y_start, const int y_end, const int x_end)
+         const int y_start, int y_end, int x_end)
 {
     const SwsOpImpl *const impl = p->chain.impl;
     const SwsFunc entry = p->chain.entry;
@@ -1648,19 +1653,19 @@ op_pass_run(const SwsImg *out, const SwsImg *in, const int y, const int h,
 
     const SwsOpPass *p = pass->priv;
     const int last_slice = y + h == pass->height;
-    const bool in_unpadded = last_slice && p->aligned_w > p->safe_w_in;
-    const bool out_unpadded = p->aligned_w > p->safe_w_out;
-    const int block_size = p->exec_base.block_size;
-    const int x_end = p->aligned_w;
-    const int y_end = y + h;
-    const int y_end_safe = y_end - 1;
-    const int x_end_safe = x_end - block_size;
+    const bool memcpy_in = last_slice && p->memcpy_in;
 
-    if (out_unpadded) {
+    const int block_size = p->exec_base.block_size;
+    const int x_end = p->num_blocks * block_size;
+    const int y_end = y + h;
+    const int x_end_safe = x_end - block_size;
+    const int y_end_safe = y_end - 1;
+
+    if (p->memcpy_out) {
         /* Run last column separately */
         run_main(p, out, in, y, y_end, x_end_safe);
-        run_tail(p, out, true, in, in_unpadded, y, y_end, x_end_safe);
-    } else if (in_unpadded) {
+        run_tail(p, out, true, in, memcpy_in, y, y_end, x_end_safe);
+    } else if (memcpy_in) {
         /* Run last row separately */
         run_main(p, out, in, y, y_end_safe, x_end);
         run_main(p, out, in, y_end_safe, y_end, x_end_safe);
@@ -1779,7 +1784,12 @@ int ff_sws_compile_pass(SwsGraph *graph, SwsOpList *ops, int flags, SwsFormat ds
     if (ret < 0)
         goto fail;
 
+    if (!p->chain.read_size)
+        p->chain.read_size = p->chain.block_size;
+    if (!p->chain.write_size)
+        p->chain.write_size = p->chain.block_size;
     p->exec_base.block_size = p->chain.block_size;
+
     pass = ff_sws_graph_add_pass(graph, dst.format, dst.width, dst.height, input,
                                  1, p, op_pass_run);
     if (!pass) {

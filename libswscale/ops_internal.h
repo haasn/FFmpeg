@@ -79,8 +79,15 @@ static_assert(offsetof(SwsOpImpl, priv) == 16, "SwsOpImpl layout mismatch");
 
 /* Compiled chain of operations, which can be dispatched efficiently */
 typedef struct SwsOpChain {
-    int block_size; /* Block size for this chain */
     SwsFunc entry;  /* First function to call */
+
+    int block_size; /* Block size (in pixels) for this chain */
+    int read_size;  /* Number of pixels accessed per iteration (optional) */
+    int write_size; /* Number of pixels written to per iteration (optional */
+
+    /* Note: If read_size / write_size is larger than the block size, then
+     * there is over-read or over-write, and the calling code will make sure
+     * to appropriately pad the output or use memcpy for safe operation */
 
     /* Chain of successive implementations */
 #define SWS_MAX_OPS 16
