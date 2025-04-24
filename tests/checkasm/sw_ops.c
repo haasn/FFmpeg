@@ -30,8 +30,7 @@
 #include "checkasm.h"
 
 enum {
-    MAX_BLOCK_W = 64,
-    MAX_BLOCK_H = 1,
+    MAX_BLOCK_SIZE = 64,
 };
 
 enum {
@@ -113,10 +112,10 @@ static void check_ops(const char *report, unsigned range, const SwsOp *ops)
 
     declare_func(void, const SwsOpExec *exec, const SwsOpImpl *impl);
 
-    DECLARE_ALIGNED_64(char, src0)[4][MAX_BLOCK_H][4 * MAX_BLOCK_W * sizeof(uint32_t)];
-    DECLARE_ALIGNED_64(char, src1)[4][MAX_BLOCK_H][4 * MAX_BLOCK_W * sizeof(uint32_t)];
-    DECLARE_ALIGNED_64(char, dst0)[4][MAX_BLOCK_H][4 * MAX_BLOCK_W * sizeof(uint32_t)];
-    DECLARE_ALIGNED_64(char, dst1)[4][MAX_BLOCK_H][4 * MAX_BLOCK_W * sizeof(uint32_t)];
+    DECLARE_ALIGNED_64(char, src0)[4][MAX_BLOCK_SIZE * sizeof(uint32_t[4])];
+    DECLARE_ALIGNED_64(char, src1)[4][MAX_BLOCK_SIZE * sizeof(uint32_t[4])];
+    DECLARE_ALIGNED_64(char, dst0)[4][MAX_BLOCK_SIZE * sizeof(uint32_t[4])];
+    DECLARE_ALIGNED_64(char, dst1)[4][MAX_BLOCK_SIZE * sizeof(uint32_t[4])];
 
     if (!ctx)
         return;
@@ -129,14 +128,12 @@ static void check_ops(const char *report, unsigned range, const SwsOp *ops)
     pixel_bits_out = rw_pixel_bits(write_op);
 
     for (int p = 0; p < 4; p++) {
-        for (int y = 0; y < MAX_BLOCK_H; y++) {
-            void *line = src0[p][y];
-            switch (read_op->type) {
-            case U8:    fill8(line, sizeof(src0[p][y]) /  sizeof(uint8_t), range); break;
-            case U16:  fill16(line, sizeof(src0[p][y]) / sizeof(uint16_t), range); break;
-            case U32:  fill32(line, sizeof(src0[p][y]) / sizeof(uint32_t), range); break;
-            case F32: fill32f(line, sizeof(src0[p][y]) / sizeof(uint32_t), range); break;
-            }
+        void *plane = src0[p];
+        switch (read_op->type) {
+        case U8:    fill8(plane, sizeof(src0[p]) /  sizeof(uint8_t), range); break;
+        case U16:  fill16(plane, sizeof(src0[p]) / sizeof(uint16_t), range); break;
+        case U32:  fill32(plane, sizeof(src0[p]) / sizeof(uint32_t), range); break;
+        case F32: fill32f(plane, sizeof(src0[p]) / sizeof(uint32_t), range); break;
         }
     }
 
@@ -155,7 +152,7 @@ static void check_ops(const char *report, unsigned range, const SwsOp *ops)
                 continue;
             else if (ret < 0)
                 fail();
-            else if (chain.block_w > MAX_BLOCK_W || chain.block_h > MAX_BLOCK_H)
+            else if (chain.block_size > MAX_BLOCK_SIZE)
                 fail();
 
             if (is_ref)
@@ -174,31 +171,27 @@ static void check_ops(const char *report, unsigned range, const SwsOp *ops)
         exec0.out_stride[i] = exec1.out_stride[i] = sizeof(dst0[i][0]);
     }
 
-    exec0.block_w = chain0.block_w ? chain0.block_w : MAX_BLOCK_W;
-    exec0.block_h = chain0.block_h ? chain0.block_h : MAX_BLOCK_H;
-    exec1.block_w = chain1.block_w ? chain1.block_w : MAX_BLOCK_W;
-    exec1.block_h = chain1.block_h ? chain1.block_h : MAX_BLOCK_H;
-    exec0.w = exec1.w = exec1.block_w;
-    exec0.h = exec1.h = exec0.slice_h = exec1.slice_h = exec1.block_h;
+    exec0.block_size = chain0.block_size ? chain0.block_size : MAX_BLOCK_SIZE;
+    exec1.block_size = chain1.block_size ? chain1.block_size : MAX_BLOCK_SIZE;
+    exec0.w = exec1.w = exec1.block_size;
+    exec0.h = exec1.h = exec0.slice_h = exec1.slice_h = 1;
 
-    if (check_func(chain1.entry, "%s_%dx%d", report, exec1.block_w, exec1.block_h)) {
+    if (check_func(chain1.entry, "%s_%dpx", report, exec1.block_size)) {
         func_ref = chain0.entry; /* ignore any other asm versions */
 
         /* Reference function may have smaller block size, so make sure
          * to properly loop to cover the whole expected result */
-        for (int y = 0; y < exec1.block_h; y += exec0.block_h) {
-            for (int i = 0; i < 4; i++) {
-                exec0.in[i]  = (void *) src0[i][y];
-                exec0.out[i] = (void *) dst0[i][y];
-            }
+        for (int i = 0; i < 4; i++) {
+            exec0.in[i]  = (void *) src0[i];
+            exec0.out[i] = (void *) dst0[i];
+        }
 
-            for (int x = 0; x < exec1.block_w; x += exec0.block_w) {
-                av_assert1(x + exec0.block_w <= MAX_BLOCK_W);
-                call_ref(&exec0, chain0.impl);
-                for (int i = 0; i < 4; i++) {
-                    exec0.in[i]  += exec0.block_w * pixel_bits_in  >> 3;
-                    exec0.out[i] += exec0.block_w * pixel_bits_out >> 3;
-                }
+        for (int x = 0; x < exec1.block_size; x += exec0.block_size) {
+            av_assert1(x + exec0.block_w <= MAX_BLOCK_SIZE);
+            call_ref(&exec0, chain0.impl);
+            for (int i = 0; i < 4; i++) {
+                exec0.in[i]  += exec0.block_size * pixel_bits_in  >> 3;
+                exec0.out[i] += exec0.block_size * pixel_bits_out >> 3;
             }
         }
 
@@ -231,13 +224,11 @@ static void check_ops(const char *report, unsigned range, const SwsOp *ops)
             }
 
             /* Check for over-write */
-            for (int y = 0; y < exec1.h; y++) {
-                for (int x = size; x < sizeof(dst1[i][y]); x++) {
-                    if (dst1[i][y][x] != 0) {
-                        fprintf(stderr, "Overwrite detected in %s: [%d][%d] = 0x%02x\n",
-                                name, y, x, dst1[i][y][x]);
-                        fail();
-                    }
+            for (int x = size; x < sizeof(dst1[i]); x++) {
+                if (dst1[i][x] != 0) {
+                    fprintf(stderr, "Overwrite detected in %s: [%d] = 0x%02x\n",
+                            name, x, dst1[i][x]);
+                    fail();
                 }
             }
 
