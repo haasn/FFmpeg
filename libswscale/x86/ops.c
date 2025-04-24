@@ -280,8 +280,7 @@ static int setup_linear(const SwsOp *op, SwsOpPriv *out)
                                                                                 \
 static const SwsOpTable ops8##EXT = {                                           \
     .cpu_flags = AV_CPU_FLAG_##FLAG,                                            \
-    .block_w = SIZE,                                                            \
-    .block_h = 1,                                                               \
+    .block_size = SIZE,                                                         \
     .entries = {                                                                \
         op_read_planar1##EXT,                                                   \
         op_read_planar2##EXT,                                                   \
@@ -355,8 +354,7 @@ static const SwsOpTable ops8##EXT = {                                           
                                                                                 \
 static const SwsOpTable ops16##EXT = {                                          \
     .cpu_flags = AV_CPU_FLAG_##FLAG,                                            \
-    .block_w = SIZE,                                                            \
-    .block_h = 1,                                                               \
+    .block_size = SIZE,                                                         \
     .entries = {                                                                \
         op_read16_packed2##EXT,                                                 \
         op_read16_packed3##EXT,                                                 \
@@ -413,8 +411,7 @@ static const SwsOpTable ops16##EXT = {                                          
                                                                                 \
 static const SwsOpTable ops32##EXT = {                                          \
     .cpu_flags = AV_CPU_FLAG_##FLAG,                                            \
-    .block_w = SIZE,                                                            \
-    .block_h = 1,                                                               \
+    .block_size = SIZE,                                                         \
     .entries = {                                                                \
         op_read32_packed2_m2##EXT,                                              \
         op_read32_packed3_m2##EXT,                                              \
@@ -656,28 +653,26 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsOpChain *chain)
 
     /* Special fast path for in-place packed shuffle */
     if ((ret = solve_shuffle(ops, &func, priv.u8)) > 0) {
-        chain->block_w = 4 * ret / ff_sws_op_list_max_size(ops);
-        chain->block_h = 1;
+        chain->block_size = 4 * ret / ff_sws_op_list_max_size(ops);
         return ff_sws_op_chain_append(chain, func, NULL, priv);
     }
 
     /* Use at most two full vregs during the widest precision section */
-    chain->block_w = 2 * mmsize / ff_sws_op_list_max_size(ops);
-    chain->block_h = 1;
+    chain->block_size = 2 * mmsize / ff_sws_op_list_max_size(ops);
 
     do {
-        int block_w = chain->block_w, block_h = chain->block_h;
+        int block_size = chain->block_size;
         SwsOp *op = &ops->ops[0];
 
         if (op_is_type_invariant(op)) {
             if (op->op == SWS_OP_CLEAR)
                 normalize_clear(op);
-            block_w *= ff_sws_pixel_type_size(op->type);
+            block_size *= ff_sws_pixel_type_size(op->type);
             op->type = SWS_PIXEL_U8;
         }
 
         ret = ff_sws_op_compile_tables(tables, FF_ARRAY_ELEMS(tables), ops,
-                                       block_w, block_h, chain);
+                                       block_size, chain);
     } while (ret == AVERROR(EAGAIN));
     return ret;
 }
