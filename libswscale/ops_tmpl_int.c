@@ -483,8 +483,7 @@ DECL_EXPAND_LUMA(1, 0, c2, c3)
 DECL_EXPAND_LUMA(0, 1, c2, c3)
 
 static const SwsOpTable fn(op_table_int) = {
-    .block_w = SWS_BLOCK_SIZE,
-    .block_h = 1,
+    .block_size = SWS_BLOCK_SIZE,
     .entries = {
         fn(op_read_planar1),
         fn(op_read_planar2),

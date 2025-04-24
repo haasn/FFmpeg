@@ -54,11 +54,9 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsOpChain *chain)
         &bitfn(op_table_float, f32),
     };
 
-    chain->block_w = SWS_BLOCK_SIZE;
-    chain->block_h = 1;
-
+    chain->block_size = SWS_BLOCK_SIZE;
     return ff_sws_op_compile_tables(tables, FF_ARRAY_ELEMS(tables), ops,
-                                    chain->block_w, chain->block_h, chain);
+                                    chain->block_size, chain);
 }
 
 SwsOpBackend backend_c = {

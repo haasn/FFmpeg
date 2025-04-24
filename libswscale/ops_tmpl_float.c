@@ -207,8 +207,7 @@ WRAP_LINEAR(matrix4,   SWS_MASK_MAT4)
 WRAP_LINEAR(affine4,   SWS_MASK_MAT4 | SWS_MASK_OFF4)
 
 static const SwsOpTable fn(op_table_float) = {
-    .block_w = SWS_BLOCK_SIZE,
-    .block_h = 1,
+    .block_size = SWS_BLOCK_SIZE,
     .entries = {
         REF_COMMON_PATTERNS(convert_uint8),
         REF_COMMON_PATTERNS(convert_uint16),
