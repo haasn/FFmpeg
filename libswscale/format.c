@@ -1239,6 +1239,7 @@ static AVRational *generate_bayer_matrix(const int size_log2)
 
 static bool trc_is_hdr(enum AVColorTransferCharacteristic trc)
 {
+    static_assert(AVCOL_TRC_NB == 19, "Update this list when adding TRCs");
     switch (trc) {
     case AVCOL_TRC_LOG:
     case AVCOL_TRC_LOG_SQRT:
@@ -1246,7 +1247,6 @@ static bool trc_is_hdr(enum AVColorTransferCharacteristic trc)
     case AVCOL_TRC_ARIB_STD_B67:
         return true;
     default:
-        static_assert(AVCOL_TRC_NB == 19, "Update this list when adding TRCs");
         return false;
     }
 }
