@@ -156,11 +156,13 @@ static int setup_shift(const SwsOp *op, SwsOpPriv *out)
     DECL_COMMON_PATTERNS(U16, lshift16##EXT,                                    \
         .op.op = SWS_OP_LSHIFT,                                                 \
         .setup = setup_shift,                                                   \
+        .flexible = true,                                                       \
     );                                                                          \
                                                                                 \
     DECL_COMMON_PATTERNS(U16, rshift16##EXT,                                    \
         .op.op = SWS_OP_RSHIFT,                                                 \
         .setup = setup_shift,                                                   \
+        .flexible = true,                                                       \
     );
 
 #define DECL_MIN_MAX(EXT)                                                       \
