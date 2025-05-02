@@ -45,8 +45,10 @@ bits_shuf:      db   0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,  1,  1,  1, 
 bits_mask:      db 128, 64, 32, 16,  8,  4,  2,  1,128, 64, 32, 16,  8,  4,  2,  1
 bits_reverse:   db   7,  6,  5,  4,  3,  2,  1,  0, 15, 14, 13, 12, 11, 10,  9,  8,
 
-nibble_mask:   times 16 db 0x0F
-ones_mask:     times 16 db 0x01
+mask1: times 32 db 0x01
+mask2: times 32 db 0x03
+mask3: times 32 db 0x07
+mask4: times 32 db 0x0F
 
 SECTION .text
 
@@ -292,7 +294,7 @@ IF V2,  movu xmx2, [in0q + 16]
         movq xmx,  [in0q]
 IF V2,  movq xmx2, [in0q + 8]
 %endif
-        VBROADCASTI128 m8, [nibble_mask]
+        VBROADCASTI128 m8, [mask4]
         LOAD_CONT tmp0q
         add in0q, (mmsize >> 1) * (1 + V2)
         pmovzxbw mx, xmx
@@ -319,7 +321,7 @@ IF V2,  movd mx2, [in0q + 2]
 %endif
         mova m8, [bits_shuf]
         VBROADCASTI128 m9,  [bits_mask]
-        VBROADCASTI128 m10, [ones_mask]
+        VBROADCASTI128 m10, [mask1]
         LOAD_CONT tmp0q
         add in0q, (mmsize >> 3) * (1 + V2)
         pshufb mx,  m8
@@ -351,6 +353,68 @@ IF V2,  mov [out0q + 2], tmp1d
 %endif
         add out0q, (mmsize >> 3) * (1 + V2)
         RET
+%endmacro
+
+;--------------------------
+; Pixel packing / unpacking
+
+%macro pack_generic 3-4 0 ; x, y, z, w
+op pack_%1%2%3%4
+        ; pslld works for all sizes because the input should not overflow
+IF %2,  pslld mx, %4+%3+%2
+IF %3,  pslld my, %4+%3
+IF %4,  pslld mz, %4
+IF %2,  por mx, my
+IF %3,  por mx, mz
+IF %4,  por mx, mw
+    %if V2
+IF %2,  pslld mx2, %4+%3+%2
+IF %3,  pslld my2, %4+%3
+IF %4,  pslld mz2, %4
+IF %2,  por mx2, my2
+IF %3,  por mx2, mz2
+IF %4,  por mx2, mw2
+    %endif
+        CONTINUE
+%endmacro
+
+%macro unpack 5-6 0 ; type, bits, x, y, z, w
+op unpack_%3%4%5%6
+        ; clear high bits by shifting left
+IF %6,  vpsll%1 mw, mx, %2 - (%6)
+IF %5,  vpsll%1 mz, mx, %2 - (%6+%5)
+IF %4,  vpsll%1 my, mx, %2 - (%6+%5+%4)
+        psrl%1 mx, %4+%5+%6
+IF %4,  psrl%1 my, %2 - %4
+IF %5,  psrl%1 mz, %2 - %5
+IF %6,  psrl%1 mw, %2 - %6
+    %if V2
+IF %6,  vpsll%1 mw2, mx2, %2 - (%6)
+IF %5,  vpsll%1 mz2, mx2, %2 - (%6+%5)
+IF %4,  vpsll%1 my2, mx2, %2 - (%6+%5+%4)
+        psrl%1 mx2, %4+%5+%6
+IF %4,  psrl%1 my2, %2 - %4
+IF %5,  psrl%1 mz2, %2 - %5
+IF %6,  psrl%1 mw2, %2 - %6
+    %endif
+        CONTINUE
+%endmacro
+
+%macro unpack8 3 ; x, y, z
+op unpack_%1%2%3 %+ 0
+        pand mz, mx, [mask%3]
+        psrld my, mx, %3
+        psrld mx, %3+%2
+        pand my, [mask%2]
+        pand mx, [mask%1]
+    %if V2
+        pand mz2, mx2, [mask%3]
+        psrld my2, mx2, %3
+        psrld mx2, %3+%2
+        pand my2, [mask%2]
+        pand mx2, [mask%1]
+    %endif
+        CONTINUE
 %endmacro
 
 ;---------------------------------------------------------
@@ -826,6 +890,13 @@ IF W,   psrlw mw2, xm8
     read_bits
     write_bits
 
+    pack_generic 1, 2, 1
+    pack_generic 3, 3, 2
+    pack_generic 2, 3, 3
+    unpack8 1, 2, 1
+    unpack8 3, 3, 2
+    unpack8 2, 3, 3
+
     clear_alpha 0, mx, mx2
     clear_alpha 1, my, my2
     clear_alpha 3, mw, mw2
@@ -840,6 +911,12 @@ IF W,   psrlw mw2, xm8
 
 %macro funcs_u16 0
     rw_packed 16
+    pack_generic  4, 4, 4
+    pack_generic  5, 5, 5
+    pack_generic  5, 6, 5
+    unpack w, 16, 4, 4, 4
+    unpack w, 16, 5, 5, 5
+    unpack w, 16, 5, 6, 5
     decl_common_patterns conv8to16 convert
     decl_common_patterns conv8to16 expand
     decl_common_patterns conv16to8
@@ -875,6 +952,10 @@ packed_shuffle 32, 32
 
 INIT_YMM avx2
 decl_v2 1, rw_packed 32
+decl_v2 1, pack_generic  10, 10, 10,  2
+decl_v2 1, pack_generic   2, 10, 10, 10
+decl_v2 1, unpack d, 32, 10, 10, 10,  2
+decl_v2 1, unpack d, 32,  2, 10, 10, 10
 decl_common_patterns conv8to32 convert
 decl_common_patterns conv8to32 expand
 decl_common_patterns conv32to8

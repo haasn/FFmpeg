@@ -73,6 +73,17 @@
     DECL_RW(EXT, U##DEPTH, write##DEPTH##_packed, WRITE, 3, true,  0)           \
     DECL_RW(EXT, U##DEPTH, write##DEPTH##_packed, WRITE, 4, true,  0)           \
 
+#define DECL_PACK_UNPACK(EXT, TYPE, X, Y, Z, W)                                 \
+    DECL_ASM(TYPE, pack_##X##Y##Z##W##EXT,                                      \
+        .op.op = SWS_OP_PACK,                                                   \
+        .op.pack.pattern = {X, Y, Z, W},                                        \
+    );                                                                          \
+                                                                                \
+    DECL_ASM(TYPE, unpack_##X##Y##Z##W##EXT,                                    \
+        .op.op = SWS_OP_UNPACK,                                                 \
+        .op.pack.pattern = {X, Y, Z, W},                                        \
+    );                                                                          \
+
 static int setup_swap_bytes(const SwsOp *op, SwsOpPriv *out)
 {
     const int mask = ff_sws_pixel_type_size(op->type) - 1;
@@ -232,6 +243,9 @@ static int setup_linear(const SwsOp *op, SwsOpPriv *out)
     DECL_RW(EXT, U8, read_bits,     READ,  1, false, 3)                         \
     DECL_RW(EXT, U8, write_bits,    WRITE, 1, false, 3)                         \
     DECL_PACKED_RW(EXT, 8)                                                      \
+    DECL_PACK_UNPACK(EXT, U8, 1, 2, 1, 0)                                       \
+    DECL_PACK_UNPACK(EXT, U8, 3, 3, 2, 0)                                       \
+    DECL_PACK_UNPACK(EXT, U8, 2, 3, 3, 0)                                       \
     void ff_p1000_shuffle##EXT(void);                                           \
     void ff_p1001_shuffle##EXT(void);                                           \
     void ff_p1110_shuffle##EXT(void);                                           \
@@ -296,6 +310,12 @@ static const SwsOpTable ops8##EXT = {                                           
         op_read_nibbles1##EXT,                                                  \
         op_read_bits1##EXT,                                                     \
         op_write_bits1##EXT,                                                    \
+        op_pack_1210##EXT,                                                      \
+        op_pack_3320##EXT,                                                      \
+        op_pack_2330##EXT,                                                      \
+        op_unpack_1210##EXT,                                                      \
+        op_unpack_3320##EXT,                                                      \
+        op_unpack_2330##EXT,                                                      \
         op_swizzle_3012##EXT,                                                   \
         op_swizzle_3021##EXT,                                                   \
         op_swizzle_2103##EXT,                                                   \
@@ -340,6 +360,9 @@ static const SwsOpTable ops8##EXT = {                                           
 
 #define DECL_FUNCS_16(SIZE, EXT, FLAG)                                          \
     DECL_PACKED_RW(EXT, 16)                                                     \
+    DECL_PACK_UNPACK(EXT, U16, 4, 4, 4, 0)                                      \
+    DECL_PACK_UNPACK(EXT, U16, 5, 5, 5, 0)                                      \
+    DECL_PACK_UNPACK(EXT, U16, 5, 6, 5, 0)                                      \
     DECL_SWAP_BYTES(EXT, U16, 1, 0, 0, 0)                                       \
     DECL_SWAP_BYTES(EXT, U16, 1, 0, 0, 1)                                       \
     DECL_SWAP_BYTES(EXT, U16, 1, 1, 1, 0)                                       \
@@ -359,6 +382,12 @@ static const SwsOpTable ops16##EXT = {                                          
         op_write16_packed2##EXT,                                                \
         op_write16_packed3##EXT,                                                \
         op_write16_packed4##EXT,                                                \
+        op_pack_4440##EXT,                                                      \
+        op_pack_5550##EXT,                                                      \
+        op_pack_5650##EXT,                                                      \
+        op_unpack_4440##EXT,                                                    \
+        op_unpack_5550##EXT,                                                    \
+        op_unpack_5650##EXT,                                                    \
         REF_COMMON_PATTERNS(swap_bytes_U16##EXT),                               \
         REF_COMMON_PATTERNS(convert_U8_U16##EXT),                               \
         REF_COMMON_PATTERNS(convert_U16_U8##EXT),                               \
@@ -371,6 +400,8 @@ static const SwsOpTable ops16##EXT = {                                          
 
 #define DECL_FUNCS_32(SIZE, EXT, FLAG)                                          \
     DECL_PACKED_RW(_m2##EXT, 32)                                                \
+    DECL_PACK_UNPACK(_m2##EXT, U32, 10, 10, 10, 2)                              \
+    DECL_PACK_UNPACK(_m2##EXT, U32, 2, 10, 10, 10)                              \
     DECL_SWAP_BYTES(_m2##EXT, U32, 1, 0, 0, 0)                                  \
     DECL_SWAP_BYTES(_m2##EXT, U32, 1, 0, 0, 1)                                  \
     DECL_SWAP_BYTES(_m2##EXT, U32, 1, 1, 1, 0)                                  \
@@ -416,6 +447,10 @@ static const SwsOpTable ops32##EXT = {                                          
         op_write32_packed2_m2##EXT,                                             \
         op_write32_packed3_m2##EXT,                                             \
         op_write32_packed4_m2##EXT,                                             \
+        op_pack_1010102_m2##EXT,                                                \
+        op_pack_2101010_m2##EXT,                                                \
+        op_unpack_1010102_m2##EXT,                                              \
+        op_unpack_2101010_m2##EXT,                                              \
         REF_COMMON_PATTERNS(swap_bytes_U32_m2##EXT),                            \
         REF_COMMON_PATTERNS(convert_U8_U32##EXT),                               \
         REF_COMMON_PATTERNS(convert_U32_U8##EXT),                               \
