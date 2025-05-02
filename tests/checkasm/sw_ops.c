@@ -101,12 +101,16 @@ static void fill8(uint8_t *line, int num, unsigned range)
     }
 }
 
-static void check_ops(const char *report, unsigned range, const SwsOp *ops)
+static void check_ops(const char *report, const unsigned ranges[4],
+                      const SwsOp *ops)
 {
     SwsContext *ctx = sws_alloc_context();
     SwsCompiledOp comp_ref = {0}, comp_new = {0};
     SwsOpList oplist = { .ops = (SwsOp *) ops };
     const SwsOp *read_op, *write_op;
+    static const unsigned def_ranges[4] = {0};
+    if (!ranges)
+        ranges = def_ranges;
 
     declare_func(void, const SwsOpExec *exec, const void *priv, int pixels);
 
@@ -126,10 +130,10 @@ static void check_ops(const char *report, unsigned range, const SwsOp *ops)
     for (int p = 0; p < 4; p++) {
         void *plane = src0[p];
         switch (read_op->type) {
-        case U8:    fill8(plane, sizeof(src0[p]) /  sizeof(uint8_t), range); break;
-        case U16:  fill16(plane, sizeof(src0[p]) / sizeof(uint16_t), range); break;
-        case U32:  fill32(plane, sizeof(src0[p]) / sizeof(uint32_t), range); break;
-        case F32: fill32f(plane, sizeof(src0[p]) / sizeof(uint32_t), range); break;
+        case U8:    fill8(plane, sizeof(src0[p]) /  sizeof(uint8_t), ranges[p]); break;
+        case U16:  fill16(plane, sizeof(src0[p]) / sizeof(uint16_t), ranges[p]); break;
+        case U32:  fill32(plane, sizeof(src0[p]) / sizeof(uint32_t), ranges[p]); break;
+        case F32: fill32f(plane, sizeof(src0[p]) / sizeof(uint32_t), ranges[p]); break;
         }
     }
 
@@ -236,9 +240,9 @@ static void check_ops(const char *report, unsigned range, const SwsOp *ops)
     sws_free_context(&ctx);
 }
 
-#define CHECK_RANGE(NAME, RANGE, N_IN, N_OUT, IN, OUT, ...)                     \
+#define CHECK_RANGES(NAME, RANGES, N_IN, N_OUT, IN, OUT, ...)                   \
   do {                                                                          \
-    check_ops(NAME, RANGE, (SwsOp[]) {                                          \
+      check_ops(NAME, RANGES, (SwsOp[]) {                                       \
         {                                                                       \
             .op = SWS_OP_READ,                                                  \
             .type = IN,                                                         \
@@ -252,6 +256,10 @@ static void check_ops(const char *report, unsigned range, const SwsOp *ops)
         }, {0}                                                                  \
     });                                                                         \
   } while (0)
+
+#define MK_RANGES(R) ((const unsigned[]) { R, R, R, R })
+#define CHECK_RANGE(NAME, RANGE, N_IN, N_OUT, IN, OUT, ...)                     \
+    CHECK_RANGES(NAME, MK_RANGES(RANGE), N_IN, N_OUT, IN, OUT, __VA_ARGS__)
 
 #define CHECK_COMMON_RANGE(NAME, RANGE, IN, OUT, ...)                           \
     CHECK_RANGE(FMT("%s_p1000", NAME), RANGE, 1, 1, IN, OUT, __VA_ARGS__);      \
@@ -276,7 +284,7 @@ static void check_read_write(void)
         for (int i = 1; i <= 4; i++) {
             /* Test N->N planar read/write */
             for (int o = 1; o <= i; o++) {
-                check_ops(FMT("rw_%d_%d_%s", i, o, type), 0, (SwsOp[]) {
+                check_ops(FMT("rw_%d_%d_%s", i, o, type), NULL, (SwsOp[]) {
                     {
                         .op = SWS_OP_READ,
                         .type = t,
@@ -293,7 +301,7 @@ static void check_read_write(void)
             if (i == 1)
                 continue;
 
-            check_ops(FMT("read_packed%d_%s", i, type), 0, (SwsOp[]) {
+            check_ops(FMT("read_packed%d_%s", i, type), NULL, (SwsOp[]) {
                 {
                     .op = SWS_OP_READ,
                     .type = t,
@@ -306,7 +314,7 @@ static void check_read_write(void)
                 }, {0}
             });
 
-            check_ops(FMT("write_packed%d_%s", i, type), 0, (SwsOp[]) {
+            check_ops(FMT("write_packed%d_%s", i, type), NULL, (SwsOp[]) {
                 {
                     .op = SWS_OP_READ,
                     .type = t,
@@ -328,7 +336,7 @@ static void check_read_write(void)
         if (bits == 2)
             continue; /* no 2 bit packed formats currently exist */
 
-        check_ops(FMT("read_frac%d", frac), 0, (SwsOp[]) {
+        check_ops(FMT("read_frac%d", frac), NULL, (SwsOp[]) {
             {
                 .op = SWS_OP_READ,
                 .type = U8,
@@ -341,7 +349,7 @@ static void check_read_write(void)
             }, {0}
         });
 
-        check_ops(FMT("write_frac%d", frac), range, (SwsOp[]) {
+        check_ops(FMT("write_frac%d", frac), MK_RANGES(range), (SwsOp[]) {
             {
                 .op = SWS_OP_READ,
                 .type = U8,
@@ -391,14 +399,22 @@ static void check_pack_unpack(void)
         const int num = pack.pattern[3] ? 4 : 3;
         const char *pat = FMT("%d%d%d%d", pack.pattern[0], pack.pattern[1],
                                           pack.pattern[2], pack.pattern[3]);
+        const int total = pack.pattern[0] + pack.pattern[1] +
+                          pack.pattern[2] + pack.pattern[3];
+        const unsigned ranges[4] = {
+            (1 << pack.pattern[0]) - 1,
+            (1 << pack.pattern[1]) - 1,
+            (1 << pack.pattern[2]) - 1,
+            (1 << pack.pattern[3]) - 1,
+        };
 
-        CHECK(FMT("pack_%s", pat), num, 1, type, type, {
+        CHECK_RANGES(FMT("pack_%s", pat), ranges, num, 1, type, type, {
             .op   = SWS_OP_PACK,
             .type = type,
             .pack = pack,
         });
 
-        CHECK(FMT("unpack_%s", pat), 1, num, type, type, {
+        CHECK_RANGE(FMT("unpack_%s", pat), (1 << total) - 1, 1, num, type, type, {
             .op   = SWS_OP_UNPACK,
             .type = type,
             .pack = pack,
