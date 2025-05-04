@@ -108,13 +108,13 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
                 if (ff_sws_pixel_type_is_int(op->type)) {
                     const int size = ff_sws_pixel_type_size(op->type);
                     const uint64_t max_val = (1 << 8 * size) - 1;
-                    op->comps.flags[i] |= SWS_COMP_EXACT;
+                    op->comps.flags[i] = SWS_COMP_EXACT;
                     op->comps.min[i] = Q(0);
                     op->comps.max[i] = Q(max_val);
                 }
             }
             for (int i = op->rw.elems; i < 4; i++)
-                op->comps.flags[i] |= prev.flags[i];
+                op->comps.flags[i] = prev.flags[i];
             break;
         case SWS_OP_WRITE:
             for (int i = 0; i < op->rw.elems; i++)
@@ -127,17 +127,17 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
         case SWS_OP_MAX:
             /* Linearly propagate flags per component */
             for (int i = 0; i < 4; i++)
-                op->comps.flags[i] |= prev.flags[i];
+                op->comps.flags[i] = prev.flags[i];
             break;
         case SWS_OP_DITHER:
             /* Strip zero flag because of the nonzero dithering offset */
             for (int i = 0; i < 4; i++)
-                op->comps.flags[i] |= prev.flags[i] & ~SWS_COMP_ZERO;
+                op->comps.flags[i] = prev.flags[i] & ~SWS_COMP_ZERO;
             break;
         case SWS_OP_UNPACK:
             for (int i = 0; i < 4; i++) {
                 if (op->pack.pattern[i])
-                    op->comps.flags[i] |= prev.flags[0];
+                    op->comps.flags[i] = prev.flags[0];
                 else
                     op->comps.flags[i] = SWS_COMP_GARBAGE;
             }
@@ -150,28 +150,28 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
                 if (i > 0) /* clear remaining comps for sanity */
                     op->comps.flags[i] = SWS_COMP_GARBAGE;
             }
-            op->comps.flags[0] |= flags;
+            op->comps.flags[0] = flags;
             break;
         }
         case SWS_OP_CLEAR:
             for (int i = 0; i < 4; i++) {
                 if (op->c.q4[i].den) {
                     if (op->c.q4[i].num == 0)
-                        op->comps.flags[i] |= SWS_COMP_ZERO | SWS_COMP_EXACT;
+                        op->comps.flags[i] = SWS_COMP_ZERO | SWS_COMP_EXACT;
                     if (op->c.q4[i].den == 1)
-                        op->comps.flags[i] |= SWS_COMP_EXACT;
+                        op->comps.flags[i] = SWS_COMP_EXACT;
+                } else {
+                    op->comps.flags[i] = prev.flags[i];
                 }
-                else
-                    op->comps.flags[i] |= prev.flags[i];
             }
             break;
         case SWS_OP_SWIZZLE:
             for (int i = 0; i < 4; i++)
-                op->comps.flags[i] |= prev.flags[op->swizzle.in[i]];
+                op->comps.flags[i] = prev.flags[op->swizzle.in[i]];
             break;
         case SWS_OP_CONVERT:
             for (int i = 0; i < 4; i++) {
-                op->comps.flags[i] |= prev.flags[i];
+                op->comps.flags[i] = prev.flags[i];
                 if (ff_sws_pixel_type_is_int(op->convert.to))
                     op->comps.flags[i] |= SWS_COMP_EXACT;
             }
@@ -201,14 +201,14 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
                     min = av_add_q(min, op->lin.m[i][4]);
                     max = av_add_q(max, op->lin.m[i][4]);
                 }
-                op->comps.flags[i] |= flags;
+                op->comps.flags[i] = flags;
                 op->comps.min[i] = min;
                 op->comps.max[i] = max;
             }
             break;
         case SWS_OP_SCALE:
             for (int i = 0; i < 4; i++) {
-                op->comps.flags[i] |= prev.flags[i];
+                op->comps.flags[i] = prev.flags[i];
                 if (op->c.q.den != 1) /* fractional scale */
                     op->comps.flags[i] &= ~SWS_COMP_EXACT;
                 if (op->c.q.num < 0)
@@ -234,7 +234,7 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
             for (int i = 0; i < op->rw.elems; i++)
                 op->comps.unused[i] = op->op == SWS_OP_READ;
             for (int i = op->rw.elems; i < 4; i++)
-                op->comps.unused[i] |= next.unused[i];
+                op->comps.unused[i] = next.unused[i];
             break;
         case SWS_OP_SWAP_BYTES:
         case SWS_OP_LSHIFT:
@@ -245,14 +245,14 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
         case SWS_OP_MAX:
         case SWS_OP_SCALE:
             for (int i = 0; i < 4; i++)
-                op->comps.unused[i] |= next.unused[i];
+                op->comps.unused[i] = next.unused[i];
             break;
         case SWS_OP_UNPACK: {
             bool unused = true;
             for (int i = 0; i < 4; i++) {
                 if (op->pack.pattern[i])
                     unused &= next.unused[i];
-                op->comps.unused[i] |= i > 0;
+                op->comps.unused[i] = i > 0;
             }
             op->comps.unused[0] = unused;
             break;
@@ -260,7 +260,7 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
         case SWS_OP_PACK:
             for (int i = 0; i < 4; i++) {
                 if (op->pack.pattern[i])
-                    op->comps.unused[i] |= next.unused[0];
+                    op->comps.unused[i] = next.unused[0];
                 else
                     op->comps.unused[i] = true;
             }
@@ -270,7 +270,7 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
                 if (op->c.q4[i].den)
                     op->comps.unused[i] = true;
                 else
-                    op->comps.unused[i] |= next.unused[i];
+                    op->comps.unused[i] = next.unused[i];
             }
             break;
         case SWS_OP_SWIZZLE: {
