@@ -480,6 +480,8 @@ static int add_convert_pass(SwsGraph *graph, SwsFormat src, SwsFormat dst,
     ops = ff_sws_op_list_alloc();
     if (!ops)
         return AVERROR(ENOMEM);
+    ops->src = src;
+    ops->dst = dst;
 
     ret = ff_sws_decode_pixfmt(ops, src.format);
     if (ret < 0)
