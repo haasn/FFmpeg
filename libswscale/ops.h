@@ -206,6 +206,9 @@ void ff_sws_apply_op_q(const SwsOp *op, AVRational x[4]);
 typedef struct SwsOpList {
     SwsOp *ops;
     int num_ops;
+
+    /* Purely informative metadata associated with this operation list */
+    SwsFormat src, dst;
 } SwsOpList;
 
 SwsOpList *ff_sws_op_list_alloc(void);

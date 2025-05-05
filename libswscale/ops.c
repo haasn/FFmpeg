@@ -248,7 +248,13 @@ static void op_uninit(SwsOp *op)
 
 SwsOpList *ff_sws_op_list_alloc(void)
 {
-    return av_mallocz(sizeof(SwsOpList));
+    SwsOpList *ops = av_mallocz(sizeof(SwsOpList));
+    if (!ops)
+        return NULL;
+
+    ff_fmt_clear(&ops->src);
+    ff_fmt_clear(&ops->dst);
+    return ops;
 }
 
 void ff_sws_op_list_free(SwsOpList **p_ops)
