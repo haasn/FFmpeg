@@ -750,18 +750,18 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsCompiledOp *out)
         return ret;
     }
 
-    SWS_DECL_FUNC(ff_sws_process1_x86);
-    SWS_DECL_FUNC(ff_sws_process2_x86);
-    SWS_DECL_FUNC(ff_sws_process3_x86);
-    SWS_DECL_FUNC(ff_sws_process4_x86);
+    SWS_DECL_FUNC(ff_sws_process1_avx2);
+    SWS_DECL_FUNC(ff_sws_process2_avx2);
+    SWS_DECL_FUNC(ff_sws_process3_avx2);
+    SWS_DECL_FUNC(ff_sws_process4_avx2);
 
     const int read_planes  = read.rw.packed  ? 1 : read.rw.elems;
     const int write_planes = write.rw.packed ? 1 : write.rw.elems;
     switch (FFMAX(read_planes, write_planes)) {
-    case 1: out->func = ff_sws_process1_x86; break;
-    case 2: out->func = ff_sws_process2_x86; break;
-    case 3: out->func = ff_sws_process3_x86; break;
-    case 4: out->func = ff_sws_process4_x86; break;
+    case 1: out->func = ff_sws_process1_avx2; break;
+    case 2: out->func = ff_sws_process2_avx2; break;
+    case 3: out->func = ff_sws_process3_avx2; break;
+    case 4: out->func = ff_sws_process4_avx2; break;
     }
 
     out->cpu_flags = chain->cpu_flags;

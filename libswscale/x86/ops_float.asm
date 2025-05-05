@@ -210,7 +210,7 @@ op dither%1
         %define DW DX
 %elif %1 == 1
         ; 2x2 matrix, only sign of y matters
-        mov tmp0d, [execq + SwsOpExec.y]
+        mov tmp0d, yd
         and tmp0d, 1
         shl tmp0d, 3
     %if X || Z
@@ -230,12 +230,11 @@ op dither%1
         %define DZ2 m14
         %define DW2 m15
     %endif
-        mov tmp1d, [execq + SwsOpExec.y]
-        mov tmp2q, [implq + SwsOpImpl.priv]
-IF X,   load_dither_row %1, [tmp1d + 0], tmp2q, DX, DX2
-IF Y,   load_dither_row %1, [tmp1d + 3], tmp2q, DY, DY2
-IF Z,   load_dither_row %1, [tmp1d + 2], tmp2q, DZ, DZ2
-IF W,   load_dither_row %1, [tmp1d + 5], tmp2q, DW, DW2
+        mov tmp1q, [implq + SwsOpImpl.priv]
+IF X,   load_dither_row %1, [yd + 0], tmp1q, DX, DX2
+IF Y,   load_dither_row %1, [yd + 3], tmp1q, DY, DY2
+IF Z,   load_dither_row %1, [yd + 2], tmp1q, DZ, DZ2
+IF W,   load_dither_row %1, [yd + 5], tmp1q, DW, DW2
 %endif
         LOAD_CONT tmp0q
 IF X,   addps mx, DX

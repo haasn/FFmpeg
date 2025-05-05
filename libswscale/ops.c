@@ -619,7 +619,7 @@ static av_always_inline void
 handle_tail(const SwsOpPass *p, SwsOpExec *exec,
             const SwsImg *out_base, const bool copy_out,
             const SwsImg *in_base, const bool copy_in,
-            const int y, const int y_end)
+            const int y, const int h)
 {
     DECLARE_ALIGNED_64(uint8_t, tmp)[2][4][sizeof(uint32_t[128])];
 
@@ -651,7 +651,7 @@ handle_tail(const SwsOpPass *p, SwsOpExec *exec,
     }
 
     exec->x = (p->num_blocks - 1) * block_size;
-    for (exec->y = y; exec->y < y_end; exec->y++) {
+    for (exec->y = y; exec->y < y + h; exec->y++) {
         if (copy_in) {
             for (int i = 0; i < 4 && in.data[i]; i++) {
                 av_assert2(tmp[0][i] + tail_size_in < (uint8_t *) tmp[1]);
@@ -660,7 +660,7 @@ handle_tail(const SwsOpPass *p, SwsOpExec *exec,
             }
         }
 
-        comp->func(exec, comp->priv, 1);
+        comp->func(exec, comp->priv, 1, 1);
 
         if (copy_out) {
             for (int i = 0; i < 4 && out.data[i]; i++) {
@@ -689,7 +689,7 @@ static void op_pass_run(const SwsImg *out_base, const SwsImg *in_base,
     const SwsImg in  = ff_sws_img_shift(*in_base,  y);
     const SwsImg out = ff_sws_img_shift(*out_base, y);
     SwsOpExec exec = p->exec_base;
-    exec.slice_y = y;
+    exec.slice_y = exec.y = y;
     exec.slice_h = h;
     for (int i = 0; i < 4; i++) {
         exec.in[i]  = in.data[i];
@@ -718,25 +718,27 @@ static void op_pass_run(const SwsImg *out_base, const SwsImg *in_base,
     const bool memcpy_out = p->memcpy_out;
     const int num_blocks  = p->num_blocks;
     const int blocks_main = num_blocks - memcpy_out;
-    const int y_end       = y + h - memcpy_in;
+    const int h_main      = h - memcpy_in;
 
     /* Handle main section */
-    for (exec.y = y; exec.y < y_end; exec.y++) {
-        comp->func(&exec, comp->priv, blocks_main);
-        for (int i = 0; i < 4; i++) {
-            exec.in[i]  += in.linesize[i];
-            exec.out[i] += out.linesize[i];
-        }
-    }
+    comp->func(&exec, comp->priv, blocks_main, h_main);
 
-    if (memcpy_in)
-        comp->func(&exec, comp->priv, num_blocks - 1); /* safe part of last row */
+    if (memcpy_in) {
+        /* Safe part of last row */
+        exec.y += h_main;
+        for (int i = 0; i < 4; i++) {
+            exec.in[i]  += h_main * in.linesize[i];
+            exec.out[i] += h_main * out.linesize[i];
+        }
+
+        comp->func(&exec, comp->priv, num_blocks - 1, 1);
+    }
 
     /* Handle last column via memcpy, takes over `exec` so call these last */
     if (memcpy_out)
-        handle_tail(p, &exec, out_base, true, in_base, false, y, y_end);
+        handle_tail(p, &exec, out_base, true, in_base, false, y, h_main);
     if (memcpy_in)
-        handle_tail(p, &exec, out_base, memcpy_out, in_base, true, y_end, y + h);
+        handle_tail(p, &exec, out_base, memcpy_out, in_base, true, y + h_main, 1);
 }
 
 static int rw_pixel_bits(const SwsOp *op)

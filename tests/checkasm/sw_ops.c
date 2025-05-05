@@ -30,6 +30,8 @@
 #include "checkasm.h"
 
 enum {
+    LINES  = 2,
+    PLANES = 4,
     PIXELS = 64,
 };
 
@@ -101,7 +103,7 @@ static void fill8(uint8_t *line, int num, unsigned range)
     }
 }
 
-static void check_ops(const char *report, const unsigned ranges[4],
+static void check_ops(const char *report, const unsigned ranges[PLANES],
                       const SwsOp *ops)
 {
     SwsContext *ctx = sws_alloc_context();
@@ -112,12 +114,12 @@ static void check_ops(const char *report, const unsigned ranges[4],
     if (!ranges)
         ranges = def_ranges;
 
-    declare_func(void, const SwsOpExec *exec, const void *priv, int pixels);
+    declare_func(void, const SwsOpExec *, const void *, int pixels, int lines);
 
-    DECLARE_ALIGNED_64(char, src0)[4][PIXELS * sizeof(uint32_t[4])];
-    DECLARE_ALIGNED_64(char, src1)[4][PIXELS * sizeof(uint32_t[4])];
-    DECLARE_ALIGNED_64(char, dst0)[4][PIXELS * sizeof(uint32_t[4])];
-    DECLARE_ALIGNED_64(char, dst1)[4][PIXELS * sizeof(uint32_t[4])];
+    DECLARE_ALIGNED_64(char, src0)[PLANES][LINES][PIXELS * sizeof(uint32_t[4])];
+    DECLARE_ALIGNED_64(char, src1)[PLANES][LINES][PIXELS * sizeof(uint32_t[4])];
+    DECLARE_ALIGNED_64(char, dst0)[PLANES][LINES][PIXELS * sizeof(uint32_t[4])];
+    DECLARE_ALIGNED_64(char, dst1)[PLANES][LINES][PIXELS * sizeof(uint32_t[4])];
 
     if (!ctx)
         return;
@@ -127,7 +129,7 @@ static void check_ops(const char *report, const unsigned ranges[4],
     for (oplist.num_ops = 0; ops[oplist.num_ops].op; oplist.num_ops++)
         write_op = &ops[oplist.num_ops];
 
-    for (int p = 0; p < 4; p++) {
+    for (int p = 0; p < PLANES; p++) {
         void *plane = src0[p];
         switch (read_op->type) {
         case U8:    fill8(plane, sizeof(src0[p]) /  sizeof(uint8_t), ranges[p]); break;
@@ -169,9 +171,9 @@ static void check_ops(const char *report, const unsigned ranges[4],
     exec.pixel_bits_out = rw_pixel_bits(write_op);
     exec.width = PIXELS;
     exec.height = exec.slice_h = 1;
-    for (int i = 0; i < 4; i++) {
-        exec.in_stride[i]  = sizeof(src0[i]);
-        exec.out_stride[i] = sizeof(dst0[i]);
+    for (int i = 0; i < PLANES; i++) {
+        exec.in_stride[i]  = sizeof(src0[i][0]);
+        exec.out_stride[i] = sizeof(dst0[i][0]);
     }
 
     /* don't use check_func() because we disambiguate variants by their CPU
@@ -181,52 +183,54 @@ static void check_ops(const char *report, const unsigned ranges[4],
         func_new = comp_new.func;
         func_ref = comp_ref.func;
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < PLANES; i++) {
             exec.in[i]  = (void *) src0[i];
             exec.out[i] = (void *) dst0[i];
         }
-        call_ref(&exec, comp_ref.priv, PIXELS / comp_ref.block_size);
+        call_ref(&exec, comp_ref.priv, PIXELS / comp_ref.block_size, LINES);
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < PLANES; i++) {
             exec.in[i]  = (void *) src1[i];
             exec.out[i] = (void *) dst1[i];
         }
-        call_new(&exec, comp_new.priv, PIXELS / comp_new.block_size);
+        call_new(&exec, comp_new.priv, PIXELS / comp_new.block_size, LINES);
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < PLANES; i++) {
             const char *name = FMT("%s[%d]", report, i);
             const int size   = PIXELS * exec.pixel_bits_out >> 3;
-            const int stride = sizeof(dst0[i]);
+            const int stride = sizeof(dst0[i][0]);
 
             switch (write_op->type) {
             case U8:
                 checkasm_check(uint8_t, (void *) dst0[i], stride,
                                         (void *) dst1[i], stride,
-                                        size, 1, name);
+                                        size, LINES, name);
                 break;
             case U16:
                 checkasm_check(uint16_t, (void *) dst0[i], stride,
                                          (void *) dst1[i], stride,
-                                         size >> 1, 1, name);
+                                         size >> 1, LINES, name);
                 break;
             case U32:
                 checkasm_check(uint32_t, (void *) dst0[i], stride,
                                          (void *) dst1[i], stride,
-                                         size >> 2, 1, name);
+                                         size >> 2, LINES, name);
                 break;
             case F32:
                 checkasm_check(float, (void *) dst0[i], stride,
                                       (void *) dst1[i], stride,
-                                      size >> 2, 1, name);
+                                      size >> 2, LINES, name);
                 break;
             }
 
             /* Check for over-write */
-            for (int x = size + comp_new.over_write; x < sizeof(dst1[i]); x++) {
-                if (dst1[i][x] != 0) {
-                    fprintf(stderr, "Overwrite detected in %s: [%d] = 0x%02x\n",
-                            name, x, dst1[i][x]);
-                    fail();
+            for (int y = 0; y < LINES; y++) {
+                for (int x = size + comp_new.over_write; x < sizeof(dst1[i][0]); x++) {
+                    if (dst1[i][y][x] != 0) {
+                        fprintf(stderr, "Overwrite detected in %s: [%d][%d] = 0x%02x\n",
+                                name, y, x, dst1[i][y][x]);
+                        fail();
+                    }
                 }
             }
 
@@ -234,7 +238,7 @@ static void check_ops(const char *report, const unsigned ranges[4],
                 break;
         }
 
-        bench_new(&exec, comp_new.priv, PIXELS / comp_new.block_size);
+        bench_new(&exec, comp_new.priv, PIXELS / comp_new.block_size, LINES);
     }
 
     if (comp_new.func != comp_ref.func && comp_new.free)

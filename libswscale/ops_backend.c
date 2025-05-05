@@ -44,21 +44,26 @@ typedef    float f32block_t[SWS_BLOCK_SIZE];
 # include "ops_tmpl_float.c"
 #undef BIT_DEPTH
 
-static void process(const SwsOpExec *exec, const void *priv, int num_blocks)
+static void process(const SwsOpExec *exec, const void *priv, int num_blocks,
+                    int num_lines)
 {
     const SwsOpChain *chain = priv;
     const SwsOpImpl *impl = chain->impl;
     SwsOpIter iter;
 
-    iter.y = exec->y;
-    for (int i = 0; i < 4; i++) {
-        iter.in[i]  = exec->in[i];
-        iter.out[i] = exec->out[i];
-    }
+    const int x_end = num_blocks * SWS_BLOCK_SIZE;
+    const int y_end = exec->y + num_lines;
 
-    for (iter.x = exec->x; num_blocks-- > 0; iter.x += SWS_BLOCK_SIZE) {
-        ((void (*)(SwsOpIter *, const SwsOpImpl *)) impl->cont)
-            (&iter, &impl[1]);
+    for (iter.y = exec->y; iter.y < y_end; iter.y++) {
+        for (int i = 0; i < 4; i++) {
+            iter.in[i]  = exec->in[i]  + iter.y * exec->in_stride[i];
+            iter.out[i] = exec->out[i] + iter.y * exec->out_stride[i];
+        }
+
+        for (iter.x = exec->x; iter.x < x_end; iter.x += SWS_BLOCK_SIZE) {
+            ((void (*)(SwsOpIter *, const SwsOpImpl *)) impl->cont)
+                (&iter, &impl[1]);
+        }
     }
 }
 

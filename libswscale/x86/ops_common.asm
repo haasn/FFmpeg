@@ -137,17 +137,17 @@ endstruc
 %define execq   r0q
 %define implq   r1q
 %define blocksd r2d
+%define linesd  r3d
+%define yd      linesd ; inside ops body
 
 ; extra registers for free use by kernels, not saved between ops
-%define tmp0q   r3q
-%define tmp1q   r4q
-%define tmp2q   r5q
-%define tmp3q   r6q
+%define tmp0q   r4q
+%define tmp1q   r5q
+%define tmp2q   r6q
 
-%define tmp0d   r3d
-%define tmp1d   r4d
-%define tmp2d   r5d
-%define tmp3d   r6d
+%define tmp0d   r4d
+%define tmp1d   r5d
+%define tmp2d   r6d
 
 ; pinned static registers for plane pointers
 %define  in0q   r7q

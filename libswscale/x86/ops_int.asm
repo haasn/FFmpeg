@@ -55,35 +55,104 @@ SECTION .text
 ;---------------------------------------------------------
 ; Global entry point
 
-%macro process_fn 1 ; num_planes
-cglobal sws_process%1_x86, 6, 7 + 2 * %1, 16
+%macro prep_addr 3 ; num_planes, dstp, srcp
+    %if %1 = 1
+        mov tmp0q, [%3]
+        mov [%2], tmp0q
+    %elif %1 == 2
+        mova xm0, [%3]
+        mova [%2], xm0
+    %elif %1 > 2 && avx_enabled
+        mova ym0, [%3]
+        mova [%2], ym0
+    %else
+        mova xm0, [%3]
+        mova xm1, [%3 + 16]
+        mova [%2], xm0
+        mova [%2 + 16], xm1
+    %endif
+%endmacro
+
+%macro incr_addr 3 ; num_planes, addrp, stridep
+    %if %1 = 1
+        mov tmp0q, [%2]
+        add tmp0q, [%3]
+        mov [%2], tmp0q
+    %elif %1 == 2
+        mova xm0, [%2]
+        paddq xm0, [%3]
+        mova [%2], xm0
+    %elif %1 > 2 && avx_enabled
+        mova ym0, [%2]
+        paddq ym0, [%3]
+        mova [%2], ym0
+    %else
+        mova xm0, [%2]
+        mova xm1, [%2 + 16]
+        paddq xm0, [%3]
+        paddq xm1, [%3]
+        mova [%2], xm0
+        mova [%2 + 16], xm1
+    %endif
+%endmacro
+
+%macro process_fn 1 ; num_planes, num_lines
+cglobal sws_process%1, 4, 7 + 2 * %1, 16
+            ; [rsp +  0] = [qword] in0
+            ; [rsp +  8] = [qword] in1
+            ; [rsp + 16] = [qword] in2
+            ; [rsp + 24] = [qword] in3
+            ; [rsp + 32] = [qword] out0
+            ; [rsp + 40] = [qword] out1
+            ; [rsp + 48] = [qword] out2
+            ; [rsp + 56] = [qword] out3
+            ; [rsp + 64] = [qword] impl
+            ; [rsp + 72] = [dword] num_blocks
+            ; [rsp + 76] = [dword] y_end
+            ; [rsp + 80] = [qword] saved rsp
+            mov tmp0q, rsp
+            sub rsp, 88
+            and rsp, -32
+            mov tmp1d, [execq + SwsOpExec.y]
+            add linesd, tmp1d
+            mov [rsp + 64], implq
+            mov [rsp + 72], blocksd
+            mov [rsp + 76], linesd
+            mov [rsp + 80], tmp0q
+            prep_addr %1, rsp,      execq + SwsOpExec.in0
+            prep_addr %1, rsp + 32, execq + SwsOpExec.out0
+            mov yd, tmp1d
+.outer:
             ; set up static registers
-            mov in0q,  [execq + SwsOpExec.in0]
-IF %1 > 1,  mov in1q,  [execq + SwsOpExec.in1]
-IF %1 > 2,  mov in2q,  [execq + SwsOpExec.in2]
-IF %1 > 3,  mov in3q,  [execq + SwsOpExec.in3]
-            mov out0q, [execq + SwsOpExec.out0]
-IF %1 > 1,  mov out1q, [execq + SwsOpExec.out1]
-IF %1 > 2,  mov out2q, [execq + SwsOpExec.out2]
-IF %1 > 3,  mov out3q, [execq + SwsOpExec.out3]
-            push implq
-.loop:
+            mov in0q,  [rsp +  0]
+IF %1 > 1,  mov in1q,  [rsp +  8]
+IF %1 > 2,  mov in2q,  [rsp + 16]
+IF %1 > 3,  mov in3q,  [rsp + 24]
+            mov out0q, [rsp + 32]
+IF %1 > 1,  mov out1q, [rsp + 40]
+IF %1 > 2,  mov out2q, [rsp + 48]
+IF %1 > 3,  mov out3q, [rsp + 56]
+.inner:
             mov tmp0q, [implq + SwsOpImpl.cont]
             add implq, SwsOpImpl.next
             call tmp0q
-            mov implq, [rsp + 0]
+            mov implq, [rsp + 64]
             dec blocksd
-            jg .loop
+            jg .inner
 
+            mov blocksd, [rsp + 72]
+            inc yd
+            cmp yd, [rsp + 76]
+            je .end
+            incr_addr %1, rsp,      execq + SwsOpExec.in_stride0
+            incr_addr %1, rsp + 32, execq + SwsOpExec.out_stride0
+            jmp .outer
+
+.end:
             ; clean up
-            add rsp, 8
+            mov rsp, [rsp + 80]
             RET
 %endmacro
-
-process_fn 1
-process_fn 2
-process_fn 3
-process_fn 4
 
 ;---------------------------------------------------------
 ; Planar reads / writes
@@ -655,30 +724,38 @@ op swizzle_1000
     CONTINUE tmp0q
 %endmacro
 
-%macro packed_shuffle 2-3 ; size_in, size_out, shift
-cglobal packed_shuffle%1_%2, 3, 5, 2, exec, shuffle, blocks, src, dst
+%macro packed_shuffle 2 ; size_in, size_out
+cglobal packed_shuffle%1_%2, 4, 8, 2, \
+    exec, shuffle, blocks, lines, src, dst, src_stride, dst_stride
             mov srcq, [execq + SwsOpExec.in0]
             mov dstq, [execq + SwsOpExec.out0]
+            mov src_strideq, [execq + SwsOpExec.in_stride0]
+            mov dst_strideq, [execq + SwsOpExec.out_stride0]
             VBROADCASTI128 m1, [shuffleq]
-    %ifnum %3
-            shl blocksd, %3
-    %else
-            imul blocksd, %2
-    %endif
-IF %1==%2,  add srcq, blocksq
-            add dstq, blocksq
-            neg blocksq
+            ; reuse regs
+    %define srcidxq execq
+            imul srcidxq, blocksq, -%1
+%if %1 = %2
+    %define dstidxq srcidxq
+%else
+    %define dstidxq shuffleq
+            imul dstidxq, blocksq, -%2
+%endif
+            sub srcq, srcidxq
+            sub dstq, dstidxq
 .loop:
-    %if %1 == %2
-            MOVSZ %1, m0, [srcq + blocksq]
-    %else
-            MOVSZ %1, m0, [srcq]
-    %endif
+            MOVSZ %1, m0, [srcq + srcidxq]
             pshufb m0, m1
-            movu [dstq + blocksq], m0
-IF %1!=%2,  add srcq, %1
-            add blocksq, %2
+            movu [dstq + dstidxq], m0
+            add srcidxq, %1
+IF %1 != %2,add dstidxq, %2
             jl .loop
+            add srcq, src_strideq
+            add dstq, dst_strideq
+            dec linesd
+            imul srcidxq, blocksq, -%1
+IF %1 != %2,imul dstidxq, blocksq, -%2
+            jg .loop
             RET
 %endmacro
 
@@ -928,25 +1005,35 @@ INIT_XMM sse4
 decl_v2 0, funcs_u8
 decl_v2 1, funcs_u8
 
-packed_shuffle  5, 15     ;  8 -> 24
-packed_shuffle  4, 16, 4  ;  8 -> 32, 16 -> 64
-packed_shuffle  2, 12     ;  8 -> 48
-packed_shuffle 10, 15     ; 16 -> 24
-packed_shuffle  8, 16, 4  ; 16 -> 32, 32 -> 64
-packed_shuffle  4, 12     ; 16 -> 48
-packed_shuffle 15, 15     ; 24 -> 24
-packed_shuffle 12, 16, 4  ; 24 -> 32
-packed_shuffle  6, 12     ; 24 -> 48
-packed_shuffle 16, 12     ; 32 -> 24, 64 -> 48
-packed_shuffle 16, 16, 4  ; 32 -> 32, 64 -> 64
-packed_shuffle  8, 12     ; 32 -> 48
-packed_shuffle 12, 12     ; 48 -> 48
+process_fn 1
+process_fn 2
+process_fn 3
+process_fn 4
+
+packed_shuffle  5, 15 ;  8 -> 24
+packed_shuffle  4, 16 ;  8 -> 32, 16 -> 64
+packed_shuffle  2, 12 ;  8 -> 48
+packed_shuffle 10, 15 ; 16 -> 24
+packed_shuffle  8, 16 ; 16 -> 32, 32 -> 64
+packed_shuffle  4, 12 ; 16 -> 48
+packed_shuffle 15, 15 ; 24 -> 24
+packed_shuffle 12, 16 ; 24 -> 32
+packed_shuffle  6, 12 ; 24 -> 48
+packed_shuffle 16, 12 ; 32 -> 24, 64 -> 48
+packed_shuffle 16, 16 ; 32 -> 32, 64 -> 64
+packed_shuffle  8, 12 ; 32 -> 48
+packed_shuffle 12, 12 ; 48 -> 48
 
 INIT_YMM avx2
 decl_v2 0, funcs_u8
 decl_v2 1, funcs_u8
 decl_v2 0, funcs_u16
 decl_v2 1, funcs_u16
+
+process_fn 1
+process_fn 2
+process_fn 3
+process_fn 4
 
 packed_shuffle 32, 32
 
