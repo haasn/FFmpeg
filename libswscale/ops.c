@@ -338,6 +338,18 @@ int ff_sws_op_list_max_size(const SwsOpList *ops)
     return max_size;
 }
 
+int ff_sws_op_list_position_independent(const SwsOpList *ops)
+{
+    for (int i = 0; i < ops->num_ops; i++) {
+        switch (ops->ops[i].op) {
+        case SWS_OP_DITHER: return false;
+        default: break;
+        }
+    }
+
+    return true;
+}
+
 uint32_t ff_sws_linear_mask(const SwsLinearOp c)
 {
     uint32_t mask = 0;
@@ -553,6 +565,7 @@ typedef struct SwsOpPass {
     SwsCompiledOp comp;
     SwsOpExec exec_base;
     int num_blocks;
+    int fused_blocks;
     int tail_off_in;
     int tail_off_out;
     int tail_size_in;
@@ -595,13 +608,30 @@ static void op_pass_setup(const SwsImg *out, const SwsImg *in, const SwsPass *pa
     p->memcpy_in     = false;
     p->memcpy_out    = false;
 
+    /**
+     * Check if we can fuse subsequent lines into a single long line. This
+     * requires the following conditions be met:
+     * - The linesize must be a multiple of the block size
+     * - The number of extra blocks must be the same for all planes
+     */
+    bool can_fuse = false;
+    int fused_blocks = 0;
+
     for (int i = 0; i < 4 && in->data[i]; i++) {
-        const int sub_x      = (i == 1 || i == 2) ? indesc->log2_chroma_w : 0;
-        const int plane_w    = (aligned_w + sub_x) >> sub_x;
-        const int plane_pad  = (comp->over_read + sub_x) >> sub_x;
-        const int plane_size = plane_w * exec->pixel_bits_in >> 3;
+        const int sub_x        = (i == 1 || i == 2) ? indesc->log2_chroma_w : 0;
+        const int plane_w      = (aligned_w + sub_x) >> sub_x;
+        const int plane_pad    = (comp->over_read + sub_x) >> sub_x;
+        const int plane_size   = plane_w * exec->pixel_bits_in >> 3;
         p->memcpy_in |= plane_size + plane_pad > in->linesize[i];
         exec->in_stride[i] = in->linesize[i];
+
+        const int plane_block  = (block_size + sub_x) >> sub_x;
+        const int plane_step   = plane_block * exec->pixel_bits_in >> 3;
+        const int plane_blocks = in->linesize[i] / plane_step;
+        if (!fused_blocks)
+            fused_blocks = plane_blocks;
+        can_fuse &= plane_blocks * plane_step == in->linesize[i] &&
+                    fused_blocks == plane_blocks;
     }
 
     for (int i = 0; i < 4 && out->data[i]; i++) {
@@ -611,6 +641,21 @@ static void op_pass_setup(const SwsImg *out, const SwsImg *in, const SwsPass *pa
         const int plane_size = plane_w * exec->pixel_bits_out >> 3;
         p->memcpy_out |= plane_size + plane_pad > out->linesize[i];
         exec->out_stride[i] = out->linesize[i];
+
+        const int plane_block  = (block_size + sub_x) >> sub_x;
+        const int plane_step   = plane_block * exec->pixel_bits_out >> 3;
+        const int plane_blocks = out->linesize[i] / plane_step;
+        can_fuse &= plane_blocks * plane_step == out->linesize[i] &&
+                    fused_blocks == plane_blocks;
+    }
+
+    if (can_fuse && !p->memcpy_in && !p->memcpy_out) {
+        av_assert1(fused_blocks > 0);
+        av_log(pass->graph->ctx, AV_LOG_TRACE,
+               "Fusing together %d lines of %d blocks into %dx%d = %d blocks\n",
+               pass->slice_h, p->num_blocks, pass->slice_h, fused_blocks,
+               pass->slice_h * fused_blocks);
+        p->fused_blocks = pass->slice_h * fused_blocks;
     }
 }
 
@@ -713,30 +758,40 @@ static void op_pass_run(const SwsImg *out_base, const SwsImg *in_base,
      *    need to worry about this for the end of a slice.
      */
 
-    const int last_slice  = y + h == pass->height;
+    const int y_end = y + h;
+    const int last_slice  = y_end == pass->height;
     const bool memcpy_in  = last_slice && p->memcpy_in;
     const bool memcpy_out = p->memcpy_out;
     const int num_blocks  = p->num_blocks;
     const int blocks_main = num_blocks - memcpy_out;
-    const int y_end       = y + h - memcpy_in;
+    const int y_end_main  = y_end - memcpy_in;
 
-    /* Handle main section */
-    for (exec.y = y; exec.y < y_end; exec.y++) {
-        comp->func(&exec, comp->priv, blocks_main);
-        for (int i = 0; i < 4; i++) {
-            exec.in[i]  += in.linesize[i];
-            exec.out[i] += out.linesize[i];
+    if (p->fused_blocks) {
+        const int safe_blocks = p->fused_blocks - (memcpy_in || memcpy_out);
+        comp->func(&exec, comp->priv, safe_blocks);
+        if (memcpy_out || memcpy_in) {
+            handle_tail(p, &exec, out_base, memcpy_out, in_base, memcpy_in,
+                        y_end - 1, y_end);
         }
+    } else {
+        /* Handle main section */
+        for (exec.y = y; exec.y < y_end_main; exec.y++) {
+            comp->func(&exec, comp->priv, blocks_main);
+            for (int i = 0; i < 4; i++) {
+                exec.in[i]  += in.linesize[i];
+                exec.out[i] += out.linesize[i];
+            }
+        }
+
+        if (memcpy_in)
+            comp->func(&exec, comp->priv, num_blocks - 1); /* safe part of last row */
+
+        /* Handle last column via memcpy, takes over `exec` so call these last */
+        if (memcpy_out)
+            handle_tail(p, &exec, out_base, true, in_base, false, y, y_end_main);
+        if (memcpy_in)
+            handle_tail(p, &exec, out_base, memcpy_out, in_base, true, y_end_main, y + h);
     }
-
-    if (memcpy_in)
-        comp->func(&exec, comp->priv, num_blocks - 1); /* safe part of last row */
-
-    /* Handle last column via memcpy, takes over `exec` so call these last */
-    if (memcpy_out)
-        handle_tail(p, &exec, out_base, true, in_base, false, y, y_end);
-    if (memcpy_in)
-        handle_tail(p, &exec, out_base, memcpy_out, in_base, true, y_end, y + h);
 }
 
 static int rw_pixel_bits(const SwsOp *op)

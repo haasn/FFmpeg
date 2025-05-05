@@ -225,6 +225,12 @@ SwsOpList *ff_sws_op_list_duplicate(const SwsOpList *ops);
 int ff_sws_op_list_max_size(const SwsOpList *ops);
 
 /**
+ * Returns true if an operation chain is position-independent, i.e. does
+ * not contain any operations that care about the pixel coordinates.
+ */
+int ff_sws_op_list_position_independent(const SwsOpList *ops);
+
+/**
  * These will take over ownership of `op` and set it to {0}, even on failure.
  */
 int ff_sws_op_list_append(SwsOpList *ops, SwsOp *op);
