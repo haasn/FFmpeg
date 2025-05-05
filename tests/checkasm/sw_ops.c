@@ -174,8 +174,12 @@ static void check_ops(const char *report, const unsigned ranges[4],
         exec.out_stride[i] = sizeof(dst0[i]);
     }
 
-    if (check_func(comp_new.func, "%s", report)) {
-        func_ref = comp_ref.func; /* ignore any other asm versions */
+    /* don't use check_func() because we disambiguate variants by their CPU
+     * flags, not the function pointer itself */
+    checkasm_save_context();
+    if (checkasm_check_func((void *)(uintptr_t) ~comp_new.cpu_flags, "%s", report)) {
+        func_new = comp_new.func;
+        func_ref = comp_ref.func;
 
         for (int i = 0; i < 4; i++) {
             exec.in[i]  = (void *) src0[i];
