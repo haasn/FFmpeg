@@ -72,6 +72,7 @@ typedef struct SwsOpChain {
     SwsOpImpl impl[SWS_MAX_OPS + 1]; /* reserve extra space for the entrypoint */
     void (*free[SWS_MAX_OPS + 1])(void *);
     int num_impl;
+    int cpu_flags; /* set of all used CPU flags */
 } SwsOpChain;
 
 SwsOpChain *ff_sws_op_chain_alloc(void);

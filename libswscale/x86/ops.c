@@ -622,6 +622,7 @@ static int solve_shuffle(const SwsOpList *ops, int mmsize, SwsCompiledOp *out)
                 .block_size = groups_per_lane * num_lanes,
                 .over_read  = read_size - in_total,
                 .over_write = mmsize - out_total,
+                .cpu_flags  = mmsize > 16 ? AV_CPU_FLAG_AVX2 : AV_CPU_FLAG_SSE4,
             };
 
             if (!out->priv)
@@ -763,6 +764,7 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsCompiledOp *out)
     case 4: out->func = ff_sws_process4_x86; break;
     }
 
+    out->cpu_flags = chain->cpu_flags;
     return ret;
 }
 

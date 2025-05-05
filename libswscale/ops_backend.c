@@ -87,10 +87,11 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsCompiledOp *out)
     }
 
     *out = (SwsCompiledOp) {
-        .func = process,
+        .func       = process,
         .block_size = SWS_BLOCK_SIZE,
-        .priv = chain,
-        .free = (void (*)(void *)) ff_sws_op_chain_free,
+        .cpu_flags  = chain->cpu_flags,
+        .priv       = chain,
+        .free       = (void (*)(void *)) ff_sws_op_chain_free,
     };
     return 0;
 }
