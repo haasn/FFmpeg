@@ -473,19 +473,6 @@ retry:
                 ff_sws_op_list_remove_at(ops, n, 2);
                 goto retry;
             }
-
-            /* Skip unpacking components that are not used */
-            for (int i = 3; i > 0 && next->comps.unused[i]; i--)
-                op->pack.pattern[i] = 0;
-            break;
-
-        case SWS_OP_PACK:
-            /* Skip packing known-to-be-zero components */
-            for (int i = 3; i > 0; i--) {
-                if (!(prev->comps.flags[i] & SWS_COMP_ZERO))
-                    break;
-                op->pack.pattern[i] = 0;
-            }
             break;
 
         case SWS_OP_LSHIFT:
