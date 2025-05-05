@@ -673,9 +673,8 @@ handle_tail(const SwsOpPass *p, SwsOpExec *exec,
     }
 }
 
-static av_always_inline void
-op_pass_run(const SwsImg *out_base, const SwsImg *in_base,
-            const int y, const int h, const SwsPass *pass)
+static void op_pass_run(const SwsImg *out_base, const SwsImg *in_base,
+                        const int y, const int h, const SwsPass *pass)
 {
     const SwsOpPass *p = pass->priv;
     const SwsCompiledOp *comp = &p->comp;
