@@ -193,7 +193,7 @@ IF %1 > 3,  movu [out3q + mmsize], mw2
 IF %1 > 1,  add out1q, mmsize * (1 + V2)
 IF %1 > 2,  add out2q, mmsize * (1 + V2)
 IF %1 > 3,  add out3q, mmsize * (1 + V2)
-            RET
+            ret
 %endmacro
 
 %macro read_packed2 1 ; depth
@@ -259,7 +259,7 @@ IF %1 < 32, VBROADCASTI128 m12, [write%1_pack2]
 IF V2,      movu [out0q + 2*mmsize], m10
 IF V2,      movu [out0q + 3*mmsize], m11
             add out0q, mmsize * (2 + V2 * 2)
-            RET
+            ret
 %endmacro
 
 %macro read_packed_inner 7 ; x, y, z, w, addr, num, depth
@@ -342,7 +342,7 @@ IF %2 < 32, VBROADCASTI128 m12, [write%2_pack%1]
             write_packed_inner mx, my, mz, mw, out0q, %1, %2
 IF1 V2,     write_packed_inner mx2, my2, mz2, mw2, out0q + %1 * mmsize, %1, %2
             add out0q, %1 * mmsize * (1 + V2)
-            RET
+            ret
 %endmacro
 
 %macro rw_packed 1 ; depth
@@ -421,7 +421,7 @@ IF V2,  mov [out0q + 4], tmp1d
 IF V2,  mov [out0q + 2], tmp1d
 %endif
         add out0q, (mmsize >> 3) * (1 + V2)
-        RET
+        ret
 %endmacro
 
 ;--------------------------
