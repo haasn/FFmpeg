@@ -1048,3 +1048,6 @@ decl_common_patterns conv8to32 expand
 decl_common_patterns conv32to8
 decl_common_patterns conv16to32
 decl_common_patterns conv32to16
+
+INIT_ZMM avx512
+packed_shuffle 64, 64

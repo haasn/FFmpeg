@@ -501,7 +501,9 @@ DECL_FUNCS_32(16, _avx2, AVX2)
 
 static av_const int get_mmsize(const int cpu_flags)
 {
-    if (cpu_flags & AV_CPU_FLAG_AVX2)
+    if (cpu_flags & AV_CPU_FLAG_AVX512)
+        return 64;
+    else if (cpu_flags & AV_CPU_FLAG_AVX2)
         return 32;
     else if (cpu_flags & AV_CPU_FLAG_SSE4)
         return 16;
@@ -622,7 +624,9 @@ static int solve_shuffle(const SwsOpList *ops, int mmsize, SwsCompiledOp *out)
                 .block_size = groups_per_lane * num_lanes,
                 .over_read  = read_size - in_total,
                 .over_write = mmsize - out_total,
-                .cpu_flags  = mmsize > 16 ? AV_CPU_FLAG_AVX2 : AV_CPU_FLAG_SSE4,
+                .cpu_flags  = mmsize > 32 ? AV_CPU_FLAG_AVX512 :
+                              mmsize > 16 ? AV_CPU_FLAG_AVX2 :
+                                            AV_CPU_FLAG_SSE4,
             };
 
             if (!out->priv)
@@ -649,6 +653,7 @@ do {                                                                            
             ASSIGN_SHUFFLE_FUNC( 8, 12, sse4);
             ASSIGN_SHUFFLE_FUNC(12, 12, sse4);
             ASSIGN_SHUFFLE_FUNC(32, 32, avx2);
+            ASSIGN_SHUFFLE_FUNC(64, 64, avx512);
             av_assert1(out->func);
             return 0;
         }
@@ -711,8 +716,8 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsCompiledOp *out)
         .priv = chain,
         .free = (void (*)(void *)) ff_sws_op_chain_free,
 
-        /* Use at most two full vregs during the widest precision section */
-        .block_size = 2 * mmsize / ff_sws_op_list_max_size(ops),
+        /* Use at most two full YMM regs during the widest precision section */
+        .block_size = 2 * FFMIN(mmsize, 32) / ff_sws_op_list_max_size(ops),
     };
 
     /* 3-component reads/writes process one extra garbage word */
