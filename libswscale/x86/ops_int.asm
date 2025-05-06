@@ -62,9 +62,6 @@ SECTION .text
     %elif %1 == 2
         mova xm0, [%3]
         mova [%2], xm0
-    %elif %1 > 2 && avx_enabled
-        mova ym0, [%3]
-        mova [%2], ym0
     %else
         mova xm0, [%3]
         mova xm1, [%3 + 16]
@@ -82,10 +79,6 @@ SECTION .text
         mova xm0, [%2]
         paddq xm0, [%3]
         mova [%2], xm0
-    %elif %1 > 2 && avx_enabled
-        mova ym0, [%2]
-        paddq ym0, [%3]
-        mova [%2], ym0
     %else
         mova xm0, [%2]
         mova xm1, [%2 + 16]
@@ -1035,11 +1028,6 @@ decl_v2 0, funcs_u8
 decl_v2 1, funcs_u8
 decl_v2 0, funcs_u16
 decl_v2 1, funcs_u16
-
-process_fn 1
-process_fn 2
-process_fn 3
-process_fn 4
 
 packed_shuffle 32, 32
 
