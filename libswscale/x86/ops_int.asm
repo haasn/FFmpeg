@@ -744,7 +744,13 @@ cglobal packed_shuffle%1_%2, 4, 8, 2, \
             sub srcq, srcidxq
             sub dstq, dstidxq
 .loop:
-            MOVSZ %1, m0, [srcq + srcidxq]
+    %if %1 <= 4
+            movd m0, [srcq + srcidxq]
+    %elif %1 <= 8
+            movq m0, [srcq + srcidxq]
+    %else
+            movu m0, [srcq + srcidxq]
+    %endif
             pshufb m0, m1
             movu [dstq + dstidxq], m0
             add srcidxq, %1
