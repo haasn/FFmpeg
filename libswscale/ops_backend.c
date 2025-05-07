@@ -52,12 +52,11 @@ static void process(const SwsOpExec *exec, const void *priv, int num_blocks,
     SwsOpIter iter;
 
     const int x_end = num_blocks * SWS_BLOCK_SIZE;
-    const int y_end = exec->y + num_lines;
-
-    for (iter.y = exec->y; iter.y < y_end; iter.y++) {
+    for (int line = 0; line < num_lines; line++) {
+        iter.y = exec->y + line;
         for (int i = 0; i < 4; i++) {
-            iter.in[i]  = exec->in[i]  + iter.y * exec->in_stride[i];
-            iter.out[i] = exec->out[i] + iter.y * exec->out_stride[i];
+            iter.in[i]  = exec->in[i]  + line * exec->in_stride[i];
+            iter.out[i] = exec->out[i] + line * exec->out_stride[i];
         }
 
         for (iter.x = exec->x; iter.x < x_end; iter.x += SWS_BLOCK_SIZE) {
