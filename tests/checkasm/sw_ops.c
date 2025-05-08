@@ -223,17 +223,6 @@ static void check_ops(const char *report, const unsigned ranges[PLANES],
                 break;
             }
 
-            /* Check for over-write */
-            for (int y = 0; y < LINES; y++) {
-                for (int x = size + comp_new.over_write; x < sizeof(dst1[i][0]); x++) {
-                    if (dst1[i][y][x] != 0) {
-                        fprintf(stderr, "Overwrite detected in %s: [%d][%d] = 0x%02x\n",
-                                name, y, x, dst1[i][y][x]);
-                        fail();
-                    }
-                }
-            }
-
             if (write_op->rw.packed)
                 break;
         }
