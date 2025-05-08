@@ -788,8 +788,9 @@ int ff_sws_ops_compile(SwsContext *ctx, const SwsOpList *ops, SwsCompiledOp *out
             continue;
 
         av_log(ctx, AV_LOG_VERBOSE, "Compiled using backend '%s': "
-               "block size = %d, over-read = %d, over-write = %d\n",
-               backend->name, out->block_size, out->over_read, out->over_write);
+               "block size = %d, over-read = %d, over-write = %d, cpu flags = 0x%x\n",
+               backend->name, out->block_size, out->over_read, out->over_write,
+               out->cpu_flags);
         return 0;
     }
 
