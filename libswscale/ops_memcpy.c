@@ -23,6 +23,7 @@
 #include "ops_backend.h"
 
 typedef struct MemcpyPriv {
+    int num_planes;
     int index[4]; /* or -1 to clear plane */
     uint8_t clear_value[4];
 } MemcpyPriv;
@@ -35,7 +36,7 @@ static void process(const SwsOpExec *exec, const void *priv, int num_blocks,
     const MemcpyPriv *p = priv;
     av_assert1(num_blocks == exec->width);
 
-    for (int i = 0; i < 4 && exec->out[i]; i++) {
+    for (int i = 0; i < p->num_planes; i++) {
         uint8_t *out = exec->out[i];
         const int idx = p->index[i];
         if (idx < 0) {
@@ -107,6 +108,7 @@ static int compile(SwsContext *ctx, SwsOpList *ops, SwsCompiledOp *out)
         case SWS_OP_WRITE:
             if (op->rw.packed || op->rw.frac)
                 return AVERROR(ENOTSUP);
+            p.num_planes = op->rw.elems;
             break;
 
         default:
