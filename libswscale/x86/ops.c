@@ -21,7 +21,6 @@
 #include <float.h>
 
 #include <libavutil/avassert.h>
-#include <libavutil/bswap.h>
 #include <libavutil/mem.h>
 
 #include "../ops_chain.h"
@@ -529,108 +528,36 @@ static bool op_is_type_invariant(const SwsOp *op)
     return false;
 }
 
-/* Tries to reduce a series of operations to an in-place shuffle mask.
- * Returns the block size, 0 or a negative error code. */
 static int solve_shuffle(const SwsOpList *ops, int mmsize, SwsCompiledOp *out)
 {
-    const SwsOp read = ops->ops[0];
-    const int read_size = ff_sws_pixel_type_size(read.type);
-    uint32_t mask[4] = {0};
+    uint8_t shuffle[16];
+    int read_bytes, write_bytes;
+    int pixels;
 
-    if (!ops->num_ops || read.op != SWS_OP_READ)
-        return AVERROR(EINVAL);
-    if (read.rw.frac || (!read.rw.packed && read.rw.elems > 1))
-        return AVERROR(ENOTSUP);
+    pixels = ff_sws_solve_shuffle(ops, shuffle, 16, 0x80, &read_bytes, &write_bytes);
+    if (pixels < 0)
+        return pixels;
 
-    for (int i = 0; i < read.rw.elems; i++)
-        mask[i] = 0x01010101 * i * read_size + 0x03020100;
+    if (read_bytes < 16 || read_bytes < 16)
+        mmsize = 16; /* avoid cross-lane shuffle */
 
-    for (int opidx = 1; opidx < ops->num_ops; opidx++) {
-        const SwsOp *op = &ops->ops[opidx];
-        switch (op->op) {
-        case SWS_OP_SWIZZLE: {
-            uint32_t orig[4] = { mask[0], mask[1], mask[2], mask[3] };
-            for (int i = 0; i < 4; i++)
-                mask[i] = orig[op->swizzle.in[i]];
-            break;
-        }
+    const int num_lanes = mmsize / 16;
+    const int in_total  = num_lanes * read_bytes;
+    const int out_total = num_lanes * write_bytes;
+    const int read_size = in_total <= 4 ? 4 : in_total <= 8 ? 8 : mmsize;
+    *out = (SwsCompiledOp) {
+        .priv       = av_memdup(shuffle, sizeof(shuffle)),
+        .free       = av_free,
+        .block_size = pixels * num_lanes,
+        .over_read  = read_size - in_total,
+        .over_write = mmsize - out_total,
+        .cpu_flags  = mmsize > 32 ? AV_CPU_FLAG_AVX512 :
+                      mmsize > 16 ? AV_CPU_FLAG_AVX2 :
+                                    AV_CPU_FLAG_SSE4,
+    };
 
-        case SWS_OP_SWAP_BYTES:
-            for (int i = 0; i < 4; i++) {
-                switch (ff_sws_pixel_type_size(op->type)) {
-                case 2: mask[i] = av_bswap16(mask[i]); break;
-                case 4: mask[i] = av_bswap32(mask[i]); break;
-                }
-            }
-            break;
-
-        case SWS_OP_CLEAR:
-            for (int i = 0; i < 4; i++) {
-                if (!op->c.q4[i].den)
-                    continue;
-                if (op->c.q4[i].num != 0)
-                    return AVERROR(ENOTSUP);
-                mask[i] = 0x80808080ul; /* pshufb implicit clear to zero */
-            }
-            break;
-
-        case SWS_OP_CONVERT: {
-            if (!op->convert.expand)
-                return AVERROR(ENOTSUP);
-            for (int i = 0; i < 4; i++) {
-                switch (ff_sws_pixel_type_size(op->type)) {
-                case 1: mask[i] = 0x01010101 * (mask[i] & 0xFF);   break;
-                case 2: mask[i] = 0x00010001 * (mask[i] & 0xFFFF); break;
-                }
-            }
-            break;
-        }
-
-        case SWS_OP_WRITE: {
-            if (op->rw.frac || !op->rw.packed)
-                return AVERROR(ENOTSUP);
-
-            /* Initialize to no-op */
-            uint8_t shuffle[16];
-            for (int i = 0; i < 16; i++)
-                shuffle[i] = 0x80;
-
-            const int write_size  = ff_sws_pixel_type_size(op->type);
-            const int read_chunk  = read.rw.elems * read_size;
-            const int write_chunk = op->rw.elems * write_size;
-            const int groups_per_lane = 16 / FFMAX(read_chunk, write_chunk);
-            for (int n = 0; n < groups_per_lane; n++) {
-                const int base_in  = n * read_chunk;
-                const int base_out = n * write_chunk;
-                for (int i = 0; i < op->rw.elems; i++) {
-                    const int offset = base_out + i * write_size;
-                    for (int b = 0; b < write_size; b++)
-                        shuffle[offset + b] = base_in + (mask[i] >> (b * 8));
-                }
-            }
-
-            const int in_per_lane  = groups_per_lane * read_chunk;
-            const int out_per_lane = groups_per_lane * write_chunk;
-            if (in_per_lane < 16 || out_per_lane < 16)
-                mmsize = 16; /* avoid cross-lane shuffle */
-
-            const int num_lanes = mmsize / 16;
-            const int in_total  = num_lanes * in_per_lane;
-            const int out_total = num_lanes * out_per_lane;
-            const int read_size = in_total <= 4 ? 4 : in_total <= 8 ? 8 : mmsize;
-            *out = (SwsCompiledOp) {
-                .priv       = av_memdup(shuffle, sizeof(shuffle)),
-                .free       = av_free,
-                .block_size = groups_per_lane * num_lanes,
-                .over_read  = read_size - in_total,
-                .over_write = mmsize - out_total,
-                .cpu_flags  = mmsize > 32 ? AV_CPU_FLAG_AVX512 :
-                              mmsize > 16 ? AV_CPU_FLAG_AVX2 :
-                                            AV_CPU_FLAG_SSE4,
-            };
-
-            if (!out->priv)
-                return AVERROR(ENOMEM);
+    if (!out->priv)
+        return AVERROR(ENOMEM);
 
 #define ASSIGN_SHUFFLE_FUNC(IN, OUT, EXT)                                       \
 do {                                                                            \
@@ -639,31 +566,23 @@ do {                                                                            
         out->func = ff_packed_shuffle##IN##_##OUT##_##EXT;                      \
 } while (0)
 
-            ASSIGN_SHUFFLE_FUNC( 5, 15, sse4);
-            ASSIGN_SHUFFLE_FUNC( 4, 16, sse4);
-            ASSIGN_SHUFFLE_FUNC( 2, 12, sse4);
-            ASSIGN_SHUFFLE_FUNC(10, 15, sse4);
-            ASSIGN_SHUFFLE_FUNC( 8, 16, sse4);
-            ASSIGN_SHUFFLE_FUNC( 4, 12, sse4);
-            ASSIGN_SHUFFLE_FUNC(15, 15, sse4);
-            ASSIGN_SHUFFLE_FUNC(12, 16, sse4);
-            ASSIGN_SHUFFLE_FUNC( 6, 12, sse4);
-            ASSIGN_SHUFFLE_FUNC(16, 12, sse4);
-            ASSIGN_SHUFFLE_FUNC(16, 16, sse4);
-            ASSIGN_SHUFFLE_FUNC( 8, 12, sse4);
-            ASSIGN_SHUFFLE_FUNC(12, 12, sse4);
-            ASSIGN_SHUFFLE_FUNC(32, 32, avx2);
-            ASSIGN_SHUFFLE_FUNC(64, 64, avx512);
-            av_assert1(out->func);
-            return 0;
-        }
-
-        default:
-            return AVERROR(ENOTSUP);
-        }
-    }
-
-    return AVERROR(EINVAL);
+    ASSIGN_SHUFFLE_FUNC( 5, 15, sse4);
+    ASSIGN_SHUFFLE_FUNC( 4, 16, sse4);
+    ASSIGN_SHUFFLE_FUNC( 2, 12, sse4);
+    ASSIGN_SHUFFLE_FUNC(10, 15, sse4);
+    ASSIGN_SHUFFLE_FUNC( 8, 16, sse4);
+    ASSIGN_SHUFFLE_FUNC( 4, 12, sse4);
+    ASSIGN_SHUFFLE_FUNC(15, 15, sse4);
+    ASSIGN_SHUFFLE_FUNC(12, 16, sse4);
+    ASSIGN_SHUFFLE_FUNC( 6, 12, sse4);
+    ASSIGN_SHUFFLE_FUNC(16, 12, sse4);
+    ASSIGN_SHUFFLE_FUNC(16, 16, sse4);
+    ASSIGN_SHUFFLE_FUNC( 8, 12, sse4);
+    ASSIGN_SHUFFLE_FUNC(12, 12, sse4);
+    ASSIGN_SHUFFLE_FUNC(32, 32, avx2);
+    ASSIGN_SHUFFLE_FUNC(64, 64, avx512);
+    av_assert1(out->func);
+    return 0;
 }
 
 /* Normalize clear values into 32-bit integer constants */
