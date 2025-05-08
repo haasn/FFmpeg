@@ -108,6 +108,7 @@ static void check_ops(const char *report, const unsigned ranges[PLANES],
 {
     SwsContext *ctx = sws_alloc_context();
     SwsCompiledOp comp_ref = {0}, comp_new = {0};
+    const SwsOpBackend *backend_new = NULL;
     SwsOpList oplist = { .ops = (SwsOp *) ops };
     const SwsOp *read_op, *write_op;
     static const unsigned def_ranges[4] = {0};
@@ -159,8 +160,10 @@ static void check_ops(const char *report, const unsigned ranges[PLANES],
 
             if (is_ref)
                 comp_ref = comp;
-            if (!comp_new.func)
+            if (!comp_new.func) {
                 comp_new = comp;
+                backend_new = backend;
+            }
         }
     }
 
@@ -179,7 +182,7 @@ static void check_ops(const char *report, const unsigned ranges[PLANES],
     /* don't use check_func() because we disambiguate variants by their CPU
      * flags, not the function pointer itself */
     checkasm_save_context();
-    if (checkasm_check_func((void *)(uintptr_t) ~comp_new.cpu_flags, "%s", report)) {
+    if (checkasm_check_func((void *) backend_new, "%s", report)) {
         func_new = comp_new.func;
         func_ref = comp_ref.func;
 
