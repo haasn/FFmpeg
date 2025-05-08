@@ -173,9 +173,9 @@ static inline int ff_setup_memdup(const void *c, size_t size, SwsOpPriv *out)
     WRAP_PATTERN(FUNC, 1, 1, 1, 1, __VA_ARGS__)
 
 #define REF_COMMON_PATTERNS(NAME)                                               \
-    fn(op_##NAME##_1000),                                                       \
-    fn(op_##NAME##_1001),                                                       \
-    fn(op_##NAME##_1110),                                                       \
-    fn(op_##NAME##_1111)
+    &fn(op_##NAME##_1000),                                                      \
+    &fn(op_##NAME##_1001),                                                      \
+    &fn(op_##NAME##_1110),                                                      \
+    &fn(op_##NAME##_1111)
 
 #endif
