@@ -93,7 +93,7 @@ typedef struct SwsOpEntry {
 typedef struct SwsOpTable {
     unsigned cpu_flags;   /* required CPU flags for this table */
     int block_size;       /* fixed block size of this table */
-    SwsOpEntry entries[]; /* terminated by {0} */
+    const SwsOpEntry *entries[]; /* terminated by NULL */
 } SwsOpTable;
 
 /**

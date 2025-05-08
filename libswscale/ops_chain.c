@@ -212,8 +212,8 @@ int ff_sws_op_compile_tables(const SwsOpTable *const tables[], int num_tables,
             table->cpu_flags & ~cpu_flags)
             continue;
 
-        for (int i = 0; table->entries[i].op.op; i++) {
-            const SwsOpEntry *entry = &table->entries[i];
+        for (int i = 0; table->entries[i]; i++) {
+            const SwsOpEntry *entry = table->entries[i];
             int score = op_match(op, entry, next->comps);
             if (score > best_score) {
                 best_score = score;
