@@ -1308,7 +1308,7 @@ static int fmt_dither(SwsContext *ctx, SwsOpList *ops,
         /* Visual threshold of perception: 12 bits for SDR, 14 bits for HDR */
         const int jnd_bits = trc_is_hdr(fmt.color.trc) ? 14 : 12;
         const int bpc = fmt.desc->comp[0].depth;
-        mode = bpc >= jnd_bits ? SWS_DITHER_NONE : SWS_DITHER_BAYER;
+        mode = bpc >= jnd_bits ? SWS_DITHER_NONE : SWS_DITHER_BLUE;
     }
 
     switch (mode) {
