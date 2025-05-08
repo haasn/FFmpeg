@@ -45,7 +45,7 @@
     )
 
 #define REF_PATTERN(NAME, X, Y, Z, W)                                           \
-    op_p##X##Y##Z##W##_##NAME
+    &op_p##X##Y##Z##W##_##NAME
 
 #define DECL_COMMON_PATTERNS(TYPE, NAME, ...)                                   \
     DECL_PATTERN(TYPE, NAME, 1, 0, 0, 0, __VA_ARGS__);                          \
@@ -295,57 +295,57 @@ static const SwsOpTable ops8##EXT = {                                           
     .cpu_flags = AV_CPU_FLAG_##FLAG,                                            \
     .block_size = SIZE,                                                         \
     .entries = {                                                                \
-        op_read_planar1##EXT,                                                   \
-        op_read_planar2##EXT,                                                   \
-        op_read_planar3##EXT,                                                   \
-        op_read_planar4##EXT,                                                   \
-        op_write_planar1##EXT,                                                  \
-        op_write_planar2##EXT,                                                  \
-        op_write_planar3##EXT,                                                  \
-        op_write_planar4##EXT,                                                  \
-        op_read8_packed2##EXT,                                                  \
-        op_read8_packed3##EXT,                                                  \
-        op_read8_packed4##EXT,                                                  \
-        op_write8_packed2##EXT,                                                 \
-        op_write8_packed3##EXT,                                                 \
-        op_write8_packed4##EXT,                                                 \
-        op_read_nibbles1##EXT,                                                  \
-        op_read_bits1##EXT,                                                     \
-        op_write_bits1##EXT,                                                    \
-        op_pack_1210##EXT,                                                      \
-        op_pack_3320##EXT,                                                      \
-        op_pack_2330##EXT,                                                      \
-        op_unpack_1210##EXT,                                                      \
-        op_unpack_3320##EXT,                                                      \
-        op_unpack_2330##EXT,                                                      \
-        op_swizzle_3012##EXT,                                                   \
-        op_swizzle_3021##EXT,                                                   \
-        op_swizzle_2103##EXT,                                                   \
-        op_swizzle_3210##EXT,                                                   \
-        op_swizzle_3102##EXT,                                                   \
-        op_swizzle_3201##EXT,                                                   \
-        op_swizzle_1203##EXT,                                                   \
-        op_swizzle_1023##EXT,                                                   \
-        op_swizzle_2013##EXT,                                                   \
-        op_swizzle_2310##EXT,                                                   \
-        op_swizzle_2130##EXT,                                                   \
-        op_swizzle_1230##EXT,                                                   \
-        op_swizzle_1320##EXT,                                                   \
-        op_swizzle_0213##EXT,                                                   \
-        op_swizzle_0231##EXT,                                                   \
-        op_swizzle_0312##EXT,                                                   \
-        op_swizzle_3120##EXT,                                                   \
-        op_swizzle_0321##EXT,                                                   \
-        op_swizzle_0003##EXT,                                                   \
-        op_swizzle_0001##EXT,                                                   \
-        op_swizzle_3000##EXT,                                                   \
-        op_swizzle_1000##EXT,                                                   \
-        op_clear_alpha0##EXT,                                                   \
-        op_clear_alpha1##EXT,                                                   \
-        op_clear_alpha3##EXT,                                                   \
-        op_clear_zero0##EXT,                                                    \
-        op_clear_zero1##EXT,                                                    \
-        op_clear_zero3##EXT,                                                    \
+        &op_read_planar1##EXT,                                                  \
+        &op_read_planar2##EXT,                                                  \
+        &op_read_planar3##EXT,                                                  \
+        &op_read_planar4##EXT,                                                  \
+        &op_write_planar1##EXT,                                                 \
+        &op_write_planar2##EXT,                                                 \
+        &op_write_planar3##EXT,                                                 \
+        &op_write_planar4##EXT,                                                 \
+        &op_read8_packed2##EXT,                                                 \
+        &op_read8_packed3##EXT,                                                 \
+        &op_read8_packed4##EXT,                                                 \
+        &op_write8_packed2##EXT,                                                \
+        &op_write8_packed3##EXT,                                                \
+        &op_write8_packed4##EXT,                                                \
+        &op_read_nibbles1##EXT,                                                 \
+        &op_read_bits1##EXT,                                                    \
+        &op_write_bits1##EXT,                                                   \
+        &op_pack_1210##EXT,                                                     \
+        &op_pack_3320##EXT,                                                     \
+        &op_pack_2330##EXT,                                                     \
+        &op_unpack_1210##EXT,                                                   \
+        &op_unpack_3320##EXT,                                                   \
+        &op_unpack_2330##EXT,                                                   \
+        &op_swizzle_3012##EXT,                                                  \
+        &op_swizzle_3021##EXT,                                                  \
+        &op_swizzle_2103##EXT,                                                  \
+        &op_swizzle_3210##EXT,                                                  \
+        &op_swizzle_3102##EXT,                                                  \
+        &op_swizzle_3201##EXT,                                                  \
+        &op_swizzle_1203##EXT,                                                  \
+        &op_swizzle_1023##EXT,                                                  \
+        &op_swizzle_2013##EXT,                                                  \
+        &op_swizzle_2310##EXT,                                                  \
+        &op_swizzle_2130##EXT,                                                  \
+        &op_swizzle_1230##EXT,                                                  \
+        &op_swizzle_1320##EXT,                                                  \
+        &op_swizzle_0213##EXT,                                                  \
+        &op_swizzle_0231##EXT,                                                  \
+        &op_swizzle_0312##EXT,                                                  \
+        &op_swizzle_3120##EXT,                                                  \
+        &op_swizzle_0321##EXT,                                                  \
+        &op_swizzle_0003##EXT,                                                  \
+        &op_swizzle_0001##EXT,                                                  \
+        &op_swizzle_3000##EXT,                                                  \
+        &op_swizzle_1000##EXT,                                                  \
+        &op_clear_alpha0##EXT,                                                  \
+        &op_clear_alpha1##EXT,                                                  \
+        &op_clear_alpha3##EXT,                                                  \
+        &op_clear_zero0##EXT,                                                   \
+        &op_clear_zero1##EXT,                                                   \
+        &op_clear_zero3##EXT,                                                   \
         REF_PATTERN(clear##EXT, 1, 1, 1, 0),                                    \
         REF_PATTERN(clear##EXT, 0, 1, 1, 1),                                    \
         REF_PATTERN(clear##EXT, 0, 0, 1, 1),                                    \
@@ -356,7 +356,7 @@ static const SwsOpTable ops8##EXT = {                                           
         REF_PATTERN(clear##EXT, 1, 0, 0, 0),                                    \
         REF_PATTERN(clear##EXT, 0, 1, 0, 0),                                    \
         REF_PATTERN(clear##EXT, 0, 0, 1, 0),                                    \
-        {{0}}                                                                   \
+        NULL                                                                    \
     },                                                                          \
 };
 
@@ -378,25 +378,25 @@ static const SwsOpTable ops16##EXT = {                                          
     .cpu_flags = AV_CPU_FLAG_##FLAG,                                            \
     .block_size = SIZE,                                                         \
     .entries = {                                                                \
-        op_read16_packed2##EXT,                                                 \
-        op_read16_packed3##EXT,                                                 \
-        op_read16_packed4##EXT,                                                 \
-        op_write16_packed2##EXT,                                                \
-        op_write16_packed3##EXT,                                                \
-        op_write16_packed4##EXT,                                                \
-        op_pack_4440##EXT,                                                      \
-        op_pack_5550##EXT,                                                      \
-        op_pack_5650##EXT,                                                      \
-        op_unpack_4440##EXT,                                                    \
-        op_unpack_5550##EXT,                                                    \
-        op_unpack_5650##EXT,                                                    \
+        &op_read16_packed2##EXT,                                                \
+        &op_read16_packed3##EXT,                                                \
+        &op_read16_packed4##EXT,                                                \
+        &op_write16_packed2##EXT,                                               \
+        &op_write16_packed3##EXT,                                               \
+        &op_write16_packed4##EXT,                                               \
+        &op_pack_4440##EXT,                                                     \
+        &op_pack_5550##EXT,                                                     \
+        &op_pack_5650##EXT,                                                     \
+        &op_unpack_4440##EXT,                                                   \
+        &op_unpack_5550##EXT,                                                   \
+        &op_unpack_5650##EXT,                                                   \
         REF_COMMON_PATTERNS(swap_bytes_U16##EXT),                               \
         REF_COMMON_PATTERNS(convert_U8_U16##EXT),                               \
         REF_COMMON_PATTERNS(convert_U16_U8##EXT),                               \
         REF_COMMON_PATTERNS(expand_U8_U16##EXT),                                \
         REF_COMMON_PATTERNS(lshift16##EXT),                                     \
         REF_COMMON_PATTERNS(rshift16##EXT),                                     \
-        {{0}}                                                                   \
+        NULL                                                                    \
     },                                                                          \
 };
 
@@ -443,16 +443,16 @@ static const SwsOpTable ops32##EXT = {                                          
     .cpu_flags = AV_CPU_FLAG_##FLAG,                                            \
     .block_size = SIZE,                                                         \
     .entries = {                                                                \
-        op_read32_packed2_m2##EXT,                                              \
-        op_read32_packed3_m2##EXT,                                              \
-        op_read32_packed4_m2##EXT,                                              \
-        op_write32_packed2_m2##EXT,                                             \
-        op_write32_packed3_m2##EXT,                                             \
-        op_write32_packed4_m2##EXT,                                             \
-        op_pack_1010102_m2##EXT,                                                \
-        op_pack_2101010_m2##EXT,                                                \
-        op_unpack_1010102_m2##EXT,                                              \
-        op_unpack_2101010_m2##EXT,                                              \
+        &op_read32_packed2_m2##EXT,                                             \
+        &op_read32_packed3_m2##EXT,                                             \
+        &op_read32_packed4_m2##EXT,                                             \
+        &op_write32_packed2_m2##EXT,                                            \
+        &op_write32_packed3_m2##EXT,                                            \
+        &op_write32_packed4_m2##EXT,                                            \
+        &op_pack_1010102_m2##EXT,                                               \
+        &op_pack_2101010_m2##EXT,                                               \
+        &op_unpack_1010102_m2##EXT,                                             \
+        &op_unpack_2101010_m2##EXT,                                             \
         REF_COMMON_PATTERNS(swap_bytes_U32_m2##EXT),                            \
         REF_COMMON_PATTERNS(convert_U8_U32##EXT),                               \
         REF_COMMON_PATTERNS(convert_U32_U8##EXT),                               \
@@ -471,21 +471,21 @@ static const SwsOpTable ops32##EXT = {                                          
         REF_COMMON_PATTERNS(dither2##EXT),                                      \
         REF_COMMON_PATTERNS(dither3##EXT),                                      \
         REF_COMMON_PATTERNS(dither4##EXT),                                      \
-        op_luma##EXT,                                                           \
-        op_alpha##EXT,                                                          \
-        op_lumalpha##EXT,                                                       \
-        op_dot3##EXT,                                                           \
-        op_row0##EXT,                                                           \
-        op_row0a##EXT,                                                          \
-        op_diag3##EXT,                                                          \
-        op_diag4##EXT,                                                          \
-        op_diagoff3##EXT,                                                       \
-        op_matrix3##EXT,                                                        \
-        op_affine3##EXT,                                                        \
-        op_affine3a##EXT,                                                       \
-        op_matrix4##EXT,                                                        \
-        op_affine4##EXT,                                                        \
-        {{0}}                                                                   \
+        &op_luma##EXT,                                                          \
+        &op_alpha##EXT,                                                         \
+        &op_lumalpha##EXT,                                                      \
+        &op_dot3##EXT,                                                          \
+        &op_row0##EXT,                                                          \
+        &op_row0a##EXT,                                                         \
+        &op_diag3##EXT,                                                         \
+        &op_diag4##EXT,                                                         \
+        &op_diagoff3##EXT,                                                      \
+        &op_matrix3##EXT,                                                       \
+        &op_affine3##EXT,                                                       \
+        &op_affine3a##EXT,                                                      \
+        &op_matrix4##EXT,                                                       \
+        &op_affine4##EXT,                                                       \
+        NULL                                                                    \
     },                                                                          \
 };
 
