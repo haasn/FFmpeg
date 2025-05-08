@@ -129,6 +129,9 @@ arithmetic dither, based using addition
 arithmetic dither, based using xor (more random/less apparent patterning that
 a_dither).
 
+@item blue
+blue noise dither
+
 @end table
 
 @item alphablend

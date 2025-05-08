@@ -81,6 +81,7 @@ typedef enum SwsDither {
     SWS_DITHER_ED,       /* error diffusion */
     SWS_DITHER_A_DITHER, /* arithmetic addition */
     SWS_DITHER_X_DITHER, /* arithmetic xor */
+    SWS_DITHER_BLUE,     /* blue noise dither */
     SWS_DITHER_NB,       /* not part of the ABI */
 } SwsDither;
 

@@ -1237,6 +1237,53 @@ static AVRational *generate_bayer_matrix(const int size_log2)
     return m;
 }
 
+static const uint8_t blue_noise[16*16] = {
+    193, 122,  17, 215,  79, 240,  60, 192, 107,  13, 229,  33, 105, 205,  81, 217,
+     74, 234, 152,  56, 170,   2, 178,  75, 221, 146,  61, 183, 135,  14, 184,  57,
+    169,  43, 103, 252,  72, 216,  49, 156,  29, 117, 200,  73, 253,  98, 133, 241,
+      6, 212, 129,  19, 182, 139, 106, 247,  90, 225,   4, 175,  40, 195,  28, 108,
+    174,  77, 154, 206,  97,  35, 191,  12, 177,  53, 148, 109, 223,  89, 138, 213,
+     67, 226,  45,  87, 243, 131,  62, 210, 134, 104, 239,  52, 155,  11, 185,  41,
+    168,  23, 194, 128,   7, 164, 227,  93,  39, 189,  18, 204, 113, 246,  63, 218,
+    112, 249,  68, 153, 208,  83,  30, 140, 251,  71, 130, 162,  36,  91, 176, 119,
+      0, 118, 179,  46,  99, 238, 115, 197,   3, 120, 233,  69, 214, 151,  26, 187,
+     95, 201,  27, 228, 144,  16, 172,  66, 147, 209,  38, 173,   8, 125, 224,  47,
+    244,  85, 159, 124,  50, 199,  82, 242,  51, 100, 186,  76, 255,  58, 160, 110,
+    142,  15, 220,  64, 254,  78, 181,  25, 161, 230,  20, 149, 114, 203,  21, 235,
+     55, 198, 102, 165,   5, 141,  48, 222, 126,  59, 121, 237,  34,  96, 180,  80,
+    171, 116,  31, 231,  86, 207,  88, 166,  10, 219, 163,  70, 211, 157,  42, 202,
+      9, 245, 137,  94, 188,  22, 232, 127,  84, 132,  37, 190,   1, 123, 248, 101,
+    143,  65, 196,  44, 158, 111, 145,  32, 250, 167,  92, 136, 236,  54, 150,  24,
+};
+
+static AVRational *generate_blue_noise(const int size_log2)
+{
+    const int size = 1 << size_log2;
+    const int num_entries = size * size;
+    AVRational *m = av_refstruct_allocz(sizeof(*m) * num_entries);
+    av_assert1(size == 16);
+    if (!m)
+        return NULL;
+
+    for (int i = 0; i < num_entries; i++) {
+        const uint8_t val = blue_noise[i];
+        m[i] = av_make_q(2 * val + 1, 2 * num_entries);
+    }
+
+    return m;
+}
+
+static AVRational *generate_dither_matrix(SwsDither mode, const int size_log2)
+{
+    switch (mode) {
+    case SWS_DITHER_BAYER: return generate_bayer_matrix(size_log2);
+    case SWS_DITHER_BLUE:  return generate_blue_noise(size_log2);
+    default:
+        av_assert1(!"Invalid dither mode");
+        return NULL;
+    }
+}
+
 static bool trc_is_hdr(enum AVColorTransferCharacteristic trc)
 {
     static_assert(AVCOL_TRC_NB == 19, "Update this list when adding TRCs");
@@ -1281,13 +1328,14 @@ static int fmt_dither(SwsContext *ctx, SwsOpList *ops,
             return 0; /* No-op */
         }
     case SWS_DITHER_BAYER:
+    case SWS_DITHER_BLUE:
         /* Hardcode 16x16 matrix for now; in theory we could adjust this
          * based on the expected level of precision in the output, since lower
          * bit depth outputs can suffice with smaller dither matrices; however
          * in practice we probably want to use error diffusion for such low bit
          * depths anyway */
         dither.size_log2 = 4;
-        dither.matrix = generate_bayer_matrix(dither.size_log2);
+        dither.matrix = generate_dither_matrix(mode, dither.size_log2);
         if (!dither.matrix)
             return AVERROR(ENOMEM);
         return ff_sws_op_list_append(ops, &(SwsOp) {
@@ -1295,6 +1343,7 @@ static int fmt_dither(SwsContext *ctx, SwsOpList *ops,
             .type   = type,
             .dither = dither,
         });
+
     case SWS_DITHER_ED:
     case SWS_DITHER_A_DITHER:
     case SWS_DITHER_X_DITHER:
