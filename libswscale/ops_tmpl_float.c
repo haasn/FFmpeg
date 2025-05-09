@@ -41,22 +41,9 @@
 #define FMT_CHAR f
 #include "ops_tmpl_common.c"
 
-#define MAX_DITHER_SIZE 16
-#if MAX_DITHER_SIZE > SWS_BLOCK_SIZE
-#  define DITHER_ROW_SIZE MAX_DITHER_SIZE
-#else
-#  define DITHER_ROW_SIZE SWS_BLOCK_SIZE
-#endif
-
-typedef struct {
-    pixel_t matrix[MAX_DITHER_SIZE][DITHER_ROW_SIZE];
-} fn(DitherCoeffs);
-
 DECL_SETUP(setup_dither)
 {
-    fn(DitherCoeffs) c = {0};
     const int size = 1 << op->dither.size_log2;
-
     if (!size) {
         /* We special case this value */
         av_assert1(!av_cmp_q(op->dither.matrix[0], av_make_q(1, 2)));
@@ -64,33 +51,40 @@ DECL_SETUP(setup_dither)
         return 0;
     }
 
+    const int width = FFMAX(size, SWS_BLOCK_SIZE);
+    pixel_t *matrix = out->ptr = av_malloc(sizeof(pixel_t) * size * width);
+    if (!matrix)
+        return AVERROR(ENOMEM);
+
     for (int y = 0; y < size; y++) {
         for (int x = 0; x < size; x++)
-            c.matrix[y][x] = av_q2pixel(op->dither.matrix[y * size + x]);
-        for (int x = size; x < SWS_BLOCK_SIZE; x++)
-            c.matrix[y][x] = c.matrix[y][x % size]; /* pad to chunk size */
+            matrix[y * width + x] = av_q2pixel(op->dither.matrix[y * size + x]);
+        for (int x = size; x < width; x++) /* pad to block size */
+            matrix[y * width + x] = matrix[y * width + (x % size)];
     }
 
-    return SETUP_MEMDUP(c);
+    return 0;
 }
 
 DECL_FUNC(dither, const int size_log2)
 {
-    const fn(DitherCoeffs) *restrict c = impl->priv.ptr;
+    const pixel_t *restrict matrix = impl->priv.ptr;
     const int mask = (1 << size_log2) - 1;
     const int y_line = iter->y;
     const int row0 = (y_line +  0) & mask;
     const int row1 = (y_line +  3) & mask;
     const int row2 = (y_line +  2) & mask;
     const int row3 = (y_line +  5) & mask;
-    const int base = iter->x & (SWS_BLOCK_SIZE & (MAX_DITHER_SIZE - 1));
+    const int size = 1 << size_log2;
+    const int width = FFMAX(size, SWS_BLOCK_SIZE);
+    const int base = iter->x & ~(SWS_BLOCK_SIZE - 1) & (size - 1);
 
     SWS_LOOP
     for (int i = 0; i < SWS_BLOCK_SIZE; i++) {
-        x[i] += size_log2 ? c->matrix[row0][base + i] : (pixel_t) 0.5;
-        y[i] += size_log2 ? c->matrix[row1][base + i] : (pixel_t) 0.5;
-        z[i] += size_log2 ? c->matrix[row2][base + i] : (pixel_t) 0.5;
-        w[i] += size_log2 ? c->matrix[row3][base + i] : (pixel_t) 0.5;
+        x[i] += size_log2 ? matrix[row0 * width + base + i] : (pixel_t) 0.5;
+        y[i] += size_log2 ? matrix[row1 * width + base + i] : (pixel_t) 0.5;
+        z[i] += size_log2 ? matrix[row2 * width + base + i] : (pixel_t) 0.5;
+        w[i] += size_log2 ? matrix[row3 * width + base + i] : (pixel_t) 0.5;
     }
 
     CONTINUE(block_t, x, y, z, w);
@@ -114,6 +108,9 @@ WRAP_DITHER(1)
 WRAP_DITHER(2)
 WRAP_DITHER(3)
 WRAP_DITHER(4)
+WRAP_DITHER(5)
+WRAP_DITHER(6)
+WRAP_DITHER(7)
 
 typedef struct {
     /* Stored in split form for convenience */
@@ -224,6 +221,9 @@ static const SwsOpTable fn(op_table_float) = {
         &fn(op_dither2),
         &fn(op_dither3),
         &fn(op_dither4),
+        &fn(op_dither5),
+        &fn(op_dither6),
+        &fn(op_dither7),
 
         &fn(op_linear_luma),
         &fn(op_linear_alpha),
