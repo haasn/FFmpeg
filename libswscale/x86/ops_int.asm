@@ -89,32 +89,33 @@ SECTION .text
     %endif
 %endmacro
 
-%macro process_fn 1 ; num_planes, num_lines
-cglobal sws_process%1, 4, 7 + 2 * %1, 16
-            ; [rsp +  0] = [qword] in0
-            ; [rsp +  8] = [qword] in1
-            ; [rsp + 16] = [qword] in2
-            ; [rsp + 24] = [qword] in3
-            ; [rsp + 32] = [qword] out0
-            ; [rsp + 40] = [qword] out1
-            ; [rsp + 48] = [qword] out2
-            ; [rsp + 56] = [qword] out3
-            ; [rsp + 64] = [qword] impl
-            ; [rsp + 72] = [dword] num_blocks
-            ; [rsp + 76] = [dword] y_end
-            ; [rsp + 80] = [qword] saved rsp
-            mov tmp0q, rsp
+%macro process_fn 1 ; num_planes
+cglobal sws_process%1, 6, 7 + 2 * %1, 16
+            ; Args:
+            ;   execq, implq, bxd, yd, bxendd as defined in ops_common.int
+            ;   tmp0d initially holds y_end, will be pushed to stack
+            ; Stack layout:
+            ;   [rsp +  0] = [qword] in0
+            ;   [rsp +  8] = [qword] in1
+            ;   [rsp + 16] = [qword] in2
+            ;   [rsp + 24] = [qword] in3
+            ;   [rsp + 32] = [qword] out0
+            ;   [rsp + 40] = [qword] out1
+            ;   [rsp + 48] = [qword] out2
+            ;   [rsp + 56] = [qword] out3
+            ;   [rsp + 64] = [qword] saved impl
+            ;   [rsp + 72] = [dword] saved bx start
+            ;   [rsp + 76] = [dword] saved y end
+            ;   [rsp + 80] = [qword] saved rsp
+            mov tmp1q, rsp
             sub rsp, 88
             and rsp, -32
-            mov tmp1d, [execq + SwsOpExec.y]
-            add linesd, tmp1d
             mov [rsp + 64], implq
-            mov [rsp + 72], blocksd
-            mov [rsp + 76], linesd
-            mov [rsp + 80], tmp0q
+            mov [rsp + 72], bxd
+            mov [rsp + 76], tmp0d
+            mov [rsp + 80], tmp1q
             prep_addr %1, rsp,      execq + SwsOpExec.in0
             prep_addr %1, rsp + 32, execq + SwsOpExec.out0
-            mov yd, tmp1d
 .outer:
             ; set up static registers
             mov in0q,  [rsp +  0]
@@ -130,15 +131,15 @@ IF %1 > 3,  mov out3q, [rsp + 56]
             add implq, SwsOpImpl.next
             call tmp0q
             mov implq, [rsp + 64]
-            dec blocksd
-            jg .inner
-
-            mov blocksd, [rsp + 72]
+            inc bxd,
+            cmp bxd, bxendd
+            jl .inner
             inc yd
             cmp yd, [rsp + 76]
             je .end
             incr_addr %1, rsp,      execq + SwsOpExec.in_stride0
             incr_addr %1, rsp + 32, execq + SwsOpExec.out_stride0
+            mov bxd, [rsp + 72]
             jmp .outer
 
 .end:
@@ -718,21 +719,23 @@ op swizzle_1000
 %endmacro
 
 %macro packed_shuffle 2 ; size_in, size_out
-cglobal packed_shuffle%1_%2, 4, 8, 2, \
-    exec, shuffle, blocks, lines, src, dst, src_stride, dst_stride
+cglobal packed_shuffle%1_%2, 6, 10, 2, \
+    exec, shuffle, bx, y, bxend, yend, src, dst, src_stride, dst_stride
             mov srcq, [execq + SwsOpExec.in0]
             mov dstq, [execq + SwsOpExec.out0]
             mov src_strideq, [execq + SwsOpExec.in_stride0]
             mov dst_strideq, [execq + SwsOpExec.out_stride0]
             VBROADCASTI128 m1, [shuffleq]
+            sub bxendd, bxd
+            sub yendd, yd
             ; reuse regs
     %define srcidxq execq
-            imul srcidxq, blocksq, -%1
+            imul srcidxq, bxendq, -%1
 %if %1 = %2
     %define dstidxq srcidxq
 %else
-    %define dstidxq shuffleq
-            imul dstidxq, blocksq, -%2
+    %define dstidxq shuffleq ; no longer needed reg
+            imul dstidxq, bxendq, -%2
 %endif
             sub srcq, srcidxq
             sub dstq, dstidxq
@@ -751,9 +754,9 @@ IF %1 != %2,add dstidxq, %2
             jl .loop
             add srcq, src_strideq
             add dstq, dst_strideq
-            dec linesd
-            imul srcidxq, blocksq, -%1
-IF %1 != %2,imul dstidxq, blocksq, -%2
+            dec yendd
+            imul srcidxq, bxendq, -%1
+IF %1 != %2,imul dstidxq, bxendq, -%2
             jg .loop
             RET
 %endmacro

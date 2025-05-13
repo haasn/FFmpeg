@@ -41,7 +41,6 @@ typedef struct SwsOpExec {
     DECLARE_ALIGNED_32(ptrdiff_t, out_stride[4]);
 
     /* Extra metadata, may or may not be useful */
-    int32_t x, y;               /* Starting pixel coordinates */
     int32_t width, height;      /* Overall image dimensions */
     int32_t slice_y, slice_h;   /* Start and height of current slice */
     int32_t pixel_bits_in;      /* Bits per input pixel */
@@ -51,12 +50,16 @@ typedef struct SwsOpExec {
 static_assert(sizeof(SwsOpExec) == 16 * sizeof(void *) + 8 * sizeof(int32_t),
               "SwsOpExec layout mismatch");
 
-/* Process a given number of lines, with N pixel blocks per line */
-typedef void (*SwsOpFunc)(const SwsOpExec *exec, const void *priv, int blocks,
-                          int lines);
+/**
+ * Process a given range of pixel blocks.
+ *
+ * Note: `bx_start` and `bx_end` are in units of `SwsCompiledOp.block_size`.
+ */
+typedef void (*SwsOpFunc)(const SwsOpExec *exec, const void *priv,
+                          int bx_start, int y_start, int bx_end, int y_end);
 
 #define SWS_DECL_FUNC(NAME) \
-    void NAME(const SwsOpExec *, const void *, int, int)
+    void NAME(const SwsOpExec *, const void *, int, int, int, int)
 
 typedef struct SwsCompiledOp {
     SwsOpFunc func;

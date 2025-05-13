@@ -37,8 +37,6 @@ struc SwsOpExec
     .out_stride1 resq 1
     .out_stride2 resq 1
     .out_stride3 resq 1
-    .x resd 1
-    .y resd 1
     .width resd 1
     .height resd 1
     .slice_y resd 1
@@ -136,20 +134,18 @@ endstruc
 ; from entry point signature
 %define execq   r0q
 %define implq   r1q
-%define blocksd r2d
-%define linesd  r3d
-%define yd      linesd ; inside ops body
+%define bxd     r2d
+%define yd      r3d
+%define bxendd  r4d
 
 ; extra registers for free use by kernels, not saved between ops
-%define tmp0q   r4q
-%define tmp1q   r5q
-%define tmp2q   r6q
+%define tmp0q   r5q
+%define tmp1q   r6q
 
-%define tmp0d   r4d
-%define tmp1d   r5d
-%define tmp2d   r6d
+%define tmp0d   r5d
+%define tmp1d   r6d
 
-; pinned static registers for plane pointers
+; pinned static registers for plane pointers, incremented by read/write ops
 %define  in0q   r7q
 %define out0q   r8q
 %define  in1q   r9q

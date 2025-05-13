@@ -115,7 +115,7 @@ static void check_ops(const char *report, const unsigned ranges[PLANES],
     if (!ranges)
         ranges = def_ranges;
 
-    declare_func(void, const SwsOpExec *, const void *, int pixels, int lines);
+    declare_func(void, const SwsOpExec *, const void *, int bx, int y, int bx_end, int y_end);
 
     DECLARE_ALIGNED_64(char, src0)[PLANES][LINES][PIXELS * sizeof(uint32_t[4])];
     DECLARE_ALIGNED_64(char, src1)[PLANES][LINES][PIXELS * sizeof(uint32_t[4])];
@@ -190,13 +190,13 @@ static void check_ops(const char *report, const unsigned ranges[PLANES],
             exec.in[i]  = (void *) src0[i];
             exec.out[i] = (void *) dst0[i];
         }
-        call_ref(&exec, comp_ref.priv, PIXELS / comp_ref.block_size, LINES);
+        call_ref(&exec, comp_ref.priv, 0, 0, PIXELS / comp_ref.block_size, LINES);
 
         for (int i = 0; i < PLANES; i++) {
             exec.in[i]  = (void *) src1[i];
             exec.out[i] = (void *) dst1[i];
         }
-        call_new(&exec, comp_new.priv, PIXELS / comp_new.block_size, LINES);
+        call_new(&exec, comp_new.priv, 0, 0, PIXELS / comp_new.block_size, LINES);
 
         for (int i = 0; i < PLANES; i++) {
             const char *name = FMT("%s[%d]", report, i);
@@ -230,7 +230,7 @@ static void check_ops(const char *report, const unsigned ranges[PLANES],
                 break;
         }
 
-        bench_new(&exec, comp_new.priv, PIXELS / comp_new.block_size, LINES);
+        bench_new(&exec, comp_new.priv, 0, 0, PIXELS / comp_new.block_size, LINES);
     }
 
     if (comp_new.func != comp_ref.func && comp_new.free)

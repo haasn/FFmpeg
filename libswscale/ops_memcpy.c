@@ -30,23 +30,24 @@ typedef struct MemcpyPriv {
 
 /* Memcpy backend for trivial cases */
 
-static void process(const SwsOpExec *exec, const void *priv, int num_blocks,
-                    int num_lines)
+static void process(const SwsOpExec *exec, const void *priv,
+                    int x_start, int y_start, int x_end, int y_end)
 {
     const MemcpyPriv *p = priv;
-    av_assert1(num_blocks == exec->width);
+    const int lines = y_end - y_start;
+    av_assert1(x_start == 0 && x_end == exec->width);
 
     for (int i = 0; i < p->num_planes; i++) {
         uint8_t *out = exec->out[i];
         const int idx = p->index[i];
         if (idx < 0) {
-            memset(out, p->clear_value[i], exec->out_stride[i] * num_lines);
+            memset(out, p->clear_value[i], exec->out_stride[i] * lines);
         } else if (exec->out_stride[i] == exec->in_stride[idx]) {
-            memcpy(out, exec->in[idx], exec->out_stride[i] * num_lines);
+            memcpy(out, exec->in[idx], exec->out_stride[i] * lines);
         } else {
-            const int bytes = num_blocks * exec->pixel_bits_out >> 3;
+            const int bytes = x_end * exec->pixel_bits_out >> 3;
             const uint8_t *in = exec->in[idx];
-            for (int n = 0; n < num_lines; n++) {
+            for (int y = y_start; y < y_end; y++) {
                 memcpy(out, in, bytes);
                 out += exec->out_stride[i];
                 in  += exec->in_stride[idx];
