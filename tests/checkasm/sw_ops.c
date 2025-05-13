@@ -609,8 +609,8 @@ static void check_dither(void)
         if (ff_sws_pixel_type_is_int(t))
             continue;
 
-        /* Test all sizes up to 16x16 */
-        for (int size_log2 = 0; size_log2 <= 4; size_log2++) {
+        /* Test all sizes up to 128x128 */
+        for (int size_log2 = 0; size_log2 <= 7; size_log2++) {
             const int size = 1 << size_log2;
             AVRational *matrix = av_refstruct_allocz(size * size * sizeof(*matrix));
             if (!matrix) {
