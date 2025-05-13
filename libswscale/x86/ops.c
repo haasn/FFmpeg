@@ -423,6 +423,9 @@ static const SwsOpTable ops16##EXT = {                                          
     DECL_DITHER(EXT, 2)                                                         \
     DECL_DITHER(EXT, 3)                                                         \
     DECL_DITHER(EXT, 4)                                                         \
+    DECL_DITHER(EXT, 5)                                                         \
+    DECL_DITHER(EXT, 6)                                                         \
+    DECL_DITHER(EXT, 7)                                                         \
     DECL_LINEAR(EXT, luma,      SWS_MASK_LUMA)                                  \
     DECL_LINEAR(EXT, alpha,     SWS_MASK_ALPHA)                                 \
     DECL_LINEAR(EXT, lumalpha,  SWS_MASK_LUMA | SWS_MASK_ALPHA)                 \
@@ -470,6 +473,9 @@ static const SwsOpTable ops32##EXT = {                                          
         REF_COMMON_PATTERNS(dither2##EXT),                                      \
         REF_COMMON_PATTERNS(dither3##EXT),                                      \
         REF_COMMON_PATTERNS(dither4##EXT),                                      \
+        REF_COMMON_PATTERNS(dither5##EXT),                                      \
+        REF_COMMON_PATTERNS(dither6##EXT),                                      \
+        REF_COMMON_PATTERNS(dither7##EXT),                                      \
         &op_luma##EXT,                                                          \
         &op_alpha##EXT,                                                         \
         &op_lumalpha##EXT,                                                      \

@@ -231,6 +231,13 @@ op dither%1
         %define DW2 m15
     %endif
         mov tmp1q, [implq + SwsOpImpl.priv]
+    %if (4 << %1) > 2 * mmsize
+        ; need to add in x offset
+        mov tmp0d, bxd
+        shl tmp0d, 6 ; sizeof(float[16])
+        and tmp0d, (4 << %1) - 1
+        add tmp1q, tmp0q
+    %endif
 IF X,   load_dither_row %1, [yd + 0], tmp1q, DX, DX2
 IF Y,   load_dither_row %1, [yd + 3], tmp1q, DY, DY2
 IF Z,   load_dither_row %1, [yd + 2], tmp1q, DZ, DZ2
@@ -254,6 +261,9 @@ IF W,   addps mw2, DW2
         dither 2
         dither 3
         dither 4
+        dither 5
+        dither 6
+        dither 7
 %endmacro
 
 %xdefine MASK(I, J)  (1 << (5 * (I) + (J)))
