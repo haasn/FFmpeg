@@ -538,7 +538,7 @@ static int solve_shuffle(const SwsOpList *ops, int mmsize, SwsCompiledOp *out)
     if (pixels < 0)
         return pixels;
 
-    if (read_bytes < 16 || read_bytes < 16)
+    if (read_bytes < 16 || write_bytes < 16)
         mmsize = 16; /* avoid cross-lane shuffle */
 
     const int num_lanes = mmsize / 16;
