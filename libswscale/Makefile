@@ -8,6 +8,7 @@ HEADERS = swscale.h                                                     \
 OBJS = alphablend.o                                     \
        cms.o                                            \
        csputils.o                                       \
+       dither.o                                         \
        hscale.o                                         \
        hscale_fast_bilinear.o                           \
        format.o                                         \
