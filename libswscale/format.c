@@ -1219,11 +1219,20 @@ static int fmt_dither(SwsContext *ctx, SwsOpList *ops,
     SwsDitherOp dither;
     int ret;
 
+    int bpc = fmt.desc->comp[0].depth;
+    for (int i = 1; i < fmt.desc->nb_components; i++)
+        bpc = FFMIN(bpc, fmt.desc->comp[i].depth);
+
     if (mode == SWS_DITHER_AUTO) {
         /* Visual threshold of perception: 12 bits for SDR, 14 bits for HDR */
         const int jnd_bits = trc_is_hdr(fmt.color.trc) ? 14 : 12;
-        const int bpc = fmt.desc->comp[0].depth;
-        mode = bpc >= jnd_bits ? SWS_DITHER_NONE : SWS_DITHER_BAYER;
+        if (bpc >= jnd_bits) {
+            mode = SWS_DITHER_NONE;
+        } else if (bpc < 8 && 0) {
+            mode = SWS_DITHER_BLUE; /* higher quality */
+        } else {
+            mode = SWS_DITHER_BAYER; /* faster */
+        }
     }
 
     switch (mode) {
