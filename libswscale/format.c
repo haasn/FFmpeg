@@ -1244,12 +1244,11 @@ static int fmt_dither(SwsContext *ctx, SwsOpList *ops,
         }
     case SWS_DITHER_BLUE:
     case SWS_DITHER_BAYER:
-        /* Hardcode 16x16 matrix for now; in theory we could adjust this
-         * based on the expected level of precision in the output, since lower
-         * bit depth outputs can suffice with smaller dither matrices; however
-         * in practice we probably want to use error diffusion for such low bit
-         * depths anyway */
-        dither.size_log2 = 4;
+        /* Hard-code the matrix size for now. Use 64x64 for blue noise, or
+         * 16x16 for bayer dither. In theory, we could use even larger sizes
+         * for very low bit depths, but in practice 64x64 is good enough while
+         * still remaining very cheap to compute. */
+        dither.size_log2 = mode == SWS_DITHER_BLUE ? 6 : 4;
 
         const int num_entries = 1 << (dither.size_log2 * 2);
         dither.matrix = av_refstruct_allocz(sizeof(*dither.matrix) * num_entries);
