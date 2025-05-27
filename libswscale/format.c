@@ -1242,6 +1242,7 @@ static int fmt_dither(SwsContext *ctx, SwsOpList *ops,
         } else {
             return 0; /* No-op */
         }
+    case SWS_DITHER_BLUE:
     case SWS_DITHER_BAYER:
         /* Hardcode 16x16 matrix for now; in theory we could adjust this
          * based on the expected level of precision in the output, since lower

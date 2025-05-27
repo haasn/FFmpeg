@@ -29,8 +29,54 @@
 
 #include "libavutil/error.h"
 #include "libavutil/mem.h"
+#include "libavutil/thread.h"
 
 #include "dither.h"
+
+#if !CONFIG_SMALL
+static uint16_t blue_noise_16x16[16*16];
+static uint16_t blue_noise_32x32[32*32];
+static uint16_t blue_noise_64x64[64*64];
+
+static void blue_noise_init(void)
+{
+    ff_sws_generate_blue_noise(blue_noise_16x16, 4);
+    ff_sws_generate_blue_noise(blue_noise_32x32, 5);
+    ff_sws_generate_blue_noise(blue_noise_64x64, 6);
+}
+#endif
+
+static int generate_blue_noise(const int size_log2, AVRational *m)
+{
+    const int num_entries = 1 << (size_log2 * 2);
+    const uint16_t *blue_noise = NULL;
+    uint16_t *tmp = NULL;
+
+#if !CONFIG_SMALL
+    static AVOnce blue_noise_once = AV_ONCE_INIT;
+    ff_thread_once(&blue_noise_once, blue_noise_init);
+
+    switch (size_log2) {
+    case 4: blue_noise = blue_noise_16x16; break;
+    case 5: blue_noise = blue_noise_32x32; break;
+    case 6: blue_noise = blue_noise_64x64; break;
+    }
+#endif
+
+    if (!blue_noise) {
+        tmp = av_malloc(sizeof(*tmp) * num_entries);
+        if (!tmp)
+            return AVERROR(ENOMEM);
+        ff_sws_generate_blue_noise(tmp, size_log2);
+        blue_noise = tmp;
+    }
+
+    for (int i = 0; i < num_entries; i++)
+        m[i] = av_make_q(blue_noise[i], 1 << (size_log2 * 2));
+
+    av_free(tmp);
+    return 0;
+}
 
 static int generate_bayer_matrix(const int size_log2, AVRational *out)
 {
@@ -76,6 +122,7 @@ int ff_sws_get_dither_matrix(enum SwsDither mode, int size_log2, AVRational *out
 
     switch (mode) {
     case SWS_DITHER_BAYER: return generate_bayer_matrix(size_log2, out);
+    case SWS_DITHER_BLUE:  return generate_blue_noise(size_log2, out);
     default: return AVERROR(EINVAL);
     }
 }

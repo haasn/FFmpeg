@@ -77,6 +77,7 @@ static const AVOption swscale_options[] = {
         { "ed",          "full error diffusion",          0,                 AV_OPT_TYPE_CONST,  { .i64  = SWS_DITHER_ED       }, .flags = VE, .unit = "sws_dither" },
         { "a_dither",    "arithmetic addition dither",    0,                 AV_OPT_TYPE_CONST,  { .i64  = SWS_DITHER_A_DITHER }, .flags = VE, .unit = "sws_dither" },
         { "x_dither",    "arithmetic xor dither",         0,                 AV_OPT_TYPE_CONST,  { .i64  = SWS_DITHER_X_DITHER }, .flags = VE, .unit = "sws_dither" },
+        { "blue",        "blue noise dither",             0,                 AV_OPT_TYPE_CONST,  { .i64  = SWS_DITHER_BLUE     }, .flags = VE, .unit = "sws_dither" },
 
     { "alphablend",          "mode for alpha -> non alpha",   OFFSET(alpha_blend), AV_OPT_TYPE_INT,    { .i64  = SWS_ALPHA_BLEND_NONE},         .flags = VE, .unit = "alphablend", .max = SWS_ALPHA_BLEND_NB - 1 },
         { "none",            "ignore alpha",                  0,                   AV_OPT_TYPE_CONST,  { .i64  = SWS_ALPHA_BLEND_NONE},         .flags = VE, .unit = "alphablend" },
