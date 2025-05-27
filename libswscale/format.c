@@ -24,6 +24,7 @@
 #include "libavutil/refstruct.h"
 
 #include "format.h"
+#include "dither.h"
 #include "csputils.h"
 #include "ops_internal.h"
 
@@ -1197,47 +1198,6 @@ static SwsLinearOp fmt_decode_range(const SwsFormat fmt, bool *incomplete)
     return c;
 }
 
-static AVRational *generate_bayer_matrix(const int size_log2)
-{
-    const int size = 1 << size_log2;
-    const int num_entries = size * size;
-    AVRational *m = av_refstruct_allocz(sizeof(*m) * num_entries);
-    av_assert1(size_log2 < 16);
-    if (!m)
-        return NULL;
-
-    /* Start with a 1x1 matrix */
-    m[0] = Q0;
-
-    /* Generate three copies of the current, appropriately scaled and offset */
-    for (int sz = 1; sz < size; sz <<= 1) {
-        const int den = 4 * sz * sz;
-        for (int y = 0; y < sz; y++) {
-            for (int x = 0; x < sz; x++) {
-                const AVRational cur = m[y * size + x];
-                m[(y + sz) * size + x + sz] = av_add_q(cur, av_make_q(1, den));
-                m[(y     ) * size + x + sz] = av_add_q(cur, av_make_q(2, den));
-                m[(y + sz) * size + x     ] = av_add_q(cur, av_make_q(3, den));
-            }
-        }
-    }
-
-    /**
-     * To correctly round, we need to evenly distribute the result on [0, 1),
-     * giving an average value of 1/2.
-     *
-     * After the above construction, we have a matrix with average value:
-     *   [ 0/N + 1/N + 2/N + ... (N-1)/N ] / N = (N-1)/(2N)
-     * where N = size * size is the total number of entries.
-     *
-     * To make the average value equal to 1/2 = N/(2N), add a bias of 1/(2N).
-     */
-    for (int i = 0; i < num_entries; i++)
-        m[i] = av_add_q(m[i], av_make_q(1, 2 * num_entries));
-
-    return m;
-}
-
 static bool trc_is_hdr(enum AVColorTransferCharacteristic trc)
 {
     static_assert(AVCOL_TRC_NB == 19, "Update this list when adding TRCs");
@@ -1257,6 +1217,7 @@ static int fmt_dither(SwsContext *ctx, SwsOpList *ops,
 {
     SwsDither mode = ctx->dither;
     SwsDitherOp dither;
+    int ret;
 
     if (mode == SWS_DITHER_AUTO) {
         /* Visual threshold of perception: 12 bits for SDR, 14 bits for HDR */
@@ -1288,9 +1249,18 @@ static int fmt_dither(SwsContext *ctx, SwsOpList *ops,
          * in practice we probably want to use error diffusion for such low bit
          * depths anyway */
         dither.size_log2 = 4;
-        dither.matrix = generate_bayer_matrix(dither.size_log2);
+
+        const int num_entries = 1 << (dither.size_log2 * 2);
+        dither.matrix = av_refstruct_allocz(sizeof(*dither.matrix) * num_entries);
         if (!dither.matrix)
             return AVERROR(ENOMEM);
+
+        ret = ff_sws_get_dither_matrix(mode, dither.size_log2, dither.matrix);
+        if (ret < 0) {
+            av_refstruct_unref(&dither.matrix);
+            return ret;
+        }
+
         return ff_sws_op_list_append(ops, &(SwsOp) {
             .op     = SWS_OP_DITHER,
             .type   = type,

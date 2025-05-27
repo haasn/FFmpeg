@@ -32,6 +32,54 @@
 
 #include "dither.h"
 
+static int generate_bayer_matrix(const int size_log2, AVRational *out)
+{
+    const int size = 1 << size_log2;
+    const int num_entries = size * size;
+
+    /* Start with a 1x1 matrix */
+    out[0] = av_make_q(0, 1);
+
+    /* Generate three copies of the current, appropriately scaled and offset */
+    for (int sz = 1; sz < size; sz <<= 1) {
+        const int den = 4 * sz * sz;
+        for (int y = 0; y < sz; y++) {
+            for (int x = 0; x < sz; x++) {
+                const AVRational cur = out[y * size + x];
+                out[(y + sz) * size + x + sz] = av_add_q(cur, av_make_q(1, den));
+                out[(y     ) * size + x + sz] = av_add_q(cur, av_make_q(2, den));
+                out[(y + sz) * size + x     ] = av_add_q(cur, av_make_q(3, den));
+            }
+        }
+    }
+
+    /**
+     * To correctly round, we need to evenly distribute the result on [0, 1),
+     * giving an average value of 1/2.
+     *
+     * After the above construction, we have a matrix with average value:
+     *   [ 0/N + 1/N + 2/N + ... (N-1)/N ] / N = (N-1)/(2N)
+     * where N = size * size is the total number of entries.
+     *
+     * To make the average value equal to 1/2 = N/(2N), add a bias of 1/(2N).
+     */
+    for (int i = 0; i < num_entries; i++)
+        out[i] = av_add_q(out[i], av_make_q(1, 2 * num_entries));
+
+    return 0;
+}
+
+int ff_sws_get_dither_matrix(enum SwsDither mode, int size_log2, AVRational *out)
+{
+    if (size_log2 < 0 || size_log2 >= 16)
+        return AVERROR(EINVAL);
+
+    switch (mode) {
+    case SWS_DITHER_BAYER: return generate_bayer_matrix(size_log2, out);
+    default: return AVERROR(EINVAL);
+    }
+}
+
 static int find_voids(const uint32_t *array, int size, int *candidates)
 {
     uint32_t min = UINT32_MAX;

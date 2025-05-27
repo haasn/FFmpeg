@@ -23,6 +23,15 @@
 
 #include <stdint.h>
 
+#include "libavutil/rational.h"
+#include "swscale.h"
+
 int ff_sws_generate_blue_noise(uint16_t *data, int size_log2);
+
+/**
+ * Generate a dither matrix of the given type, adjusted to have a mean of 0.5
+ * and a value range of [0, 1). Return 0 or a negative error code.
+ */
+int ff_sws_get_dither_matrix(enum SwsDither mode, int size_log2, AVRational *out);
 
 #endif /* SWSCALE_DITHER_H */
