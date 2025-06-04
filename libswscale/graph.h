@@ -88,7 +88,7 @@ struct SwsPass {
     /**
      * Filter output buffer. Allocated on demand and freed automatically.
      */
-    SwsImg output;
+    SwsImg *output; /* refstruct */
 
     /**
      * Called once from the main thread before running the filter. Optional.
