@@ -151,6 +151,7 @@ int ff_sws_graph_create(SwsContext *ctx, const SwsFormat *dst, const SwsFormat *
  * @param w      Width of the output image.
  * @param h      Height of the output image.
  * @param input  Previous pass to read from, or NULL for the input image.
+ * @param output If non-NULL, re-use this SwsImg ref as the output buffer.
  * @param align  Minimum slice alignment for this pass, or 0 for no threading.
  * @param priv   Private state for the filter run function.
  * @param run    Filter function to run.
@@ -158,7 +159,8 @@ int ff_sws_graph_create(SwsContext *ctx, const SwsFormat *dst, const SwsFormat *
  */
 SwsPass *ff_sws_graph_add_pass(SwsGraph *graph, enum AVPixelFormat fmt,
                                int width, int height, SwsPass *input,
-                               int align, void *priv, sws_filter_run_t run);
+                               SwsImg *output, int align, void *priv,
+                               sws_filter_run_t run);
 
 /**
  * Uninitialize any state associate with this filter graph and free it.

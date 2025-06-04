@@ -846,7 +846,7 @@ int ff_sws_compile_pass(SwsGraph *graph, SwsOpList *ops, int flags, SwsFormat ds
     };
 
     pass = ff_sws_graph_add_pass(graph, dst.format, dst.width, dst.height, input,
-                                 1, p, op_pass_run);
+                                 NULL, 1, p, op_pass_run);
     if (!pass) {
         ret = AVERROR(ENOMEM);
         goto fail;
