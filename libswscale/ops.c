@@ -403,6 +403,19 @@ static char describe_comp_flags(unsigned flags)
         return '.';
 }
 
+static char *describe_comp_planes(unsigned flags, char buf[5])
+{
+    int num = 0;
+    for (int i = 0; i < 4; i++) {
+        if (flags & (SWS_COMP_PLANE0 << i))
+            buf[num++] = '0' + i;
+    }
+    if (!num)
+        buf[num++] = '_';
+    buf[num] = '\0';
+    return buf;
+}
+
 static const char *print_q(const AVRational q, char buf[], int buf_len)
 {
     if (!q.den) {
@@ -524,18 +537,20 @@ void ff_sws_op_list_print(void *log, int lev, const SwsOpList *ops)
             break;
         }
 
-        if (op->comps.min[0].den || op->comps.min[1].den ||
-            op->comps.min[2].den || op->comps.min[3].den ||
-            op->comps.max[0].den || op->comps.max[1].den ||
-            op->comps.max[2].den || op->comps.max[3].den)
+        if (op->comps.flags[0] || op->comps.flags[1] ||
+            op->comps.flags[2] || op->comps.flags[3])
         {
-            av_log(log, AV_LOG_TRACE, "    min: {%s, %s, %s, %s}, max: {%s, %s, %s, %s}\n",
-                PRINTQ(op->comps.min[0]), PRINTQ(op->comps.min[1]),
-                PRINTQ(op->comps.min[2]), PRINTQ(op->comps.min[3]),
-                PRINTQ(op->comps.max[0]), PRINTQ(op->comps.max[1]),
-                PRINTQ(op->comps.max[2]), PRINTQ(op->comps.max[3]));
+            av_log(log, AV_LOG_TRACE, "    min: {%s, %s, %s, %s}, "
+                   "max: {%s, %s, %s, %s}, deps: {%s, %s, %s, %s}\n",
+                   PRINTQ(op->comps.min[0]), PRINTQ(op->comps.min[1]),
+                   PRINTQ(op->comps.min[2]), PRINTQ(op->comps.min[3]),
+                   PRINTQ(op->comps.max[0]), PRINTQ(op->comps.max[1]),
+                   PRINTQ(op->comps.max[2]), PRINTQ(op->comps.max[3]),
+                   describe_comp_planes(op->comps.flags[0], (char[5]) {0}),
+                   describe_comp_planes(op->comps.flags[1], (char[5]) {0}),
+                   describe_comp_planes(op->comps.flags[2], (char[5]) {0}),
+                   describe_comp_planes(op->comps.flags[3], (char[5]) {0}));
         }
-
     }
 
     av_log(log, lev, "    (X = unused, + = exact, 0 = zero)\n");

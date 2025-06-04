@@ -78,8 +78,10 @@ static AVRational expand_factor(SwsPixelType from, SwsPixelType to)
 static const unsigned flags_identity = SWS_COMP_ZERO | SWS_COMP_EXACT;
 static unsigned merge_comp_flags(unsigned a, unsigned b)
 {
-    const unsigned flags_or  = SWS_COMP_GARBAGE;
     const unsigned flags_and = SWS_COMP_ZERO | SWS_COMP_EXACT;
+    const unsigned flags_or  = SWS_COMP_PLANE0 | SWS_COMP_PLANE1 |
+                               SWS_COMP_PLANE2 | SWS_COMP_PLANE3 |
+                               SWS_COMP_GARBAGE;
     return ((a & b) & flags_and) | ((a | b) & flags_or);
 }
 
@@ -123,7 +125,8 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
                         }
                     }
 
-                    op->comps.flags[i] = SWS_COMP_EXACT;
+                    const int plane = op->rw.packed ? 0 : i;
+                    op->comps.flags[i] = SWS_COMP_EXACT | (SWS_COMP_PLANE0 << plane);
                     op->comps.min[i] = Q(0);
                     op->comps.max[i] = Q((1ULL << bits) - 1);
                 }

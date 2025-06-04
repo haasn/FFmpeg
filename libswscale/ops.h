@@ -72,6 +72,10 @@ enum SwsCompFlags {
     SWS_COMP_GARBAGE = 1 << 0, /* contents are undefined / garbage data */
     SWS_COMP_EXACT   = 1 << 1, /* value is an in-range, exact, integer */
     SWS_COMP_ZERO    = 1 << 2, /* known to be a constant zero */
+    SWS_COMP_PLANE0  = 1 << 3, /* depends on values from plane 0 */
+    SWS_COMP_PLANE1  = 1 << 4, /* depends on values from plane 1 */
+    SWS_COMP_PLANE2  = 1 << 5, /* depends on values from plane 2 */
+    SWS_COMP_PLANE3  = 1 << 6, /* depends on values from plane 3 */
 };
 
 typedef union SwsConst {
