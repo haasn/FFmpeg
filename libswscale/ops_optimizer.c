@@ -849,6 +849,63 @@ int ff_sws_op_list_filter_planes(SwsOpList *ops, uint8_t mask)
     return ff_sws_op_list_optimize(ops);
 }
 
+int ff_sws_op_list_minimize(SwsOpList *ops, SwsOpList **out_rest)
+{
+    SwsOp *write = &ops->ops[ops->num_ops - 1];
+    if (!ops || !ops->num_ops || write->op != SWS_OP_WRITE)
+        return AVERROR(EINVAL);
+
+    if (write->rw.packed) {
+        *out_rest = NULL;
+        return 0; /* output contains only a single plane */
+    }
+
+    ff_sws_op_list_update_comps(ops);
+
+    /**
+     * Starting with the first plane, find the smallest possible subset of
+     * output planes such that all planes within the subset depend on the same
+     * set of input planes, and no other output planes depend on the same input
+     * plane set.
+     *
+     * If we find such a subset, we can construct an independent subgraph where
+     * these output planes only depend on input planes in `deps`.
+     */
+    const int depmask = SWS_COMP_PLANE0 | SWS_COMP_PLANE1 |
+                        SWS_COMP_PLANE2 | SWS_COMP_PLANE3;
+
+    int deps = write->comps.flags[0] & depmask;
+    uint8_t planes = 1; /* bitmask */
+    for (int i = 1; i < write->rw.elems; i++) {
+        if (write->comps.flags[i] & deps) {
+            planes |= 1 << i;
+            deps |= write->comps.flags[i] & depmask;
+        }
+    }
+
+    const int all_planes = (1 << write->rw.elems) - 1;
+    if (planes == all_planes) {
+        /* minimal output set already contains all planes */
+        *out_rest = NULL;
+        return 0;
+    }
+
+    SwsOpList *rest = ff_sws_op_list_duplicate(ops);
+    if (!rest)
+        return AVERROR(ENOMEM);
+
+    int ret = ff_sws_op_list_filter_planes(ops, planes);
+    if (!ret)
+        ret = ff_sws_op_list_filter_planes(rest, all_planes ^ planes);
+    if (ret < 0) {
+        ff_sws_op_list_free(&rest);
+        return ret;
+    }
+
+    *out_rest = rest;
+    return 0;
+}
+
 int ff_sws_solve_shuffle(const SwsOpList *const ops, uint8_t shuffle[],
                          int shuffle_size, uint8_t clear_val,
                          int *out_read_bytes, int *out_write_bytes)

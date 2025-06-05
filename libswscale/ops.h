@@ -275,6 +275,15 @@ enum SwsOpCompileFlags {
 int ff_sws_op_list_filter_planes(SwsOpList *ops, uint8_t plane_mask);
 
 /**
+ * Reduce `ops` to its first minimal independent subgroup. If there is a
+ * residual, it will be returned as a new SwsOpList in `out_rest`. Otherwise,
+ * `out_rest` will be set to NULL.
+ *
+ * Returns 0 on success, or a negative error code on failure.
+ */
+int ff_sws_op_list_minimize(SwsOpList *ops, SwsOpList **out_rest);
+
+/**
  * Resolves an operation list to a graph pass. The first and last operations
  * must be a read/write respectively. `flags` is a list of SwsOpCompileFlags.
  *
