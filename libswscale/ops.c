@@ -876,10 +876,7 @@ int ff_sws_compile_pass(SwsGraph *graph, SwsOpList *ops, int flags, SwsFormat ds
                         SwsPass *input, SwsPass **output)
 {
     SwsContext *ctx = graph->ctx;
-    SwsOpPass *p = NULL;
-    const SwsOp *read = &ops->ops[0];
-    const SwsOp *write = &ops->ops[ops->num_ops - 1];
-    SwsPass *pass;
+    SwsPass *pass = NULL;
     int ret;
 
     /* Check if the whole operation graph is an end-to-end no-op */
@@ -893,7 +890,7 @@ int ff_sws_compile_pass(SwsGraph *graph, SwsOpList *ops, int flags, SwsFormat ds
         return AVERROR(EINVAL);
     }
 
-    if (read->op != SWS_OP_READ || write->op != SWS_OP_WRITE) {
+    if (ops->ops[0].op != SWS_OP_READ || ops->ops[ops->num_ops - 1].op != SWS_OP_WRITE) {
         av_log(ctx, AV_LOG_ERROR, "First and last operations must be a read "
                "and write, respectively.\n");
         return AVERROR(EINVAL);
@@ -904,43 +901,67 @@ int ff_sws_compile_pass(SwsGraph *graph, SwsOpList *ops, int flags, SwsFormat ds
     else
         ff_sws_op_list_update_comps(ops);
 
-    p = av_mallocz(sizeof(*p));
-    if (!p)
-        return AVERROR(ENOMEM);
+    do {
+        SwsOpList *rest;
+        ret = ff_sws_op_list_minimize(ops, &rest);
+        if (ret < 0)
+            return ret;
 
-    ret = ff_sws_ops_compile(ctx, ops, &p->comp);
-    if (ret < 0)
-        goto fail;
+        SwsOpPass *p = av_mallocz(sizeof(*p));
+        if (!p)
+            return AVERROR(ENOMEM);
 
-    p->pixel_bits_in  = rw_pixel_bits(read);
-    p->pixel_bits_out = rw_pixel_bits(write);
-    p->exec_base = (SwsOpExec) {
-        .width  = dst.width,
-        .height = dst.height,
-        .block_size_in  = p->comp.block_size * p->pixel_bits_in  >> 3,
-        .block_size_out = p->comp.block_size * p->pixel_bits_out >> 3,
-    };
+        const bool is_first = !pass;
+        const bool is_partial = rest || !is_first;
+        if (is_partial) {
+            av_log(ctx, AV_LOG_DEBUG, "Compiling sub-pass:\n");
+            ff_sws_op_list_print(ctx, AV_LOG_DEBUG, ops);
+        }
 
-    const int planes_in  = read->rw.packed  ? 1 : read->rw.elems;
-    const int planes_out = write->rw.packed ? 1 : write->rw.elems;
-    for (int i = 0; i < 4; i++) {
-        p->idx_in[i]  = i < planes_in  ? ops->order_src.in[i] : -1;
-        p->idx_out[i] = i < planes_out ? ops->order_dst.in[i] : -1;
-    }
+        ret = ff_sws_ops_compile(ctx, ops, &p->comp);
+        if (ret < 0) {
+            op_pass_free(p);
+            ff_sws_op_list_free(&rest);
+            if (!is_first)
+                ff_sws_op_list_free(&ops);
+            return ret;
+        }
 
-    pass = ff_sws_graph_add_pass(graph, dst.format, dst.width, dst.height, input,
-                                 NULL, 1, p, op_pass_run);
-    if (!pass) {
-        ret = AVERROR(ENOMEM);
-        goto fail;
-    }
-    pass->setup = op_pass_setup;
-    pass->free  = op_pass_free;
+        const SwsOp *read = ops->ops[0].op == SWS_OP_READ ? &ops->ops[0] : NULL;
+        const SwsOp *write = &ops->ops[ops->num_ops - 1];
+        p->pixel_bits_in  = read ? rw_pixel_bits(read) : 0;
+        p->pixel_bits_out = rw_pixel_bits(write);
+        p->exec_base = (SwsOpExec) {
+            .width  = dst.width,
+            .height = dst.height,
+            .block_size_in  = p->comp.block_size * p->pixel_bits_in  >> 3,
+            .block_size_out = p->comp.block_size * p->pixel_bits_out >> 3,
+        };
 
+        const int planes_in  = read ? (read->rw.packed  ? 1 : read->rw.elems) : 0;
+        const int planes_out = write->rw.packed ? 1 : write->rw.elems;
+        for (int i = 0; i < 4; i++) {
+            p->idx_in[i]  = i < planes_in  ? ops->order_src.in[i] : -1;
+            p->idx_out[i] = i < planes_out ? ops->order_dst.in[i] : -1;
+        }
+
+        /* Re-use output buffer from previous partial sub-pass */
+        pass = ff_sws_graph_add_pass(graph, dst.format, dst.width, dst.height, input,
+                                     pass ? pass->output : NULL, 1, p, op_pass_run);
+        if (!is_first)
+            ff_sws_op_list_free(&ops);
+        if (!pass) {
+            op_pass_free(p);
+            ff_sws_op_list_free(&rest);
+            return AVERROR(ENOMEM);
+        }
+        pass->setup = op_pass_setup;
+        pass->free  = op_pass_free;
+
+        ops = rest;
+    } while (ops);
+
+    /* Return the last pass */
     *output = pass;
     return 0;
-
-fail:
-    op_pass_free(p);
-    return ret;
 }
