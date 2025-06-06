@@ -882,6 +882,12 @@ int ff_sws_compile_pass(SwsGraph *graph, SwsOpList *ops, int flags, SwsFormat ds
     SwsPass *pass;
     int ret;
 
+    /* Check if the whole operation graph is an end-to-end no-op */
+    if (ff_sws_op_list_is_noop(ops)) {
+        *output = input;
+        return 0;
+    }
+
     if (ops->num_ops < 2) {
         av_log(ctx, AV_LOG_ERROR, "Need at least two operations.\n");
         return AVERROR(EINVAL);
