@@ -329,6 +329,36 @@ int ff_sws_op_list_append(SwsOpList *ops, SwsOp *op)
     return ff_sws_op_list_insert_at(ops, ops->num_ops, op);
 }
 
+bool ff_sws_op_list_is_noop(const SwsOpList *ops)
+{
+    if (!ops->num_ops)
+        return true;
+
+    const SwsOp *read  = &ops->ops[0];
+    const SwsOp *write = &ops->ops[1];
+    if (ops->num_ops != 2 ||
+        read->op != SWS_OP_READ ||
+        write->op != SWS_OP_WRITE ||
+        read->type != write->type ||
+        read->rw.elems != write->rw.elems ||
+        read->rw.frac != write->rw.frac)
+        return false;
+
+    const int src_planes = read->rw.packed  ? 1 : read->rw.elems;
+    const int dst_planes = write->rw.packed ? 1 : write->rw.elems;
+    for (int i = 0; i < src_planes; i++) {
+        if (ops->order_src.in[i] != i)
+            return false;
+    }
+
+    for (int i = 0; i < dst_planes; i++) {
+        if (ops->order_dst.in[i] != i)
+            return false;
+    }
+
+    return true;
+}
+
 int ff_sws_op_list_max_size(const SwsOpList *ops)
 {
     int max_size = 0;
