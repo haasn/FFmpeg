@@ -442,13 +442,26 @@ retry:
 
         switch (op->op) {
         case SWS_OP_READ:
-            /* Skip reading extra unneeded components */
+            /* "Compress" planar reads where not all components are needed */
             if (!op->rw.packed) {
-                int needed = op->rw.elems;
-                while (needed > 0 && next->comps.unused[needed - 1])
-                    needed--;
-                if (op->rw.elems != needed) {
-                    op->rw.elems = needed;
+                for (int i = 0; i < op->rw.elems; i++) {
+                    if (!next->comps.unused[i])
+                        continue;
+
+                    /* Swizzle remaining components back into place */
+                    SwsOp swiz = {
+                        .op      = SWS_OP_SWIZZLE,
+                        .type    = op->type,
+                        .swizzle = SWS_SWIZZLE(0, 1, 2, 3),
+                    };
+
+                    op->rw.elems--;
+                    for (int j = i; j < op->rw.elems; j++) {
+                        ops->order_src.in[j] = ops->order_src.in[j + 1];
+                        swiz.swizzle.in[j + 1] = j;
+                    }
+
+                    RET(ff_sws_op_list_insert_at(ops, n + 1, &swiz));
                     goto retry;
                 }
             }
