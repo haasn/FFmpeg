@@ -39,6 +39,7 @@
 
 #include "attributes.h"
 #include "avassert.h"
+#include "common.h"
 #include "dynarray.h"
 #include "error.h"
 #include "internal.h"
@@ -356,6 +357,14 @@ void *av_dynarray2_add(void **tab_ptr, int *nb_ptr, size_t elem_size,
         *nb_ptr = 0;
     });
     return tab_elem_data;
+}
+
+void *av_dynarray2_dup(void *tab, int nb, size_t elem_size)
+{
+    if (nb)
+        nb = 1 << av_ceil_log2(nb);
+
+    return av_memdup(tab, nb * elem_size);
 }
 
 static void fill16(uint8_t *dst, int len)

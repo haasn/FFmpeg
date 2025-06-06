@@ -563,6 +563,20 @@ void *av_dynarray2_add(void **tab_ptr, int *nb_ptr, size_t elem_size,
                        const uint8_t *elem_data);
 
 /**
+ * Duplicate an array allocated by `av_dynarray2_add`. Preserves the size of
+ * the underlying allocation, so that the returned array can be again modified
+ * using `av_dynarray2_add`.
+ *
+ * @param[in] tab       Pointer to the array to duplicate
+ * @param[in] nb        Number of elements in the array
+ * @param[in] elem_size Size in bytes of an element in the array
+ *
+ * @return Pointer to the newly allocated array, or `NULL` on failure.
+ * @see av_dynarray2_add()
+ */
+void *av_dynarray2_dup(void *tab, int nb, size_t elem_size);
+
+/**
  * @}
  */
 
