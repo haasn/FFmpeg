@@ -268,6 +268,13 @@ enum SwsOpCompileFlags {
 };
 
 /**
+ * Eliminate all operations from `ops` except those that operate on
+ * the set of planes specified in `plane_mask` (as a bitset). Returns 0 or a
+ * negative error code.
+ */
+int ff_sws_op_list_filter_planes(SwsOpList *ops, uint8_t plane_mask);
+
+/**
  * Resolves an operation list to a graph pass. The first and last operations
  * must be a read/write respectively. `flags` is a list of SwsOpCompileFlags.
  *

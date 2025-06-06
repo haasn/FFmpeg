@@ -816,6 +816,39 @@ retry:
     return 0;
 }
 
+int ff_sws_op_list_filter_planes(SwsOpList *ops, uint8_t mask)
+{
+    SwsOp *write = &ops->ops[ops->num_ops - 1];
+    if (ops->num_ops < 1 || write->op != SWS_OP_WRITE || write->rw.packed ||
+        mask >= (1 << write->rw.elems))
+        return AVERROR(EINVAL);
+
+    /* Insert an identity swizzle that we can modify to fix the plane order */
+    int ret = ff_sws_op_list_insert_at(ops, ops->num_ops - 1, &(SwsOp) {
+        .type    = ops->ops[ops->num_ops - 1].type,
+        .op      = SWS_OP_SWIZZLE,
+        .swizzle = SWS_SWIZZLE(0, 1, 2, 3),
+    });
+    if (ret < 0)
+        return ret;
+
+    SwsSwizzleOp *swizzle = &ops->ops[ops->num_ops - 2].swizzle;
+    write = &ops->ops[ops->num_ops - 1];
+
+    write->rw.elems = 0;
+    for (int src = 0; src < 4; src++) {
+        if (!(mask & (1 << src)))
+            continue; /* plane not selected */
+        const int dst = write->rw.elems++;
+        av_assert2(src >= dst);
+        swizzle->in[dst] = src;
+        FFSWAP(int, ops->order_dst.in[dst], ops->order_dst.in[src]);
+    }
+
+    /* The optimizer will take care of everything else */
+    return ff_sws_op_list_optimize(ops);
+}
+
 int ff_sws_solve_shuffle(const SwsOpList *const ops, uint8_t shuffle[],
                          int shuffle_size, uint8_t clear_val,
                          int *out_read_bytes, int *out_write_bytes)
