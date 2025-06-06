@@ -593,8 +593,8 @@ retry:
                 }
             }
 
-            /* Try to push swizzles with duplicates towards the output */
-            if (has_duplicates && op_type_is_independent(next->op)) {
+            /* Try to push all swizzles towards the output */
+            if (op_type_is_independent(next->op)) {
                 if (next->op == SWS_OP_CONVERT)
                     op->type = next->convert.to;
                 if (next->op == SWS_OP_MIN || next->op == SWS_OP_MAX) {
@@ -605,14 +605,6 @@ retry:
                             next->c.q4[op->swizzle.in[i]] = c.q4[i];
                     }
                 }
-                FFSWAP(SwsOp, *op, *next);
-                goto retry;
-            }
-
-            /* Move swizzle out of the way between two converts so that
-             * they may be merged */
-            if (prev->op == SWS_OP_CONVERT && next->op == SWS_OP_CONVERT) {
-                op->type = next->convert.to;
                 FFSWAP(SwsOp, *op, *next);
                 goto retry;
             }
