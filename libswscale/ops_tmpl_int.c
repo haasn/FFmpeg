@@ -58,8 +58,6 @@
 
 DECL_READ(read_planar, const int elems)
 {
-    block_t x, y, z, w;
-
     SWS_LOOP
     for (int i = 0; i < SWS_BLOCK_SIZE; i++) {
         x[i] = in0[i];
@@ -76,8 +74,6 @@ DECL_READ(read_planar, const int elems)
 
 DECL_READ(read_packed, const int elems)
 {
-    block_t x, y, z, w;
-
     SWS_LOOP
     for (int i = 0; i < SWS_BLOCK_SIZE; i++) {
         x[i] = in0[elems * i + 0];
@@ -173,8 +169,6 @@ WRAP_WRITE(write_packed, 4, 0, true)
 #if BIT_DEPTH == 8
 DECL_READ(read_nibbles, const int elems)
 {
-    block_t x, y, z, w;
-
     SWS_LOOP
     for (int i = 0; i < SWS_BLOCK_SIZE; i += 2) {
         const pixel_t val = ((const pixel_t *) in0)[i >> 1];
@@ -187,8 +181,6 @@ DECL_READ(read_nibbles, const int elems)
 
 DECL_READ(read_bits, const int elems)
 {
-    block_t x, y, z, w;
-
     SWS_LOOP
     for (int i = 0; i < SWS_BLOCK_SIZE; i += 8) {
         const pixel_t val = ((const pixel_t *) in0)[i >> 3];
