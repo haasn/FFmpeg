@@ -567,10 +567,9 @@ retry:
                 goto retry;
             }
 
-            /* Prefer to clear as late as possible, to avoid doing
-                * redundant work */
-            if ((op_type_is_independent(next->op) && next->op != SWS_OP_SWAP_BYTES) ||
-                next->op == SWS_OP_SWIZZLE)
+            /* Prefer to clear as late as possible, to avoid redundant work */
+            if ((op_type_is_independent(next->op) || next->op == SWS_OP_SWIZZLE) &&
+                (next->op != SWS_OP_SWAP_BYTES || ff_sws_pixel_type_is_int(op->type)))
             {
                 if (next->op == SWS_OP_CONVERT)
                     op->type = next->convert.to;
