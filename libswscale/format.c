@@ -1048,6 +1048,21 @@ int ff_sws_decode_pixfmt(SwsOpList *ops, enum AVPixelFormat fmt)
         .c    = fmt_clear(fmt),
     }));
 
+    if (!(desc->flags & AV_PIX_FMT_FLAG_FLOAT)) {
+        SwsConst range = {0};
+        for (int c = 0; c < desc->nb_components; c++) {
+            const int bits = desc->comp[c].depth;
+            const int idx = desc->nb_components == 2 ? 3 * c : c;
+            range.q4[idx] = Q((1 << bits) - 1);
+        }
+
+        RET(ff_sws_op_list_append(ops, &(SwsOp) {
+            .op   = SWS_OP_ASSUME,
+            .type = pixel_type,
+            .c    = range,
+        }));
+    }
+
     return 0;
 }
 
