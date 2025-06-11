@@ -103,16 +103,23 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
         memcpy(op->comps.min, prev.min, sizeof(prev.min));
         memcpy(op->comps.max, prev.max, sizeof(prev.max));
 
-        if (op->op != SWS_OP_SWAP_BYTES) {
-            ff_sws_apply_op_q(op, op->comps.min);
-            ff_sws_apply_op_q(op, op->comps.max);
-        }
-
-        if (op->op == SWS_OP_ASSUME) {
+        switch (op->op) {
+        case SWS_OP_SWAP_BYTES:
+            for (int i = 0; i < 4; i++)
+                op->comps.min[i] = op->comps.max[i] = (AVRational) {0};
+            break;
+        case SWS_OP_ASSUME:
             for (int i = 0; i < 4; i++) {
                 if (av_cmp_q(op->comps.max[i], op->c.q4[i]) == 1)
                     op->comps.max[i] = op->c.q4[i];
             }
+            break;
+        case SWS_OP_LINEAR:
+            break; /* computed in loop below */
+        default:
+            ff_sws_apply_op_q(op, op->comps.min);
+            ff_sws_apply_op_q(op, op->comps.max);
+            break;
         }
 
         switch (op->op) {
