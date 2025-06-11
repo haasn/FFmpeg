@@ -120,19 +120,6 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
             for (int i = 0; i < op->rw.elems; i++) {
                 if (ff_sws_pixel_type_is_int(op->type)) {
                     int bits = 8 * ff_sws_pixel_type_size(op->type);
-                    if (!op->rw.packed && ops->src.desc) {
-                        /* Use legal value range from pixdesc if available;
-                         * we don't need to do this for packed formats because
-                         * non-byte-aligned packed formats will necessarily go
-                         * through SWS_OP_UNPACK anyway */
-                        for (int c = 0; c < 4; c++) {
-                            if (ops->src.desc->comp[c].plane == i) {
-                                bits = ops->src.desc->comp[c].depth;
-                                break;
-                            }
-                        }
-                    }
-
                     const int plane = op->rw.packed ? 0 : i;
                     op->comps.flags[i] = SWS_COMP_EXACT | (SWS_COMP_PLANE0 << plane);
                     op->comps.min[i] = Q(0);
