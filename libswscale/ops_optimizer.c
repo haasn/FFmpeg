@@ -38,6 +38,7 @@
 static bool op_type_is_independent(SwsOpType op)
 {
     switch (op) {
+    case SWS_OP_ASSUME:
     case SWS_OP_SWAP_BYTES:
     case SWS_OP_LSHIFT:
     case SWS_OP_RSHIFT:
@@ -107,6 +108,13 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
             ff_sws_apply_op_q(op, op->comps.max);
         }
 
+        if (op->op == SWS_OP_ASSUME) {
+            for (int i = 0; i < 4; i++) {
+                if (av_cmp_q(op->comps.max[i], op->c.q4[i]) == 1)
+                    op->comps.max[i] = op->c.q4[i];
+            }
+        }
+
         switch (op->op) {
         case SWS_OP_READ:
             for (int i = 0; i < op->rw.elems; i++) {
@@ -138,6 +146,7 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
             for (int i = 0; i < op->rw.elems; i++)
                 av_assert1(!(prev.flags[i] & SWS_COMP_GARBAGE));
             /* fall through */
+        case SWS_OP_ASSUME:
         case SWS_OP_SWAP_BYTES:
         case SWS_OP_LSHIFT:
         case SWS_OP_RSHIFT:
@@ -255,6 +264,7 @@ void ff_sws_op_list_update_comps(SwsOpList *ops)
             for (int i = op->rw.elems; i < 4; i++)
                 op->comps.unused[i] = next.unused[i];
             break;
+        case SWS_OP_ASSUME:
         case SWS_OP_SWAP_BYTES:
         case SWS_OP_LSHIFT:
         case SWS_OP_RSHIFT:
@@ -475,6 +485,23 @@ retry:
             }
             break;
 
+        case SWS_OP_ASSUME:
+            /* Redundant range assumption */
+            for (int i = 0; i < 4; i++) {
+                if (!op->c.q4[i].den)
+                    continue;
+                if (av_cmp_q(op->c.q4[i], prev->comps.max[i]) < 0) {
+                    noop = false;
+                    break;
+                }
+            }
+
+            if (noop) {
+                ff_sws_op_list_remove_at(ops, n, 1);
+                goto retry;
+            }
+            break;
+
         case SWS_OP_SWAP_BYTES:
             /* Redundant (double) swap */
             if (next->op == SWS_OP_SWAP_BYTES) {
@@ -616,15 +643,20 @@ retry:
 
             /* Try to push all swizzles towards the output */
             if (op_type_is_independent(next->op)) {
-                if (next->op == SWS_OP_CONVERT)
+                switch (next->op) {
+                case SWS_OP_CONVERT:
                     op->type = next->convert.to;
-                if (next->op == SWS_OP_MIN || next->op == SWS_OP_MAX) {
+                    break;
+                case SWS_OP_ASSUME:
+                case SWS_OP_MIN:
+                case SWS_OP_MAX: ;
                     /* Un-swizzle the next operation */
                     const SwsConst c = next->c;
                     for (int i = 0; i < 4; i++) {
                         if (!next->comps.unused[i])
                             next->c.q4[op->swizzle.in[i]] = c.q4[i];
                     }
+                    break;
                 }
                 FFSWAP(SwsOp, *op, *next);
                 goto retry;
@@ -812,6 +844,20 @@ retry:
         /* No optimization triggered, move on to next operation */
         n++;
     }
+
+    /* Strip any pseudo-ops and re-optimize */
+    bool removed = false;
+    for (int i = 0; i < ops->num_ops; i++) {
+        switch (ops->ops[i].op) {
+        case SWS_OP_ASSUME:
+            ff_sws_op_list_remove_at(ops, i--, 1);
+            removed = true;
+            break;
+        }
+    }
+
+    if (removed)
+        goto retry;
 
     return 0;
 }

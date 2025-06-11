@@ -42,7 +42,9 @@ bool ff_sws_pixel_type_is_int(SwsPixelType type) av_const;
 SwsPixelType ff_sws_pixel_type_to_uint(SwsPixelType type) av_const;
 
 typedef enum SwsOpType {
+    /* Pseudo-ops, will never be seen by backends */
     SWS_OP_INVALID = 0,
+    SWS_OP_ASSUME,          /* assume maximum value range of input */
 
     /* Input/output handling */
     SWS_OP_READ,            /* gather raw pixels from planes */
