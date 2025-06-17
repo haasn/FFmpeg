@@ -644,6 +644,28 @@ retry:
                 }
             }
 
+            /**
+             * Enable fusion with linear operations by promoting this swizzle
+             * to a linear operation instead. Note that this should not be
+             * done for swizzles *after* a linear op, because that may be the
+             * result of a prior linear op unswizzle step, in which case this
+             * re-fusion would lead to an infinite loop. (And in practice, we
+             * only want to push swizzles towards the output anyway)
+             */
+            if (next->op == SWS_OP_LINEAR) {
+                SwsLinearOp lin;
+                for (int i = 0; i < 4; i++) {
+                    const int src = op->swizzle.in[i];
+                    for (int j = 0; j < 5; j++)
+                        lin.m[i][j] = Q(j == src);
+                }
+                lin.mask = ff_sws_linear_mask(lin);
+
+                op->op = SWS_OP_LINEAR;
+                op->lin = lin;
+                goto retry;
+            }
+
             /* Try to push all swizzles towards the output */
             if (op_type_is_independent(next->op)) {
                 switch (next->op) {
