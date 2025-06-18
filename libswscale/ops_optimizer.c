@@ -396,12 +396,16 @@ static bool extract_constant_rows(SwsLinearOp *c, SwsComps prev,
 
 /* Unswizzle a linear operation by aligning single-input rows with
  * their corresponding diagonal */
-static bool extract_swizzle(SwsLinearOp *op, SwsComps prev, SwsSwizzleOp *out_swiz)
+static bool extract_swizzle(SwsLinearOp *op, SwsComps prev, SwsComps next,
+                            SwsSwizzleOp *out_swiz)
 {
     SwsSwizzleOp swiz = SWS_SWIZZLE(0, 1, 2, 3);
     SwsLinearOp c = *op;
 
     for (int i = 0; i < 4; i++) {
+        if (next.unused[i])
+            continue;
+
         int idx = -1;
         for (int j = 0; j < 4; j++) {
             if (!c.m[i][j].num || (prev.flags[j] & SWS_COMP_ZERO))
@@ -411,11 +415,17 @@ static bool extract_swizzle(SwsLinearOp *op, SwsComps prev, SwsSwizzleOp *out_sw
             idx = j;
         }
 
-        if (idx >= 0 && idx != i) {
-            /* Move coefficient to the diagonal */
-            c.m[i][i] = c.m[i][idx];
-            c.m[i][idx] = Q(0);
-            swiz.in[i] = idx;
+        if (idx != i) {
+            /* Swap with best row */
+            for (int j = 0; j < 5; j++)
+                FFSWAP(AVRational, c.m[i][j], c.m[idx][j]);
+
+            for (int j = 0; j < 4; j++) {
+                if (swiz.in[j] == i)
+                    swiz.in[j] = idx;
+                else if (swiz.in[j] == idx)
+                    swiz.in[j] = i;
+            }
         }
     }
 
@@ -794,8 +804,8 @@ retry:
             }
 
             /* Swizzle by fixed pattern */
-            if (extract_swizzle(&op->lin, prev->comps, &swizzle)) {
-                RET(ff_sws_op_list_insert_at(ops, n, &(SwsOp) {
+            if (extract_swizzle(&op->lin, prev->comps, next->comps, &swizzle)) {
+                RET(ff_sws_op_list_insert_at(ops, n + 1, &(SwsOp) {
                     .op      = SWS_OP_SWIZZLE,
                     .type    = op->type,
                     .swizzle = swizzle,
