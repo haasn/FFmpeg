@@ -470,8 +470,8 @@ static int add_convert_pass(SwsGraph *graph, SwsFormat src, SwsFormat dst,
     int ret = AVERROR(ENOTSUP);
 
     /* Mark the entire new ops infrastructure as experimental for now */
-    if (!(ctx->flags & SWS_UNSTABLE))
-        goto fail;
+    //if (!(ctx->flags & SWS_UNSTABLE))
+    //    goto fail;
 
     /* The new format conversion layer cannot scale for now */
     if (src.width != dst.width || src.height != dst.height ||
