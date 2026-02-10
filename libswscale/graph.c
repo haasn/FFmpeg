@@ -227,6 +227,24 @@ fail:
     return ret;
 }
 
+void ff_sws_pass_link_output(SwsPass *pass1, SwsPass *pass2)
+{
+    if (!pass1 || !pass2)
+        return;
+
+    av_assert0(pass1->format == pass2->format);
+    av_assert0(pass1->width  == pass2->width);
+    av_assert0(pass1->height == pass2->height);
+    SwsPassBuffer *dst = pass1->output, *src = pass2->output;
+
+    dst->width_align = FFMAX(dst->width_align, src->width_align);
+    dst->width_pad   = FFMAX(dst->width_pad,   src->width_pad);
+    av_assert1(dst->width  == src->width);
+    av_assert1(dst->height == src->height);
+
+    av_refstruct_replace(&pass2->output, pass1->output);
+}
+
 static void frame_shift(const SwsFrame *f, const int y, uint8_t *data[4])
 {
     for (int i = 0; i < 4; i++) {
