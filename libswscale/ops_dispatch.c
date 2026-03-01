@@ -479,7 +479,7 @@ static int rw_pixel_bits(const SwsOp *op)
 static void align_pass(SwsPass *pass, int block_size, const int *over_rw,
                        int pixel_bits)
 {
-    if (!pass)
+    if (!pass || pixel_bits <= 0)
         return;
 
     /* Add at least as many pixels as needed to cover the padding requirement */
@@ -526,9 +526,9 @@ static int compile(SwsGraph *graph, const SwsOpBackend *backend,
     const AVPixFmtDescriptor *outdesc = av_pix_fmt_desc_get(dst->format);
     const SwsOp *read  = ff_sws_op_list_input(ops);
     const SwsOp *write = ff_sws_op_list_output(ops);
-    p->planes_in  = ff_sws_rw_op_planes(read);
+    p->planes_in  = read ? ff_sws_rw_op_planes(read) : 0;
     p->planes_out = ff_sws_rw_op_planes(write);
-    p->pixel_bits_in  = rw_pixel_bits(read);
+    p->pixel_bits_in  = read ? rw_pixel_bits(read) : 0;
     p->pixel_bits_out = rw_pixel_bits(write);
     p->exec_base = (SwsOpExec) {
         .width  = dst->width,
@@ -568,8 +568,8 @@ static int compile(SwsGraph *graph, const SwsOpBackend *backend,
         p->idx_out[i] = idx;
     }
 
-    const SwsFilterWeights *filter = read->rw.filter.kernel;
-    if (read->rw.filter.op == SWS_OP_FILTER_V) {
+    const SwsFilterWeights *filter = read ? read->rw.filter.kernel : NULL;
+    if (read && read->rw.filter.op == SWS_OP_FILTER_V) {
         p->offsets_y = av_refstruct_ref(filter->offsets);
 
         /* Compute relative pointer bumps for each output line */
@@ -587,7 +587,7 @@ static int compile(SwsGraph *graph, const SwsOpBackend *backend,
         }
         bump[filter->dst_size - 1] = 0;
         p->exec_base.in_bump_y = bump;
-    } else if (read->rw.filter.op == SWS_OP_FILTER_H) {
+    } else if (read && read->rw.filter.op == SWS_OP_FILTER_H) {
         /* Compute pixel offset map for each output line */
         const int pixels = FFALIGN(filter->dst_size, p->comp.block_size);
         int32_t *offset = av_malloc_array(pixels, sizeof(*offset));
@@ -622,8 +622,9 @@ static int compile(SwsGraph *graph, const SwsOpBackend *backend,
         return ret;
 
     (*output)->backend = comp->backend->flags;
-    align_pass(input,   comp->block_size, comp->over_read,  p->pixel_bits_in);
     align_pass(*output, comp->block_size, comp->over_write, p->pixel_bits_out);
+    if (read)
+        align_pass(input, comp->block_size, comp->over_read,  p->pixel_bits_in);
     return 0;
 
 fail:
@@ -647,11 +648,9 @@ int ff_sws_compile_pass(SwsGraph *graph, const SwsOpBackend *backend,
         goto out;
     }
 
-    const SwsOp *read  = ff_sws_op_list_input(ops);
     const SwsOp *write = ff_sws_op_list_output(ops);
-    if (!read || !write) {
-        av_log(ctx, AV_LOG_ERROR, "First and last operations must be a read "
-               "and write, respectively.\n");
+    if (!write) {
+        av_log(ctx, AV_LOG_ERROR, "Last operation must be SWS_OP_WRITE.\n");
         ret = AVERROR(EINVAL);
         goto out;
     }
