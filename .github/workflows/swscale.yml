@@ -1,0 +1,414 @@
+# Based on Martin Storsjö's gha-aarch64 work
+#
+# .github/workflows/swscale.yml
+
+name: Test swscale
+
+on:
+  push:
+
+jobs:
+  x86_64-linux-gcc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and test swscale
+        run: |
+          sudo apt-get update && sudo apt-get install nasm
+          mkdir build
+          cd build
+          ../configure
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  x86_64-linux-clang:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and test swscale
+        run: |
+          sudo apt-get update && sudo apt-get install nasm clang
+          mkdir build
+          cd build
+          ../configure --cc=clang
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  x86_64-linux-gcc-valgrind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and test swscale
+        run: |
+          sudo apt-get update && sudo apt-get install nasm valgrind
+          mkdir build
+          cd build
+          ../configure --disable-memory-poisoning --target-exec="valgrind --error-exitcode=1 --malloc-fill=0xa2 --leak-check=full --vex-guest-max-insns=56 --gen-suppressions=all --suppressions=../tests/fate-valgrind.supp --undef-value-errors=no"
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  x86_64-linux-clang-ubsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and test swscale
+        run: |
+          sudo apt-get update && sudo apt-get install nasm clang llvm libclang-rt-dev
+          mkdir build
+          cd build
+          ../configure --cc=clang --cxx=clang++ --ld=clang --extra-cflags='-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined' --extra-ldflags='-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined'
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  i686-linux-gcc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and test swscale
+        run: |
+          sudo apt-get update && sudo apt-get install nasm gcc-multilib
+          mkdir build
+          cd build
+          ../configure --arch=x86 --extra-cflags=-m32 --extra-ldflags=-m32
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  aarch64-linux-gcc:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and test swscale
+        run: |
+          mkdir build
+          cd build
+          ../configure
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  aarch64-linux-clang:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and test swscale
+        run: |
+          sudo apt-get update && sudo apt-get install clang
+          mkdir build
+          cd build
+          ../configure --cc=clang
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  aarch64-linux-gcc-valgrind:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and test swscale
+        run: |
+          sudo apt-get update && sudo apt-get install valgrind
+          mkdir build
+          cd build
+          ../configure --disable-memory-poisoning --target-exec="valgrind --error-exitcode=1 --malloc-fill=0xa2 --leak-check=full --vex-guest-max-insns=56 --gen-suppressions=all --suppressions=../tests/fate-valgrind.supp --undef-value-errors=no"
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  aarch64-linux-clang-ubsan:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build and test swscale
+        run: |
+          sudo apt-get update && sudo apt-get install clang llvm libclang-rt-dev
+          mkdir build
+          cd build
+          ../configure --cc=clang --cxx=clang++ --ld=clang --extra-cflags='-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined' --extra-ldflags='-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined'
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  aarch64-linux-pac-bti-gcs:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Set up Fedora cross sysroot
+        run: |
+          docker run --rm -v $PWD:/host fedora:43 bash -c "yum -y install glibc-devel gcc && tar -cf /host/fedora.tar /usr /etc/ld.so.cache"
+          mkdir -p /opt/fedora-sysroot
+          tar -C /opt/fedora-sysroot -xf fedora*.tar
+          rm fedora*.tar
+          ln -s usr/lib64 /opt/fedora-sysroot/lib64
+          ln -s usr/lib /opt/fedora-sysroot/lib
+      - uses: actions/checkout@v6
+      - name: Install a new enough QEMU
+        run: |
+          # Download a version from Ubuntu 24.04
+          curl -LO https://ports.ubuntu.com/ubuntu-ports/pool/universe/q/qemu/qemu-user_10.2.1+ds-1ubuntu3_arm64.deb
+          # Installing the package depends on a package ubuntu-virt, which doesn't exist in 24.04
+          #sudo dpkg -i qemu-user*.deb
+          # Therefore, just unpack it manually
+          sudo dpkg-deb -x qemu-user*.deb /
+      - name: Build and test swscale
+        run: |
+          sudo apt-get update && sudo apt-get install clang-20 lld-20
+          sudo ln -sf clang-20 /usr/bin/clang
+          sudo ln -sf ld.lld-20 /usr/bin/ld.lld
+          mkdir build
+          cd build
+          ../configure --cc=clang --sysroot=/opt/fedora-sysroot --extra-cflags="-mbranch-protection=standard" --extra-ldflags="-mbranch-protection=standard -fuse-ld=lld -Wl,-z,force-bti,-z,gcs=always,-z,gcs-report=warning -L/opt/fedora-sysroot/usr/lib64 -L/opt/fedora-sysroot/usr/lib/gcc/aarch64-redhat-linux/11" --target-exec="qemu-aarch64 -L /opt/fedora-sysroot -E GLIBC_TUNABLES=glibc.cpu.aarch64_gcs=1"
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  aarch64-linux-old-toolchain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install an old toolchain
+        run: |
+          curl -LO https://releases.linaro.org/components/toolchain/binaries/4.9-2017.01/aarch64-linux-gnu/gcc-linaro-4.9.4-2017.01-x86_64_aarch64-linux-gnu.tar.xz
+          tar -Jxf gcc-linaro-*.tar.xz
+          rm gcc-linaro-*.tar.xz
+          sudo mv gcc-linaro* /opt/gcc-linaro
+          echo /opt/gcc-linaro/bin >> $GITHUB_PATH
+      - name: Build and test swscale
+        run: |
+          sudo apt-get update && sudo apt-get install qemu-user-static libc6-arm64-cross
+          mkdir build
+          cd build
+          ../configure --arch=aarch64 --cross-prefix=aarch64-linux-gnu- --target-os=linux --target-exec="qemu-aarch64-static -L /usr/aarch64-linux-gnu"
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  aarch64-android-old-ndk:
+    runs-on: ubuntu-22.04 # libtinfo5 is not available in 24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install an NDK
+        run: |
+          curl -LO https://dl.google.com/android/repository/android-ndk-r17c-linux-x86_64.zip
+          unzip -q android-ndk-*.zip
+          rm android-ndk-*.zip
+          sudo mv android-ndk-* /opt/android-ndk
+          # The sysroot stdatomic.h fails with this GCC version, prefer the
+          # one from GCC's own include directory.
+          rm /opt/android-ndk/sysroot/usr/include/stdatomic.h
+          echo /opt/android-ndk/toolchains/aarch64-linux-android-4.9/prebuilt/*-x86*/bin >> $GITHUB_PATH
+          sudo apt-get update && sudo apt-get install libtinfo5
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          ../configure --arch=aarch64 --cc=aarch64-linux-android-gcc --cross-prefix=aarch64-linux-android- --target-os=android --sysroot=/opt/android-ndk/platforms/android-28/arch-arm64 --extra-cflags="-isystem /opt/android-ndk/sysroot/usr/include -isystem /opt/android-ndk/sysroot/usr/include/aarch64-linux-android"
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+
+  aarch64-android-new-ndk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install an NDK
+        run: |
+          curl -LO https://dl.google.com/android/repository/android-ndk-r26c-linux.zip
+          unzip -q android-ndk-*.zip
+          rm android-ndk-*.zip
+          sudo mv android-ndk-* /opt/android-ndk
+          echo /opt/android-ndk/toolchains/llvm/prebuilt/*-x86*/bin >> $GITHUB_PATH
+      - name: Build
+        run: |
+          mkdir build
+          cd build
+          ../configure --arch=aarch64 --cc=aarch64-linux-android34-clang --cross-prefix=llvm- --target-os=android
+          make -j$(nproc) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+
+  aarch64-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check host type
+        run: |
+          ARCH=$(uname -m)
+          if [ "$ARCH" != "arm64" ]; then
+              echo Unexpected host architecture $ARCH
+              exit 1
+          fi
+      - name: Build and test swscale
+        run: |
+          mkdir build
+          cd build
+          ../configure
+          make -j$(sysctl -n hw.ncpu) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  x86_64-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install dependencies
+        run: |
+          brew install nasm
+          softwareupdate --install-rosetta --agree-to-license || true
+      - name: Build and test swscale
+        run: |
+          mkdir build
+          cd build
+          ../configure --arch=x86_64 --extra-cflags="-arch x86_64" --extra-ldflags="-arch x86_64" --target-exec="arch -x86_64"
+          make -j$(sysctl -n hw.ncpu) checkasm libswscale/tests/sws_ops libswscale/tests/swscale
+          make V=1 fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  aarch64-llvm-mingw:
+    runs-on: ubuntu-24.04-arm
+    container: ghcr.io/mstorsjo/wine
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install llvm-mingw
+        run: |
+          curl -LO https://github.com/mstorsjo/llvm-mingw/releases/download/20231128/llvm-mingw-20231128-ucrt-ubuntu-20.04-aarch64.tar.xz
+          tar -Jxf llvm-mingw-*-ucrt-ubuntu-*-aarch64.tar.xz
+          rm llvm-mingw-*.tar.xz
+          mv llvm-mingw-* /opt/llvm-mingw
+          echo /opt/llvm-mingw/bin >> $GITHUB_PATH
+      - name: Build and test swscale
+        run: |
+          mkdir build
+          cd build
+          ../configure --arch=aarch64 --target-os=mingw32 --cross-prefix=aarch64-w64-mingw32- --target-exec=wine
+          make -j$(nproc) checkasm libswscale/tests/sws_ops.exe libswscale/tests/swscale.exe
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  x86-llvm-mingw:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install llvm-mingw and wine
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update && sudo apt-get install nasm wine wine32
+          curl -LO https://github.com/mstorsjo/llvm-mingw/releases/download/20231128/llvm-mingw-20231128-ucrt-ubuntu-20.04-x86_64.tar.xz
+          tar -Jxf llvm-mingw-*-ucrt-ubuntu-*-x86_64.tar.xz
+          rm llvm-mingw-*.tar.xz
+          sudo mv llvm-mingw-* /opt/llvm-mingw
+          echo /opt/llvm-mingw/bin >> $GITHUB_PATH
+      - name: Build and test swscale
+        run: |
+          mkdir build
+          cd build
+          ../configure --arch=x86 --target-os=mingw32 --cross-prefix=i686-w64-mingw32- --target-exec=wine
+          make -j$(nproc) checkasm libswscale/tests/sws_ops.exe libswscale/tests/swscale.exe
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  aarch64-msvc:
+    runs-on: windows-11-arm
+    steps:
+      - name: Set up the environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: arm64
+      - name: Checkout gas-preprocessor
+        uses: actions/checkout@v6
+        with:
+          repository: ffmpeg/gas-preprocessor
+          ref: e29a3c6ebd85c252372eaedaf2973c6f9e9fdc4e
+          path: gas-preprocessor
+      - uses: actions/checkout@v6
+        with:
+          path: ffmpeg
+      - name: Install busybox
+        run: |
+          curl -LO https://frippery.org/files/busybox/busybox64a.exe
+          ./busybox64a.exe --install c:\busybox
+          echo "c:\busybox" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+          echo "BB_OVERRIDE_APPLETS=link make" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+          rm c:\busybox\link.exe
+          rm c:\busybox\make.exe
+      - name: Build and test swscale
+        shell: sh
+        run: |
+          mkdir build
+          cd build
+          export PATH=$(pwd)/../gas-preprocessor:$PATH
+          ../ffmpeg/configure --arch=arm64 --target-os=win32 --toolchain=msvc
+          make -j$(nproc) checkasm libswscale/tests/sws_ops.exe libswscale/tests/swscale.exe
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  x86_64-msvc:
+    runs-on: windows-latest
+    steps:
+      - name: Set up the environment
+        uses: ilammy/msvc-dev-cmd@v1
+      - uses: actions/checkout@v6
+      - name: Install busybox
+        run: |
+          New-Item -ItemType Directory -Force c:\busybox
+          curl -L -o c:\busybox\busybox64.exe https://frippery.org/files/busybox/busybox64.exe
+          c:\busybox\busybox64.exe --install c:\busybox
+          echo "c:\busybox" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+          echo "BB_OVERRIDE_APPLETS=link make" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+          rm c:\busybox\link.exe
+          rm c:\busybox\make.exe
+          echo "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Build and test swscale
+        shell: sh
+        run: |
+          mkdir build
+          cd build
+          ../configure --arch=x86_64 --target-os=win32 --toolchain=msvc
+          make -j$(nproc) checkasm libswscale/tests/sws_ops.exe libswscale/tests/swscale.exe
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
+
+  x86-msvc:
+    runs-on: windows-latest
+    steps:
+      - name: Set up the environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+      - uses: actions/checkout@v6
+      - name: Install busybox
+        run: |
+          New-Item -ItemType Directory -Force c:\busybox
+          curl -L -o c:\busybox\busybox64.exe https://frippery.org/files/busybox/busybox64.exe
+          c:\busybox\busybox64.exe --install c:\busybox
+          echo "c:\busybox" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+          echo "BB_OVERRIDE_APPLETS=link make" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+          rm c:\busybox\link.exe
+          rm c:\busybox\make.exe
+          echo "C:\Program Files\NASM" | Out-File -FilePath $Env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Build and test swscale
+        shell: sh
+        run: |
+          mkdir build
+          cd build
+          ../configure --arch=x86 --target-os=win32 --toolchain=msvc
+          make -j$(nproc) checkasm libswscale/tests/sws_ops.exe libswscale/tests/swscale.exe
+          make V=1 -k fate-checkasm-sw_ops fate-sws-unscaled fate-sws-unstable || ret=$?
+          for f in tests/data/fate/*.err; do [ -f "$f" ] && echo "=== $f ===" && cat "$f"; done
+          exit ${ret:-0}
