@@ -663,6 +663,27 @@ static int compile_subpass(const CompileArgs *args, SwsOpList **pops,
     if (ret != AVERROR(ENOTSUP))
         goto fail; /* either success or a hard error */
 
+    av_assert0(ops->num_ops >= 2);
+    const SwsOp *write = &ops->ops[ops->num_ops - 1];
+    const SwsOp *prev  = &ops->ops[ops->num_ops - 2];
+    if (args->flags & SWS_OP_FLAG_SPLIT_MEMCPY) {
+        /* Split off copied and constant planes into a separate subpass,
+         * since these are likely to be handled by the memcpy backend */
+        SwsCompMask planes = 0;
+        for (int c = 0; c < write->rw.elems; c++) {
+            if (prev->comps.flags[c] & (SWS_COMP_COPY | SWS_COMP_CONST))
+                planes |= SWS_COMP(c);
+        }
+
+        RET(ff_sws_op_list_split_planes(ops, &rest, planes));
+        if (rest) {
+            /* Parallel split: share input and link all outputs together */
+            RET(compile_subpass(args, &ops,  link, input, &tmp));
+            RET(compile_subpass(args, &rest, tmp, input, output));
+            return 0;
+        }
+    }
+
     /* Find any unresolved filter */
     for (int idx = 1; idx < ops->num_ops - 1; idx++) {
         const SwsOp *op = &ops->ops[idx];
