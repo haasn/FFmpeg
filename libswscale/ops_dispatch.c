@@ -508,7 +508,7 @@ typedef struct CompileArgs {
 } CompileArgs;
 
 static int compile_single(const CompileArgs *args, const SwsOpList *ops,
-                          SwsPass *input, SwsPass **output)
+                          SwsPass *link, SwsPass *input, SwsPass **output)
 {
     SwsGraph *graph = args->graph;
     SwsContext *ctx = graph->ctx;
@@ -531,8 +531,10 @@ static int compile_single(const CompileArgs *args, const SwsOpList *ops,
         ret = ff_sws_graph_add_pass(graph, dst->format, dst->width, dst->height,
                                     input, c.slice_align, c.func_opaque,
                                     NULL, c.priv, c.free, output);
-        if (ret >= 0)
+        if (ret >= 0) {
             (*output)->backend = comp->backend->flags;
+            ff_sws_pass_link_output(*output, link);
+        }
         return ret;
     }
 
@@ -636,6 +638,7 @@ static int compile_single(const CompileArgs *args, const SwsOpList *ops,
         return ret;
 
     (*output)->backend = comp->backend->flags;
+    ff_sws_pass_link_output(*output, link);
     align_pass(*output, comp->block_size, comp->over_write, p->pixel_bits_out);
     if (read)
         align_pass(input, comp->block_size, comp->over_read,  p->pixel_bits_in);
@@ -648,7 +651,7 @@ fail:
 
 /* Takes over ownership of *pops, even on failure */
 static int compile_subpass(const CompileArgs *args, SwsOpList **pops,
-                           SwsPass *input, SwsPass **output)
+                           SwsPass *link, SwsPass *input, SwsPass **output)
 {
     SwsContext *ctx = args->graph->ctx;
     SwsOpList *ops  = *pops;
@@ -656,7 +659,7 @@ static int compile_subpass(const CompileArgs *args, SwsOpList **pops,
     SwsPass *tmp;
     *pops = NULL;
 
-    int ret = compile_single(args, ops, input, output);
+    int ret = compile_single(args, ops, link, input, output);
     if (ret != AVERROR(ENOTSUP))
         goto fail; /* either success or a hard error */
 
@@ -673,8 +676,8 @@ static int compile_subpass(const CompileArgs *args, SwsOpList **pops,
                 break;
             }
             /* Serial split: feed first pass into second */
-            RET(compile_subpass(args, &ops,  input, &tmp));
-            RET(compile_subpass(args, &rest, tmp, output));
+            RET(compile_subpass(args, &ops,  NULL, input, &tmp));
+            RET(compile_subpass(args, &rest, link, tmp, output));
             return 0;
         }
     }
@@ -728,7 +731,7 @@ int ff_sws_compile_pass(SwsGraph *graph, const SwsOpBackend *backend,
         .flags   = flags,
     };
 
-    ret = compile_subpass(&args, &ops, input, output);
+    ret = compile_subpass(&args, &ops, NULL, input, output);
     if (ret < 0)
         goto out;
 
