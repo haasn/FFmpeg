@@ -653,15 +653,12 @@ fail:
 static int compile_subpass(const CompileArgs *args, SwsOpList **pops,
                            SwsPass *link, SwsPass *input, SwsPass **output)
 {
+    int ret;
     SwsContext *ctx = args->graph->ctx;
     SwsOpList *ops  = *pops;
     SwsOpList *rest = NULL;
     SwsPass *tmp;
     *pops = NULL;
-
-    int ret = compile_single(args, ops, link, input, output);
-    if (ret != AVERROR(ENOTSUP))
-        goto fail; /* either success or a hard error */
 
     av_assert0(ops->num_ops >= 2);
     const SwsOp *write = &ops->ops[ops->num_ops - 1];
@@ -683,6 +680,10 @@ static int compile_subpass(const CompileArgs *args, SwsOpList **pops,
             return 0;
         }
     }
+
+    ret = compile_single(args, ops, link, input, output);
+    if (ret != AVERROR(ENOTSUP))
+        goto fail; /* either success or a hard error */
 
     /* Find any unresolved filter */
     for (int idx = 1; idx < ops->num_ops - 1; idx++) {
