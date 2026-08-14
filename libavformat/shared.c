@@ -125,7 +125,8 @@ typedef struct Spacemap {
     atomic_ushort block_shift;
     atomic_ullong filesize; /* byte offset of true EOF, or 0 if unknown */
     atomic_uchar hash[HASH_SIZE]; /* hash of resource URI / filename */
-    char reserved[80];
+    atomic_ullong blocks_cached; /* (lower bound on) the number of blocks cached */
+    char reserved[72];
 
     Block blocks[];
 } Spacemap;
@@ -892,6 +893,8 @@ read_block:
                    "offset 0x%"PRIx64", CRC 0x%08X\n", bytes_read, block_id,
                    block_pos, crc);
             atomic_store_explicit(&block->state, crc, memory_order_release);
+            if (acquired)
+                atomic_fetch_add_explicit(&s->spacemap->blocks_cached, 1, memory_order_release);
         }
     } else {
         RELEASE_PENDING(block, state);
