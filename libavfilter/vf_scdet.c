@@ -61,8 +61,11 @@ static const AVOption scdet_options[] = {
 AVFILTER_DEFINE_CLASS(scdet);
 
 static const enum AVPixelFormat pix_fmts[] = {
-        AV_PIX_FMT_RGB24, AV_PIX_FMT_BGR24, AV_PIX_FMT_RGBA,
+        AV_PIX_FMT_RGB24, AV_PIX_FMT_BGR24,
+        AV_PIX_FMT_ARGB, AV_PIX_FMT_RGBA,
         AV_PIX_FMT_ABGR, AV_PIX_FMT_BGRA,
+        AV_PIX_FMT_RGB48, AV_PIX_FMT_BGR48,
+        AV_PIX_FMT_RGBA64, AV_PIX_FMT_BGRA64,
 
         AV_PIX_FMT_GBRP,   AV_PIX_FMT_GBRP9,   AV_PIX_FMT_GBRP10,
         AV_PIX_FMT_GBRP12, AV_PIX_FMT_GBRP14,  AV_PIX_FMT_GBRP16,

@@ -836,6 +836,20 @@ void ff_vk_exec_add_dep_wait_sem(FFVulkanContext *s, FFVkExecContext *e,
     };
 }
 
+void ff_vk_exec_add_dep_signal_sem(FFVulkanContext *s, FFVkExecContext *e,
+                                   VkSemaphore sem, uint64_t val,
+                                   VkPipelineStageFlagBits2 stage)
+{
+    av_assert1(e->sem_sig_cnt < FF_VK_EXEC_MAX_SEM_OPS);
+
+    e->sem_sig[e->sem_sig_cnt++] = (VkSemaphoreSubmitInfo) {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = sem,
+        .value = val,
+        .stageMask = stage,
+    };
+}
+
 void ff_vk_exec_add_dep_bool_sem(FFVulkanContext *s, FFVkExecContext *e,
                                  VkSemaphore *sem, int nb,
                                  VkPipelineStageFlagBits2 stage,
@@ -1631,8 +1645,9 @@ int ff_vk_init_sampler(FFVulkanContext *s, VkSampler *sampler,
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .magFilter = filt,
         .minFilter = sampler_info.magFilter,
-        .mipmapMode = unnorm_coords ? VK_SAMPLER_MIPMAP_MODE_NEAREST :
-                                      VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .mipmapMode = (unnorm_coords || filt == VK_FILTER_NEAREST) ?
+                      VK_SAMPLER_MIPMAP_MODE_NEAREST :
+                      VK_SAMPLER_MIPMAP_MODE_LINEAR,
         .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
         .addressModeV = sampler_info.addressModeU,
         .addressModeW = sampler_info.addressModeU,

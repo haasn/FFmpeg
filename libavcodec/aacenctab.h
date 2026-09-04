@@ -70,7 +70,7 @@ static const uint8_t aac_chan_configs[14][6] = {
     {3, TYPE_SCE, TYPE_CPE, TYPE_SCE},                     // 4 channels - front center + stereo + back center
     {3, TYPE_SCE, TYPE_CPE, TYPE_CPE},                     // 5 channels - front center + stereo + back stereo
     {4, TYPE_SCE, TYPE_CPE, TYPE_CPE, TYPE_LFE},           // 6 channels - front center + stereo + back stereo + LFE
-    {5, TYPE_SCE, TYPE_CPE, TYPE_CPE, TYPE_CPE, TYPE_LFE}, // 8 channels - front center + front stereo + front center stereo + back stereo + LFE
+    {5, TYPE_SCE, TYPE_CPE, TYPE_CPE, TYPE_CPE, TYPE_LFE}, // 8 channels - front center + front center stereo + front stereo + back stereo + LFE
     {0},
     {0},
     {0},
