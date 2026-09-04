@@ -259,6 +259,21 @@ static int set_filesize(URLContext *h, int64_t new_size)
     return ret;
 }
 
+static int is_ignorable_error(int err)
+{
+    switch (err) {
+    case AVERROR_EXIT:
+    case AVERROR_EOF:
+    case AVERROR_BUG:
+    case AVERROR(EAGAIN):
+    case AVERROR(ENOSYS):
+    case AVERROR(EINVAL):
+        return 0;
+    default:
+        return err < 0;
+    }
+}
+
 static int shared_open(URLContext *h, const char *arg, int flags, AVDictionary **options)
 {
     SharedContext *s = h->priv_data;
@@ -276,7 +291,7 @@ static int shared_open(URLContext *h, const char *arg, int flags, AVDictionary *
     av_strstart(arg, "shared:", &arg);
     ret = ffurl_open_whitelist(&s->inner, arg, flags, &h->interrupt_callback,
                                options, h->protocol_whitelist, h->protocol_blacklist, h);
-    if (ret < 0 && s->ignore_errors) {
+    if (is_ignorable_error(ret) && s->ignore_errors) {
         av_log(h, AV_LOG_WARNING, "Underlying URL failed to open: %s. "
                "Continuing with cache file only.\n", av_err2str(ret));
     } else if (ret < 0)
@@ -324,15 +339,12 @@ static int shared_open(URLContext *h, const char *arg, int flags, AVDictionary *
         ret = (int) filesize;
         goto fail;
     } else if (!filesize) {
-        /* Filesize is not yet known, try to get it from the underlying URL */
-        filesize = s->inner ? ffurl_size(s->inner) : 0;
+        /* Filesize is not yet known, try to get it from the underlying URL;
+         * go through our own seek function to handle errors and updates */
+        filesize = ffurl_size(h);
         if (filesize < 0 && filesize != AVERROR(ENOSYS)) {
             ret = (int) filesize;
             goto fail;
-        } else if (filesize > 0) {
-            ret = set_filesize(h, filesize);
-            if (ret < 0)
-                goto fail;
         }
     }
 
@@ -721,8 +733,20 @@ read_block:
         av_fallthrough;
 
     case BLOCK_NONE:
-        if (s->read_only || s->write_err)
+        if (s->read_only || s->write_err || !s->inner)
             break; /* don't mark block as pending */
+        else if (s->cache_size_max) {
+            int64_t cached = atomic_load_explicit(&s->spacemap->blocks_cached,
+                                                  memory_order_relaxed);
+            if (cached >= s->blocks_max) {
+                av_log(h, AV_LOG_WARNING, "Cache size limit reached (%"PRId64" "
+                       "blocks = %"PRId64" bytes), switching to read-only mode.\n",
+                       s->blocks_max, s->blocks_max << s->block_shift);
+                s->read_only = 1;
+                break;
+            }
+        }
+
         if (atomic_compare_exchange_strong_explicit(&block->state, &state,
                                                     BLOCK_PENDING,
                                                     memory_order_acquire,
@@ -778,17 +802,8 @@ read_block:
         av_log(h, AV_LOG_ERROR, "Cache miss for block 0x%"PRIx64" at offset "
                "0x%"PRIx64", but underlying protocol is not available!\n",
                block_id, block_pos);
+        av_assert0(!acquired);
         return AVERROR(EIO);
-    }
-
-    if (!s->read_only && s->blocks_max) {
-        int64_t cached = atomic_load_explicit(&s->spacemap->blocks_cached, memory_order_relaxed);
-        if (cached >= s->blocks_max) {
-            av_log(h, AV_LOG_WARNING, "Cache size limit reached (%"PRId64" blocks "
-                   " = %"PRId64" bytes), switching to read-only mode.\n",
-                   s->blocks_max, s->blocks_max << s->block_shift);
-            s->read_only = 1;
-        }
     }
 
     const int read_only = s->read_only || s->write_err || verify_read;
@@ -893,7 +908,8 @@ read_block:
                    "offset 0x%"PRIx64", CRC 0x%08X\n", bytes_read, block_id,
                    block_pos, crc);
             atomic_store_explicit(&block->state, crc, memory_order_release);
-            atomic_fetch_add_explicit(&s->spacemap->blocks_cached, 1, memory_order_release);
+            if (acquired)
+                atomic_fetch_add_explicit(&s->spacemap->blocks_cached, 1, memory_order_release);
         }
     } else {
         RELEASE_PENDING(block, state);
@@ -928,7 +944,7 @@ static int64_t shared_seek(URLContext *h, int64_t pos, int whence)
         if (res > 0) {
             if (set_filesize(h, res) < 0)
                 return AVERROR(EINVAL);
-        } else if (res < 0 && res != AVERROR(ENOSYS) && s->ignore_errors) {
+        } else if (is_ignorable_error(res) && s->ignore_errors) {
             av_log(h, AV_LOG_WARNING, "Underlying URL failed to get size: %s. "
                    "Continuing with cache file only.\n", av_err2str(res));
             ffurl_closep(&s->inner);
@@ -948,8 +964,8 @@ static int64_t shared_seek(URLContext *h, int64_t pos, int whence)
 
         /* Defer to underlying protocol if filesize is unknown */
         res = s->inner ? ffurl_seek(s->inner, pos, whence) : AVERROR(ENOSYS);
-        if (res < 0 && res != AVERROR(ENOSYS) && s->ignore_errors) {
-            av_log(h, AV_LOG_WARNING, "Underlying URL failed to get seek: %s. "
+        if (is_ignorable_error(res) && s->ignore_errors) {
+            av_log(h, AV_LOG_WARNING, "Underlying URL failed to seek: %s. "
                    "Continuing with cache file only.\n", av_err2str(res));
             ffurl_closep(&s->inner);
             return AVERROR(ENOSYS);
