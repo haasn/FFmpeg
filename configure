@@ -2536,6 +2536,7 @@ SYSTEM_FUNCS="
     nanosleep
     open_osfhandle
     PeekNamedPipe
+    posix_fallocate
     posix_memalign
     prctl
     pthread_cancel
@@ -6889,6 +6890,7 @@ check_func  mmap
 check_func  mprotect
 # Solaris has nanosleep in -lrt, OpenSolaris no longer needs that
 check_func_headers time.h nanosleep || check_lib nanosleep time.h nanosleep -lrt
+check_func_headers fcntl.h posix_fallocate
 check_func_headers sys/prctl.h prctl
 check_func  sched_getaffinity
 check_func  setrlimit

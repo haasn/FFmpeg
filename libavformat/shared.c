@@ -224,7 +224,7 @@ static int spacemap_grow(URLContext *h, int64_t block);
 static int64_t get_filesize(URLContext *h)
 {
     SharedContext *s = h->priv_data;
-    if (!s->filesize) {
+    if (!s->filesize && s->spacemap) {
         uint64_t size = atomic_load_explicit(&s->spacemap->filesize, memory_order_relaxed);
         if (size > INT64_MAX)
             return AVERROR(EINVAL);
@@ -242,6 +242,12 @@ static int set_filesize(URLContext *h, int64_t new_size)
 
     if (!new_size)
         return 0;
+
+    if (!s->spacemap) {
+        /* No spacemap to share this with, only remember it locally */
+        s->filesize = new_size;
+        return 0;
+    }
 
     ret = set_once_ullong(&s->spacemap->filesize, new_size);
     if (ret < 0) {
@@ -350,9 +356,10 @@ static int shared_open(URLContext *h, const char *arg, int flags, AVDictionary *
     if (filesize > 0) {
         int64_t last_pos = filesize - 1;
         int64_t last_block = last_pos >> s->block_shift;
-        ret = spacemap_grow(h, last_block);
-        if (ret < 0)
-            goto fail;
+
+        /* Not fatal on failure; blocks not covered by the spacemap are
+         * simply not cached */
+        spacemap_grow(h, last_block);
     }
 
     /* Temporary buffer needed for pread/pwrite() fallback */
@@ -376,6 +383,7 @@ static int spacemap_remap(URLContext *h, size_t map_size)
 {
     SharedContext *s = h->priv_data;
     int ret, did_grow = 0, locked = 0;
+    void *map;
     if (map_size <= s->map_size)
         return 0;
 
@@ -389,6 +397,8 @@ static int spacemap_remap(URLContext *h, size_t map_size)
 
     if (st.st_size >= map_size)
         goto skip_resize;
+    else if (s->write_err)
+        return AVERROR(EIO); /* don't retry growing the file after an error */
 
     /* Lock the spacemap to ensure nobody else is currently resizing it */
     ret = flock(s->mapfd, LOCK_EX);
@@ -408,22 +418,30 @@ static int spacemap_remap(URLContext *h, size_t map_size)
     if (st.st_size >= map_size)
         goto skip_resize;
 
+#if HAVE_POSIX_FALLOCATE
+    /* Explicitly allocate the new range, as running out of disk space while
+     * accessing a sparse mapping would raise SIGBUS */
+    ret = posix_fallocate(s->mapfd, st.st_size, map_size - st.st_size);
+    if (ret) {
+        ret = AVERROR(ret);
+        goto fail;
+    }
+#endif
+
     /* The new mapping extends the file */
     st.st_size = map_size;
     did_grow = 1;
 
 skip_resize:
-    av_file_unmap_shared(s->spacemap, s->map_size);
-    s->spacemap = NULL;
-    s->map_size = st.st_size;
-
-    void *map;
-    ret = av_file_map_shared(s->mapfd, s->map_size, &map);
-    if (ret < 0) {
-        s->map_size = 0;
+    /* Only drop the old mapping once the new one is established, so that it
+     * remains usable on failure */
+    ret = av_file_map_shared(s->mapfd, st.st_size, &map);
+    if (ret < 0)
         goto fail;
-    }
+
+    av_file_unmap_shared(s->spacemap, s->map_size);
     s->spacemap = map;
+    s->map_size = st.st_size;
 
     if (locked) {
         flock(s->mapfd, LOCK_UN);
@@ -436,6 +454,7 @@ fail:
     if (locked)
         flock(s->mapfd, LOCK_UN);
     av_log(h, AV_LOG_ERROR, "Failed to resize space map: %s\n", av_err2str(ret));
+    s->write_err = 1; /* stop trying to add new blocks to the cache */
     return ret;
 }
 
@@ -444,6 +463,8 @@ static int spacemap_grow(URLContext *h, int64_t block)
     SharedContext *s = h->priv_data;
     int64_t num_blocks = block + 1;
     size_t map_bytes = sizeof(Spacemap) + num_blocks * sizeof(Block);
+    if (!s->spacemap)
+        return AVERROR(EIO); /* header was never mapped by spacemap_init() */
 
     /* When streaming files without known size, round up the number of blocks
      * to the nearest multiple of the block size to reduce the rate of resizes */
@@ -475,14 +496,35 @@ static int spacemap_grow(URLContext *h, int64_t block)
     return 0;
 }
 
+/**
+ * Returns the given block, or NULL if it is not covered by the spacemap, in
+ * which case it can be neither looked up nor cached.
+ */
+static Block *spacemap_get_block(URLContext *h, int64_t block)
+{
+    SharedContext *s = h->priv_data;
+
+    /* Not fatal on failure, as the old mapping remains in place */
+    spacemap_grow(h, block);
+    if (!s->spacemap)
+        return NULL;
+
+    const int64_t num_blocks = (s->map_size - sizeof(Spacemap)) / sizeof(Block);
+    return block < num_blocks ? &s->spacemap->blocks[block] : NULL;
+}
+
 static int spacemap_init(URLContext *h, const uint8_t hash[HASH_SIZE])
 {
     SharedContext *s = h->priv_data;
     int ret;
 
     ret = spacemap_remap(h, sizeof(Spacemap));
-    if (ret < 0)
-        return ret;
+    if (ret < 0) {
+        if (!s->inner)
+            return ret;
+        av_log(h, AV_LOG_WARNING, "Continuing without cache.\n");
+        return 0;
+    }
 
     if ((ret = set_once_uint(&s->spacemap->header_magic, HEADER_MAGIC)) < 0 ||
         (ret = set_once_ushort(&s->spacemap->version, HEADER_VERSION)) < 0)
@@ -573,8 +615,6 @@ static int shared_read(URLContext *h, unsigned char *buf, int size)
     SharedContext *s = h->priv_data;
     uint8_t *tmp;
     int ret;
-    if (!s->spacemap)
-        return AVERROR(EIO);
 
     if (size <= 0)
         return 0;
@@ -591,12 +631,11 @@ static int shared_read(URLContext *h, unsigned char *buf, int size)
     const int64_t offset = s->pos & (s->block_size - 1);
     const int64_t block_pos = block_id * s->block_size;
     int block_size = clamp_size(h, s->block_size, block_pos, filesize);
-    ret = spacemap_grow(h, block_id);
-    if (ret < 0)
-        return ret;
 
-    Block *const block = &s->spacemap->blocks[block_id];
-    unsigned state = atomic_load_explicit(&block->state, memory_order_acquire);
+    /* Blocks not covered by the spacemap are treated as permanently uncached */
+    Block *const block = spacemap_get_block(h, block_id);
+    unsigned state = block ? atomic_load_explicit(&block->state, memory_order_acquire)
+                           : BLOCK_NONE;
     int64_t pending_since = 0;
     int verify_read = 0, acquired = 0, allocated = 0;
 
@@ -668,7 +707,7 @@ read_block:
         av_fallthrough;
 
     case BLOCK_NONE:
-        if (s->read_only || s->write_err || !s->inner)
+        if (s->read_only || s->write_err || !s->inner || !block)
             break; /* don't mark block as pending */
         else if (s->cache_size_max) {
             int64_t cached = atomic_load_explicit(&s->spacemap->blocks_cached,
@@ -742,7 +781,7 @@ read_block:
         return AVERROR(EIO);
     }
 
-    const int read_only = s->read_only || s->write_err || verify_read;
+    const int read_only = s->read_only || s->write_err || verify_read || !block;
     int64_t inner_pos = read_only ? s->pos : block_pos;
     if (s->inner_pos != inner_pos) {
         inner_pos = ffurl_seek(s->inner, inner_pos, SEEK_SET);
@@ -862,8 +901,6 @@ static int64_t shared_seek(URLContext *h, int64_t pos, int whence)
 {
     SharedContext *s = h->priv_data;
     int64_t res;
-    if (!s->spacemap)
-        return AVERROR(EIO);
 
     const int64_t filesize = get_filesize(h);
     if (filesize < 0)
