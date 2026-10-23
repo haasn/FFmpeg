@@ -330,6 +330,15 @@ int ff_socket(int af, int type, int proto, void *logctx)
     return fd;
 }
 
+int ff_socket_set_tos(int fd, int family, int tos)
+{
+#ifdef IPV6_TCLASS
+    if (family == AF_INET6)
+        return setsockopt(fd, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(tos)) ? ff_neterrno() : 0;
+#endif
+    return setsockopt(fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos)) ? ff_neterrno() : 0;
+}
+
 int ff_listen(int fd, const struct sockaddr *addr,
               socklen_t addrlen, void *logctx)
 {
