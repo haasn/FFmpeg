@@ -2512,6 +2512,10 @@ Set the time to live value (for multicast only).
 @item dscp=@var{dscp}
 Set the 6-bit DSCP field for outgoing packets.
 
+@item ip_tos=@var{tos}
+Set the IPv4 type of service or IPv6 traffic class byte for outgoing packets,
+e.g. @code{0x88} for DSCP AF41. Takes precedence over @option{dscp}.
+
 @item connect=@var{1|0}
 Initialize the UDP socket with @code{connect()}. In this case, the
 destination address can't be changed with ff_udp_set_remote_url later.
