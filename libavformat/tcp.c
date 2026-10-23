@@ -46,6 +46,7 @@ typedef struct TCPContext {
     int send_buffer_size;
     int tcp_nodelay;
     int tcp_keepalive;
+    int ip_tos;
 #if !HAVE_WINSOCK2_H
     int tcp_mss;
 #endif /* !HAVE_WINSOCK2_H */
@@ -64,6 +65,7 @@ static const AVOption options[] = {
     { "recv_buffer_size", "Socket receive buffer size (in bytes)",             OFFSET(recv_buffer_size), AV_OPT_TYPE_INT, { .i64 = -1 },         -1, INT_MAX, .flags = D|E },
     { "tcp_nodelay", "Use TCP_NODELAY to disable nagle's algorithm",           OFFSET(tcp_nodelay), AV_OPT_TYPE_BOOL, { .i64 = 0 },             0, 1, .flags = D|E },
     { "tcp_keepalive", "Use TCP keepalive to detect dead connections and keep long-lived connections active.",           OFFSET(tcp_keepalive), AV_OPT_TYPE_BOOL, { .i64 = 0 },             0, 1, .flags = D|E },
+    { "ip_tos",           "IP ToS / traffic class for outgoing packets",       OFFSET(ip_tos),      AV_OPT_TYPE_INT, { .i64 = -1 },         -1, 255,     .flags = D|E },
 #if !HAVE_WINSOCK2_H
     { "tcp_mss",     "Maximum segment size for outgoing TCP packets",          OFFSET(tcp_mss),     AV_OPT_TYPE_INT, { .i64 = -1 },         -1, INT_MAX, .flags = D|E },
 #endif /* !HAVE_WINSOCK2_H */
@@ -132,6 +134,10 @@ static int customize_fd(void *ctx, int fd, int family)
         if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &s->tcp_keepalive, sizeof(s->tcp_keepalive))) {
             ff_log_net_error(ctx, AV_LOG_WARNING, "setsockopt(SO_KEEPALIVE)");
         }
+    }
+    if (s->ip_tos >= 0) {
+        if (ff_socket_set_tos(fd, family, s->ip_tos) < 0)
+            ff_log_net_error(ctx, AV_LOG_WARNING, "Setting IP ToS/traffic class");
     }
 
 #if !HAVE_WINSOCK2_H

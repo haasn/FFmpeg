@@ -2284,6 +2284,10 @@ Set TCP_NODELAY to disable Nagle's algorithm. Default value is 0.
 
 @item tcp_mss=@var{bytes}
 Set maximum segment size for outgoing TCP packets, expressed in bytes.
+
+@item ip_tos=@var{tos}
+Set the IPv4 type of service or IPv6 traffic class byte for outgoing packets,
+e.g. @code{0x88} for DSCP AF41.
 @end table
 
 The following example shows how to setup a listening TCP connection
