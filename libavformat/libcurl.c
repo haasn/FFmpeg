@@ -92,6 +92,7 @@ typedef struct CurlLoop {
     CURLM          *multi;
     CURLSH         *share;   /* shared cookies/HSTS */
     int             has_cookies; /* libcurl was built with cookie support */
+    int             ip_tos;  /* fixed at socket creation time */
 
     pthread_mutex_t mutex;   /* guards the command queue, exit, share and cmd->done */
     pthread_cond_t  cond;    /* signaled when a sync command completes */
@@ -132,6 +133,7 @@ struct CurlContext {
     int             tls_verify;
     int             seekable_opt;
     int             connect_timeout;
+    int             ip_tos;
     int             max_redirects;
     int             multiple_requests;
     int             http_version;
@@ -1030,13 +1032,14 @@ static void share_unlock_callback(CURL *handle, curl_lock_data data,
     pthread_mutex_unlock(&loop->mutex);
 }
 
-static CurlLoop *curl_loop_create(AVFormatContext *avfc)
+static CurlLoop *curl_loop_create(AVFormatContext *avfc, int ip_tos)
 {
     CurlLoop *loop = av_mallocz(sizeof(*loop));
     CURLSHcode res;
     if (!loop)
         return NULL;
     loop->avfc = avfc;
+    loop->ip_tos = ip_tos;
 
     if (pthread_mutex_init(&loop->mutex, NULL))
         goto fail;
@@ -1133,7 +1136,7 @@ static void curl_loop_destroy(CurlLoop *loop)
 static int curl_loop_attach(CurlContext *c, AVFormatContext *avfc)
 {
     if (!avfc) {
-        c->loop = curl_loop_create(NULL);
+        c->loop = curl_loop_create(NULL, c->ip_tos);
         c->private_loop = 1;
         return c->loop ? 0 : AVERROR(ENOMEM);
     }
@@ -1141,7 +1144,7 @@ static int curl_loop_attach(CurlContext *c, AVFormatContext *avfc)
     pthread_mutex_lock(&curl_loop_lock);
     c->loop = ffformatcontext(avfc)->curl_loop;
     if (!c->loop) {
-        c->loop = curl_loop_create(avfc);
+        c->loop = curl_loop_create(avfc, c->ip_tos);
         ffformatcontext(avfc)->curl_loop = c->loop;
     }
     pthread_mutex_unlock(&curl_loop_lock);
@@ -1162,6 +1165,23 @@ void ff_curl_loop_free(struct CurlLoop **loop)
 /* ------------------------------------------------------------------------- */
 
 static int libcurl_close(URLContext *h);
+
+static curl_socket_t opensocket_callback(void *userdata, curlsocktype purpose,
+                                         struct curl_sockaddr *addr)
+{
+    CurlContext *c = userdata;
+    CurlLoop *loop = c->loop;
+    int fd = ff_socket(addr->family, addr->socktype, addr->protocol, c->h);
+    if (fd < 0)
+        return CURL_SOCKET_BAD;
+
+    if (loop->ip_tos >= 0) {
+        if (ff_socket_set_tos(fd, addr->family, loop->ip_tos) < 0)
+            ff_log_net_error(c->h, AV_LOG_WARNING, "Setting IP ToS/traffic class");
+    }
+
+    return fd;
+}
 
 static int debug_callback(CURL *easy, curl_infotype type, char *data,
                           size_t size, void *userdata)
@@ -1331,6 +1351,8 @@ static int setup_curl(CurlContext *c)
     if (c->connect_timeout > 0)
         CURL_SETOPT(CURLOPT_CONNECTTIMEOUT_MS,
                     (long)c->connect_timeout * 1000);
+    CURL_SETOPT(CURLOPT_OPENSOCKETFUNCTION, opensocket_callback);
+    CURL_SETOPT(CURLOPT_OPENSOCKETDATA, c);
 
     if (c->user_agent && c->user_agent[0])
         CURL_SETOPT(CURLOPT_USERAGENT, c->user_agent);
@@ -1538,6 +1560,13 @@ static int libcurl_open(URLContext *h, const char *url, int flags,
     ret = curl_loop_attach(c, h->avfc);
     if (ret < 0)
         goto fail;
+
+    CurlLoop *loop = c->loop;
+    if (c->ip_tos >= 0 && c->ip_tos != loop->ip_tos) {
+        av_log(h, AV_LOG_WARNING, "ip_tos 0x%x doesn't match previous value "
+               "0x%x, can't change existing socket\n",
+               c->ip_tos, FFMAX(loop->ip_tos, 0));
+    }
 
     c->easy = curl_easy_init();
     if (!c->easy) {
@@ -1785,6 +1814,7 @@ static const AVOption options[] = {
     { "cert_file", "client certificate file", OFFSET(cert_file), AV_OPT_TYPE_STRING, { .str = NULL }, 0, 0, D | E },
     { "key_file", "client private key file", OFFSET(key_file), AV_OPT_TYPE_STRING, { .str = NULL }, 0, 0, D | E },
     { "connect_timeout", "connection timeout in seconds (0 = libcurl default)", OFFSET(connect_timeout), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, INT_MAX / 1000, D | E },
+    { "ip_tos", "IP ToS / traffic class for outgoing packets", OFFSET(ip_tos), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, 255, D | E },
     { "max_redirects", "maximum number of redirects to follow", OFFSET(max_redirects), AV_OPT_TYPE_INT, { .i64 = 16 }, 0, INT_MAX, D },
     { "multiple_requests", "reuse the connection across requests (HTTP keep-alive)", OFFSET(multiple_requests), AV_OPT_TYPE_BOOL, { .i64 = 1 }, 0, 1, D | E },
     { "max_retries", "maximum number of retries after a recoverable error", OFFSET(max_retries), AV_OPT_TYPE_INT, { .i64 = 5 }, 0, INT_MAX, D },

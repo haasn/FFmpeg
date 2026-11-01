@@ -371,6 +371,13 @@ int ff_http_match_no_proxy(const char *no_proxy, const char *hostname);
 
 int ff_socket(int domain, int type, int protocol, void *logctx);
 
+/**
+ * Set the IPv4 ToS or IPv6 traffic class byte of outgoing packets.
+ *
+ * @return 0 on success, AVERROR on failure.
+ */
+int ff_socket_set_tos(int fd, int family, int tos);
+
 void ff_log_net_error(void *ctx, int level, const char* prefix);
 
 /**

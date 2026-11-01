@@ -120,6 +120,7 @@ typedef struct UDPContext {
     char *localaddr;
     int timeout;
     int dscp;
+    int ip_tos;
     struct sockaddr_storage local_addr_storage;
     char *sources;
     char *block;
@@ -145,6 +146,7 @@ static const AVOption options[] = {
     { "broadcast", "explicitly allow or disallow broadcast destination",   OFFSET(is_broadcast),   AV_OPT_TYPE_BOOL,   { .i64 = 0  },     0, 1,       E },
     { "ttl",            "Time to live (multicast only)",                   OFFSET(ttl),            AV_OPT_TYPE_INT,    { .i64 = 16 },     0, 255,     E },
     { "dscp",           "DSCP class for outgoing packets",                 OFFSET(dscp),           AV_OPT_TYPE_INT,    { .i64 = -1 },    -1, 63,      E },
+    { "ip_tos",         "IP ToS / traffic class for outgoing packets",     OFFSET(ip_tos),         AV_OPT_TYPE_INT,    { .i64 = -1 },    -1, 255,     E },
     { "connect",        "set if connect() should be called on socket",     OFFSET(is_connected),   AV_OPT_TYPE_BOOL,   { .i64 =  0 },     0, 1,       .flags = D|E },
     { "fifo_size",      "set the UDP circular buffer size (in 188-byte packets)", OFFSET(circular_buffer_size), AV_OPT_TYPE_INT, {.i64 = HAVE_THREADS ? 7*4096 : 0}, 0, INT_MAX, D },
     { "overrun_nonfatal", "survive in case of UDP receiving circular buffer overrun", OFFSET(overrun_nonfatal), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1,    D },
@@ -812,7 +814,10 @@ static int udp_open(URLContext *h, const char *uri, int flags)
             av_log(h, AV_LOG_WARNING, "socket option UDPLITE_RECV_CSCOV not available");
     }
 
-    if (s->dscp >= 0) {
+    if (s->ip_tos >= 0) {
+        if (ff_socket_set_tos(udp_fd, my_addr.ss_family, s->ip_tos) < 0)
+            ff_log_net_error(h, AV_LOG_WARNING, "Setting IP ToS/traffic class");
+    } else if (s->dscp >= 0) {
         int dscp = s->dscp << 2;
         if (setsockopt (udp_fd, IPPROTO_IP, IP_TOS, &dscp, sizeof(dscp)) != 0) {
             ret = ff_neterrno();

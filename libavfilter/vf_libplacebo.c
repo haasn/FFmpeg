@@ -2184,7 +2184,7 @@ static int scene_activate(AVFilterContext *ctx)
         case PL_QUEUE_ERR: {
             /* Forward the error of the failed input */
             const int status = (intptr_t) comp->inputs[i]->user_data;
-            if (!status)
+            if (!status || status == AVERROR_EOF)
                 return AVERROR_EXTERNAL;
             ff_outlink_set_status(outlink, status, out_pts);
             return 0;
