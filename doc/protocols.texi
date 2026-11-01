@@ -1183,6 +1183,11 @@ Client certificate and private key files for mutual TLS.
 @item connect_timeout
 Connection timeout in seconds. @code{0} (the default) uses libcurl's own timeout.
 
+@item ip_tos
+Set the IPv4 type of service or IPv6 traffic class byte for outgoing packets,
+e.g. @code{0x88} for DSCP AF41. Note that all connections within an
+@code{AVFormatContext} use the same value.
+
 @item max_redirects
 Maximum number of redirects to follow. Default is @code{16}.
 
