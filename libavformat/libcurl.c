@@ -1125,6 +1125,16 @@ void ff_curl_loop_free(struct CurlLoop **loop)
 
 static int libcurl_close(URLContext *h);
 
+static curl_socket_t opensocket_callback(void *userdata, curlsocktype purpose,
+                                         struct curl_sockaddr *addr)
+{
+    CurlContext *c = userdata;
+    int fd = ff_socket(addr->family, addr->socktype, addr->protocol, c->h);
+    if (fd < 0)
+        return CURL_SOCKET_BAD;
+    return fd;
+}
+
 static int debug_callback(CURL *easy, curl_infotype type, char *data,
                           size_t size, void *userdata)
 {
@@ -1293,6 +1303,8 @@ static int setup_curl(CurlContext *c)
     if (c->connect_timeout > 0)
         CURL_SETOPT(CURLOPT_CONNECTTIMEOUT_MS,
                     (long)c->connect_timeout * 1000);
+    CURL_SETOPT(CURLOPT_OPENSOCKETFUNCTION, opensocket_callback);
+    CURL_SETOPT(CURLOPT_OPENSOCKETDATA, c);
 
     if (c->user_agent && c->user_agent[0])
         CURL_SETOPT(CURLOPT_USERAGENT, c->user_agent);
