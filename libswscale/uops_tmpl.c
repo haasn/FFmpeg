@@ -823,11 +823,7 @@ DECL_SETUP(setup_linear, params, out)
         c.k[i] = uop->data.mat4x5[i][4].px;
     }
 
-    out->ref = av_refstruct_allocz(sizeof(c));
-    if (!out->ref)
-        return AVERROR(ENOMEM);
-    memcpy(out->ref, &c, sizeof(c));
-    SWS_OP_PRIV_PACK(out, out->ref);
+    SWS_OP_PRIV_PACK(out, c);
     return 0;
 }
 
@@ -839,8 +835,7 @@ DECL_SETUP(setup_linear, params, out)
  */
 DECL_FUNC(linear, const SwsCompMask mask, const uint32_t one, const uint32_t zero)
 {
-    const SwsOpPriv *priv = SWS_OP_PRIV(impl);
-    const fn(LinCoeffs) c = *(const fn(LinCoeffs) *) priv->ptr;
+    const fn(LinCoeffs) c = *(const fn(LinCoeffs) *) SWS_OP_PRIV(impl);
 
     SWS_LOOP
     for (int i = 0; i < SWS_BLOCK_SIZE; i++) {
@@ -867,7 +862,7 @@ DECL_FUNC(linear, const SwsCompMask mask, const uint32_t one, const uint32_t zer
         if (W) LIN_ROW(3, w);
     }
 
-    CONTINUE(sizeof(priv->ptr), x, y, z, w);
+    CONTINUE(sizeof(c), x, y, z, w);
 }
 
 SWS_FOR(PX, LINEAR, DECL_IMPL, linear)
