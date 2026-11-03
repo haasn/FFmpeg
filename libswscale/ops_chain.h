@@ -131,8 +131,8 @@ typedef struct SwsImplResult {
     void *ref; /* external data backing `priv`, ownership passes to SwsOpChain */
 
     /* Private data for this kernel */
-    SwsOpPriv priv;
     size_t priv_size;
+    uint8_t priv[128];
 } SwsImplResult;
 
 typedef struct SwsUOpEntry {
@@ -156,7 +156,7 @@ int ff_sws_setup_vec4(const SwsImplParams *params, SwsImplResult *out);
 static inline void ff_op_priv_pack(SwsImplResult *out, const void *data, size_t size)
 {
     av_assert0(out->priv_size + size <= sizeof(out->priv));
-    memcpy(&out->priv.data[out->priv_size], data, size);
+    memcpy(&out->priv[out->priv_size], data, size);
     out->priv_size += size;
 }
 
