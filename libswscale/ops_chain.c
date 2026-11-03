@@ -26,7 +26,13 @@
 
 SwsOpChain *ff_sws_op_chain_alloc(void)
 {
-    return av_mallocz(sizeof(SwsOpChain));
+    SwsOpChain *chain = av_mallocz(sizeof(SwsOpChain));
+    if (!chain)
+        return NULL;
+
+    /* Reserve extra space for the entrypoint */
+    chain->tail = sizeof(SwsOpImpl);
+    return chain;
 }
 
 void ff_sws_op_chain_free_cb(void *ptr)
@@ -35,24 +41,35 @@ void ff_sws_op_chain_free_cb(void *ptr)
         return;
 
     SwsOpChain *chain = ptr;
-    for (int i = 0; i < chain->num_impl; i++)
+    for (int i = 0; i < chain->num_ref; i++)
         av_refstruct_unref(&chain->ref[i]);
 
     av_free(chain);
 }
 
-int ff_sws_op_chain_append(SwsOpChain *chain, SwsFuncPtr func,
-                           const void *ref, const SwsOpPriv *priv)
+int ff_sws_op_chain_append(SwsOpChain *chain, SwsFuncPtr func, const void *ref,
+                           const void *data, size_t data_size)
 {
-    const int idx = chain->num_impl;
-    if (idx == SWS_MAX_OPS)
+    /* Ensures each SwsOpImpl is stored aligned, so that kernels can deref it */
+    const size_t op_size = FFALIGN(offsetof(SwsOpImpl, priv) + data_size,
+                                   alignof(SwsOpImpl));
+
+    if (chain->tail + op_size > sizeof(chain->impl))
+        return AVERROR(EINVAL);
+    if (ref && chain->num_ref >= FF_ARRAY_ELEMS(chain->ref))
         return AVERROR(EINVAL);
 
-    av_assert1(func);
-    chain->impl[idx].cont = func;
-    chain->impl[idx + 1].priv = *priv;
-    chain->ref[idx] = ref ? av_refstruct_ref_c(ref) : NULL;
-    chain->num_impl++;
+    /* Link the new function pointer into the previous op's struct */
+    void *last = &chain->impl[chain->last];
+    void *priv = &chain->impl[chain->tail + offsetof(SwsOpImpl, priv)];
+    memcpy(last, &func, sizeof(func));
+    memcpy(priv, data, data_size);
+
+    chain->last = chain->tail;
+    chain->tail += op_size;
+    if (ref)
+        chain->ref[chain->num_ref++] = av_refstruct_ref_c(ref);
+
     return 0;
 }
 
@@ -109,7 +126,7 @@ int ff_sws_uop_lookup(SwsContext *ctx, const SwsUOpTable *const tables[],
     }
 
     ret = ff_sws_op_chain_append(chain, res.func ? res.func : match->func,
-                                 res.ref, &res.priv);
+                                 res.ref, &res.priv, sizeof(res.priv));
     av_refstruct_unref(&res.ref);
     if (ret < 0)
         return ret;

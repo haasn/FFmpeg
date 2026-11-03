@@ -78,6 +78,7 @@ typedef struct SwsOpImpl {
 #if ARCH_X86_64 || ARCH_AARCH64
 static_assert(sizeof(SwsOpImpl) == 24,        "SwsOpImpl layout mismatch");
 static_assert(offsetof(SwsOpImpl, priv) == 8, "SwsOpImpl layout mismatch");
+static_assert(alignof(SwsOpImpl) == sizeof(void *), "SwsOpImpl alignment mismatch");
 #endif
 
 /**
@@ -86,15 +87,23 @@ static_assert(offsetof(SwsOpImpl, priv) == 8, "SwsOpImpl layout mismatch");
  * private data for each operation.
  */
 typedef struct SwsOpChain {
-#define SWS_MAX_OPS 16
-    SwsOpImpl impl[SWS_MAX_OPS + 1]; /* reserve extra space for the entrypoint */
-    int num_impl;
+    /* Generic data buffer. This contains a packed representation of
+     * continuation addresses and kernel private data. This is placed at
+     * the front of the struct so SIMD kernels can access it directly. */
+    DECLARE_ALIGNED_16(uint8_t, impl)[1024];
+
+    /* Metadata for the chain */
     int cpu_flags;      /* set of all used CPU flags */
     int over_read[4];   /* chain over-reads input by this many bytes */
     int over_write[4];  /* chain over-writes output by this many bytes */
 
     /* Extra references owned by each kernel */
-    const void *ref[SWS_MAX_OPS];
+    const void *ref[16];
+    int num_ref;
+
+    /* Offsets into data[], used internally during chain construction */
+    int last; /* offset of last op registered op */
+    int tail; /* offset of next free byte */
 } SwsOpChain;
 
 SwsOpChain *ff_sws_op_chain_alloc(void);
@@ -105,8 +114,8 @@ static inline void ff_sws_op_chain_free(SwsOpChain *chain)
 }
 
 /* Returns 0 on success, or a negative error code. */
-int ff_sws_op_chain_append(SwsOpChain *chain, SwsFuncPtr func,
-                           const void *ref, const SwsOpPriv *priv);
+int ff_sws_op_chain_append(SwsOpChain *chain, SwsFuncPtr func, const void *ref,
+                           const void *data, size_t data_size);
 
 typedef struct SwsImplParams {
     const SwsUOpTable *table;
