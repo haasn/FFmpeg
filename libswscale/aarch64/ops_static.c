@@ -130,6 +130,12 @@ static const SwsAArch64OpEntry ops_entries[] = {
 /*********************************************************************/
 #define IMPL_PRIV(s) a64op_off(s->impl, offsetof_impl_priv)
 
+/* Offset of the next kernel's SwsOpImpl, given this kernel's priv data size */
+static int impl_next(int priv_size)
+{
+    return sizeof_impl;
+}
+
 /**
  * Set node where the continuation address will be loaded and impl will
  * be incremented. This should be done right after impl->priv has been
@@ -521,7 +527,7 @@ static void asmgen_process_cps(SwsAArch64Context *s, SwsCompMask mask)
     rasm_set_current_node(r, s->setup);
     RasmOp impl_cont = a64op_off(s->impl, offsetof_impl_cont);
     i_ldr(r, s->op0_func, impl_cont);                   CMT("SwsFuncPtr op0_func = impl->cont;");
-    i_add(r, s->op1_impl, s->impl, IMM(sizeof_impl));   CMT("SwsOpImpl *op1_impl = impl + 1;");
+    i_add(r, s->op1_impl, s->impl, IMM(impl_next(0)));  CMT("SwsOpImpl *op1_impl = impl + 1;");
 
     /* Reset impl and call first kernel. */
     rasm_set_current_node(r, s->loop);
@@ -635,7 +641,7 @@ static void asmgen_op_cps(SwsAArch64Context *s, const SwsAArch64OpEntry *entry)
     } else {
         /* Load continuation address and increment impl pointer. */
         RasmNode *node = rasm_set_current_node(r, s->load_cont_node);
-        RasmOp impl_post = a64op_post(s->impl, sizeof_impl);
+        RasmOp impl_post = a64op_post(s->impl, impl_next(aarch64_priv_size(p)));
         i_ldr(r, s->cont, impl_post);                   CMT("SwsFuncPtr cont = (impl++)->cont;");
         rasm_set_current_node(r, node);
         /* Common end for remaining CPS functions. */
