@@ -99,14 +99,16 @@ static int aarch64_setup_linear(const SwsAArch64OpImplParams *p,
         }
     }
 
-    res->priv.ptr = res->ref = coeffs;
+    SWS_OP_PRIV_PACK(res, coeffs);
+    res->ref = coeffs;
     return 0;
 }
 
 /*********************************************************************/
 static int aarch64_setup_dither(const SwsUOp *uop, SwsImplResult *res)
 {
-    res->priv.ptr = res->ref = av_refstruct_ref(uop->data.ptr);
+    res->ref = av_refstruct_ref(uop->data.ptr);
+    SWS_OP_PRIV_PACK(res, res->ref);
     return 0;
 }
 
@@ -115,28 +117,35 @@ static int aarch64_setup(const SwsUOp *uop, const SwsAArch64OpImplParams *p,
                          SwsImplResult *out)
 {
     switch (uop->uop) {
-    case SWS_UOP_READ_BIT:
+    case SWS_UOP_READ_BIT: {
         /* Negative shift values to perform right shift using ushl. */
-        out->priv = (SwsOpPriv) {
-            .u8 = {
-                -7, -6, -5, -4, -3, -2, -1, 0,
-                -7, -6, -5, -4, -3, -2, -1, 0,
-            }
+        static const int8_t shift[16] = {
+            -7, -6, -5, -4, -3, -2, -1, 0,
+            -7, -6, -5, -4, -3, -2, -1, 0,
         };
+        SWS_OP_PRIV_PACK(out, shift);
         break;
-    case SWS_UOP_WRITE_BIT:
+    }
+    case SWS_UOP_WRITE_BIT: {
         /* Shift values for ushl. */
-        out->priv = (SwsOpPriv) {
-            .u8 = {
-                7, 6, 5, 4, 3, 2, 1, 0,
-                7, 6, 5, 4, 3, 2, 1, 0,
-            }
+        static const uint8_t shift[16] = {
+            7, 6, 5, 4, 3, 2, 1, 0,
+            7, 6, 5, 4, 3, 2, 1, 0,
         };
+        SWS_OP_PRIV_PACK(out, shift);
         break;
+    }
     case SWS_UOP_CLEAR:
     case SWS_UOP_MIN:
-    case SWS_UOP_MAX:
-        return ff_sws_setup_vec4(&(const SwsImplParams) { .uop = uop }, out);
+    case SWS_UOP_MAX: {
+        int ret = ff_sws_setup_vec4(&(const SwsImplParams) { .uop = uop }, out);
+        if (ret < 0)
+            return ret;
+        /* Pad to the full vector register loaded by the kernel */
+        static const uint8_t zero[16];
+        ff_op_priv_pack(out, zero, sizeof(zero) - out->priv_size);
+        return 0;
+    }
     case SWS_UOP_SCALE:
         return ff_sws_setup_scalar(&(const SwsImplParams) { .uop = uop }, out);
     case SWS_UOP_LINEAR:
