@@ -125,7 +125,7 @@ static void process_c(const SwsOpExec *exec, const void *priv,
     for (iter->y = y_start; iter->y < y_end; iter->y++) {
         for (int block = bx_start; block < bx_end; block++) {
             iter->x = block * SWS_BLOCK_SIZE;
-            CONTINUE(&x, &y, &z, &w);
+            CONTINUE(0, &x, &y, &z, &w);
         }
 
         const int y_bump = exec->in_bump_y ? exec->in_bump_y[iter->y] : 0;
