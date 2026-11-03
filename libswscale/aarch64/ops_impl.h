@@ -117,6 +117,5 @@ static inline int aarch64_priv_size(const SwsAArch64OpImplParams *params)
 #define offsetof_exec_out_bump 160
 #define offsetof_impl_cont       0
 #define offsetof_impl_priv       8
-#define sizeof_impl             24
 
 #endif /* SWSCALE_AARCH64_OPS_IMPL_H */
