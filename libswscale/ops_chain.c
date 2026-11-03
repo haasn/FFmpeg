@@ -31,7 +31,7 @@ SwsOpChain *ff_sws_op_chain_alloc(void)
         return NULL;
 
     /* Reserve extra space for the entrypoint */
-    chain->tail = sizeof(SwsOpImpl);
+    chain->tail = offsetof(SwsOpImpl, priv);
     return chain;
 }
 
@@ -126,7 +126,7 @@ int ff_sws_uop_lookup(SwsContext *ctx, const SwsUOpTable *const tables[],
     }
 
     ret = ff_sws_op_chain_append(chain, res.func ? res.func : match->func,
-                                 res.ref, &res.priv, sizeof(res.priv));
+                                 res.ref, &res.priv, res.priv_size);
     av_refstruct_unref(&res.ref);
     if (ret < 0)
         return ret;

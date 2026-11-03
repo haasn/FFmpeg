@@ -123,7 +123,7 @@ static_assert(alignof(SwsFilterPriv) <= alignof(SwsOpPriv),
     ((void (*)(SwsOpIter *, const SwsOpImpl *,                                  \
                void *restrict x, void *restrict y,                              \
                void *restrict z, void *restrict w)) impl->cont)                 \
-        (iter, &impl[1], __VA_ARGS__)
+        (iter, (const void *) &impl->priv.data[FFALIGN(N, alignof(SwsOpImpl))], __VA_ARGS__)
 
 /* Helper macros for common op setup code */
 #define DECL_SETUP(NAME, PARAMS, OUT)                                           \

@@ -133,7 +133,7 @@ static const SwsAArch64OpEntry ops_entries[] = {
 /* Offset of the next kernel's SwsOpImpl, given this kernel's priv data size */
 static int impl_next(int priv_size)
 {
-    return sizeof_impl;
+    return offsetof_impl_priv + ((priv_size + 7) & ~7);
 }
 
 /**

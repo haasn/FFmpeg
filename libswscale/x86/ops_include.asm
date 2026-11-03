@@ -135,8 +135,7 @@ endstruc
 
 struc SwsOpImpl
     .cont resq 1
-    .priv resb 16
-    .next resb 0
+    .priv resb 0
 endstruc
 
 %define SWS_COMP_NONE           0
@@ -309,7 +308,7 @@ endstruc
 ; Tail call into the next operation kernel, given that kernel's address and
 ; the size of the private data consumed by this kernel (optional)
 %macro CONTINUE 1-2 0 ; reg, [priv_size]
-    add implq, SwsOpImpl.next
+    add implq, SwsOpImpl.priv + ((%2 + gprsize - 1) & ~(gprsize - 1))
     jmp %1
     annotate_function_size
 %endmacro
