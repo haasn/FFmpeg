@@ -600,11 +600,12 @@ IF V2,  mova %3, %2
 %macro CLEAR 2
 %assign ONE_MASK  %1
 %assign ZERO_MASK %2
+        LOAD_CONT tmp0q
 IF1 X,  clear 0, mx, mx2
 IF1 Y,  clear 1, my, my2
 IF1 Z,  clear 2, mz, mz2
 IF1 W,  clear 3, mw, mw2
-        CONTINUE
+        CONTINUE tmp0q, 4 * 4
 %endmacro
 
 ;---------------------------------------------------------
@@ -745,12 +746,13 @@ IF W,   packuswb %4, m11
         pxor m15, m15
         scale8 mx,  my,  mz,  mw,  m12
 IF1 V2, scale8 mx2, my2, mz2, mw2, m12
+        CONTINUE tmp0q, 4 ; packed as dword
 %else
         vpbroadcastx m12, [implq + SwsOpImpl.priv]
         pmull4 x, mx,  my,  mz,  mw,  m12
 IF1 V2, pmull4 x, mx2, my2, mz2, mw2, m12
+        CONTINUE tmp0q, BYTES
 %endif
-        CONTINUE tmp0q
 %endmacro
 
 %macro ADD 0
@@ -877,7 +879,7 @@ IF W,   mova IN3, m11
         LOAD_CONT tmp1q
         linear_pass
 IF2 V2, linear_pass 2
-        CONTINUE tmp1q
+        CONTINUE tmp1q, gprsize
 %endmacro
 
 ;---------------------------------------------------------

@@ -306,8 +306,9 @@ endstruc
     mov %1, [implq + SwsOpImpl.cont]
 %endmacro
 
-; Tail call into the next operation kernel, given that kernel's address
-%macro CONTINUE 1 ; reg
+; Tail call into the next operation kernel, given that kernel's address and
+; the size of the private data consumed by this kernel (optional)
+%macro CONTINUE 1-2 0 ; reg, [priv_size]
     add implq, SwsOpImpl.next
     jmp %1
     annotate_function_size
@@ -316,7 +317,7 @@ endstruc
 ; Convenience macro to load and continue to the next kernel in one step
 %macro CONTINUE 0
     LOAD_CONT tmp0q
-    CONTINUE tmp0q
+    CONTINUE tmp0q, 0
 %endmacro
 
 ;---------------------------------------------------------

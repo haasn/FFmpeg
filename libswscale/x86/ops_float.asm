@@ -125,7 +125,7 @@ IF W,   add in3q, FILTER_SIZE
 IF Z,   add in2q, FILTER_SIZE
 IF Y,   add in1q, FILTER_SIZE
 IF X,   add in0q, FILTER_SIZE
-        CONTINUE tmp0q
+        CONTINUE tmp0q, 2 * gprsize
 %undef weights
 %undef fltsize
 %endmacro
@@ -285,7 +285,7 @@ IF X,   mulps mx2, m12
 IF Y,   mulps my2, m12
 IF Z,   mulps mz2, m12
 IF W,   mulps mw2, m12
-        CONTINUE tmp0q
+        CONTINUE tmp0q, 2 * gprsize
 %undef weights
 %undef fltsize
 %endmacro
@@ -453,7 +453,7 @@ IF X,   mulps mx2, m10
 IF Y,   mulps my2, m10
 IF Z,   mulps mz2, m10
 IF W,   mulps mw2, m10
-        CONTINUE tmp0q
+        CONTINUE tmp0q, 2 * gprsize
 %undef offset0q
 %undef offset1q
 %undef offset2q
@@ -477,7 +477,7 @@ IF X,   mulps mx2, m8
 IF Y,   mulps my2, m8
 IF Z,   mulps mz2, m8
 IF W,   mulps mw2, m8
-        CONTINUE tmp0q
+        CONTINUE tmp0q, BYTES
 %endmacro
 
 %macro ADD 0
@@ -494,7 +494,7 @@ IF X,   addps mx2, m8
 IF Y,   addps my2, m9
 IF Z,   addps mz2, m10
 IF W,   addps mw2, m11
-        CONTINUE tmp0q
+        CONTINUE tmp0q, 4 * BYTES
 %endmacro
 
 %macro MIN 0
@@ -511,7 +511,7 @@ IF X,   minps mx2, m8
 IF Y,   minps my2, m9
 IF Z,   minps mz2, m10
 IF W,   minps mw2, m11
-        CONTINUE tmp0q
+        CONTINUE tmp0q, 4 * BYTES
 %endmacro
 
 %macro MAX 0
@@ -528,7 +528,7 @@ IF X,   maxps mx2, m8
 IF Y,   maxps my2, m9
 IF Z,   maxps mz2, m10
 IF W,   maxps mw2, m11
-        CONTINUE tmp0q
+        CONTINUE tmp0q, 4 * BYTES
 %endmacro
 
 ;---------------------------------------------------------
@@ -598,7 +598,7 @@ IF X,   mova mx2, m8
 IF Y,   mova my2, m9
 IF Z,   mova mz2, m10
 IF W,   mova mw2, m11
-        CONTINUE tmp1q
+        CONTINUE tmp1q, gprsize
 %endmacro
 
 %macro LINEAR 2
@@ -670,7 +670,7 @@ IF Y,   addps my2, m9
 IF Z,   addps mz2, m10
 IF W,   addps mw2, m11
     %endif
-        CONTINUE tmp0q
+        CONTINUE tmp0q, gprsize
 %endmacro
 
 ;---------------------------------------------------------
