@@ -480,11 +480,17 @@ IF W,   mulps mw2, m8
         CONTINUE tmp0q, BYTES
 %endmacro
 
-%macro ADD 0
+; Broadcast the per-component constants into m8-m11; only the masked
+; components are stored, in order
+%macro LOAD_VEC4 0
 IF X,   vbroadcastss m8,  [implq + SwsOpImpl.priv + 0 * BYTES]
-IF Y,   vbroadcastss m9,  [implq + SwsOpImpl.priv + 1 * BYTES]
-IF Z,   vbroadcastss m10, [implq + SwsOpImpl.priv + 2 * BYTES]
-IF W,   vbroadcastss m11, [implq + SwsOpImpl.priv + 3 * BYTES]
+IF Y,   vbroadcastss m9,  [implq + SwsOpImpl.priv + (X) * BYTES]
+IF Z,   vbroadcastss m10, [implq + SwsOpImpl.priv + (X + Y) * BYTES]
+IF W,   vbroadcastss m11, [implq + SwsOpImpl.priv + (X + Y + Z) * BYTES]
+%endmacro
+
+%macro ADD 0
+        LOAD_VEC4
         LOAD_CONT tmp0q
 IF X,   addps mx, m8
 IF Y,   addps my, m9
@@ -494,14 +500,11 @@ IF X,   addps mx2, m8
 IF Y,   addps my2, m9
 IF Z,   addps mz2, m10
 IF W,   addps mw2, m11
-        CONTINUE tmp0q, 4 * BYTES
+        CONTINUE tmp0q, COMPS * BYTES
 %endmacro
 
 %macro MIN 0
-IF X,   vbroadcastss m8,  [implq + SwsOpImpl.priv + 0 * BYTES]
-IF Y,   vbroadcastss m9,  [implq + SwsOpImpl.priv + 1 * BYTES]
-IF Z,   vbroadcastss m10, [implq + SwsOpImpl.priv + 2 * BYTES]
-IF W,   vbroadcastss m11, [implq + SwsOpImpl.priv + 3 * BYTES]
+        LOAD_VEC4
         LOAD_CONT tmp0q
 IF X,   minps mx, m8
 IF Y,   minps my, m9
@@ -511,14 +514,11 @@ IF X,   minps mx2, m8
 IF Y,   minps my2, m9
 IF Z,   minps mz2, m10
 IF W,   minps mw2, m11
-        CONTINUE tmp0q, 4 * BYTES
+        CONTINUE tmp0q, COMPS * BYTES
 %endmacro
 
 %macro MAX 0
-IF X,   vbroadcastss m8,  [implq + SwsOpImpl.priv + 0 * BYTES]
-IF Y,   vbroadcastss m9,  [implq + SwsOpImpl.priv + 1 * BYTES]
-IF Z,   vbroadcastss m10, [implq + SwsOpImpl.priv + 2 * BYTES]
-IF W,   vbroadcastss m11, [implq + SwsOpImpl.priv + 3 * BYTES]
+        LOAD_VEC4
         LOAD_CONT tmp0q
 IF X,   maxps mx, m8
 IF Y,   maxps my, m9
@@ -528,7 +528,7 @@ IF X,   maxps mx2, m8
 IF Y,   maxps my2, m9
 IF Z,   maxps mz2, m10
 IF W,   maxps mw2, m11
-        CONTINUE tmp0q, 4 * BYTES
+        CONTINUE tmp0q, COMPS * BYTES
 %endmacro
 
 ;---------------------------------------------------------

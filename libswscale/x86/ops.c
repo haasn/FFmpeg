@@ -292,6 +292,17 @@ static int setup_clear(const SwsImplParams *params, SwsImplResult *out)
     return 0;
 }
 
+static int setup_vec4_masked(const SwsImplParams *params, SwsImplResult *out)
+{
+    const SwsUOp *uop = params->uop;
+    av_assert1(ff_sws_pixel_type_size(uop->type) == 4);
+    for (int i = 0; i < 4; i++) {
+        if (uop->mask & SWS_COMP(i))
+            SWS_OP_PRIV_PACK(out, uop->data.vec4[i].u32);
+    }
+    return 0;
+}
+
 static int setup_dither(const SwsImplParams *params, SwsImplResult *out)
 {
     out->ref = av_refstruct_ref(params->uop->data.ptr);
@@ -385,9 +396,9 @@ SWS_FOR_STRUCT(TYPE, EXPAND_BIT,      DECL_ENTRY, EXT, NULL, NULL)              
 SWS_FOR_STRUCT(TYPE, PERMUTE,         DECL_ENTRY, EXT, NULL, NULL)              \
 SWS_FOR_STRUCT(TYPE, COPY,            DECL_ENTRY, EXT, NULL, NULL)              \
 SWS_FOR_STRUCT(TYPE, SCALE,           DECL_ENTRY, EXT, NULL, setup_scale)       \
-SWS_FOR_STRUCT(TYPE, ADD,             DECL_ENTRY, EXT, NULL, ff_sws_setup_vec4) \
-SWS_FOR_STRUCT(TYPE, MIN,             DECL_ENTRY, EXT, NULL, ff_sws_setup_vec4) \
-SWS_FOR_STRUCT(TYPE, MAX,             DECL_ENTRY, EXT, NULL, ff_sws_setup_vec4) \
+SWS_FOR_STRUCT(TYPE, ADD,             DECL_ENTRY, EXT, NULL, setup_vec4_masked) \
+SWS_FOR_STRUCT(TYPE, MIN,             DECL_ENTRY, EXT, NULL, setup_vec4_masked) \
+SWS_FOR_STRUCT(TYPE, MAX,             DECL_ENTRY, EXT, NULL, setup_vec4_masked) \
 SWS_FOR_STRUCT(TYPE, UNPACK,          DECL_ENTRY, EXT, NULL, NULL)              \
 SWS_FOR_STRUCT(TYPE, PACK,            DECL_ENTRY, EXT, NULL, NULL)              \
 SWS_FOR_STRUCT(TYPE, LSHIFT,          DECL_ENTRY, EXT, NULL, NULL)              \
