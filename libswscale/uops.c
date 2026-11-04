@@ -640,6 +640,59 @@ static int translate_op(SwsContext *ctx, SwsUOpList *uops, SwsUOpFlags flags,
     return ff_sws_uop_list_append(uops, &uop);
 }
 
+static bool can_split_lanes(const SwsUOp *uop)
+{
+    switch (uop->uop) {
+    case SWS_UOP_SCALE:
+    case SWS_UOP_ADD:
+    case SWS_UOP_MIN:
+    case SWS_UOP_MAX:
+    case SWS_UOP_LSHIFT:
+    case SWS_UOP_RSHIFT:
+    case SWS_UOP_DITHER:
+        return av_popcount(uop->mask) > 1;
+    default:
+        return false;
+    }
+}
+
+static int split_lanes(SwsUOpList *uops)
+{
+    SwsUOpList *out = ff_sws_uop_list_alloc();
+    if (!out)
+        return AVERROR(ENOMEM);
+
+    int ret = 0;
+    for (int n = 0; ret >= 0 && n < uops->num_ops; n++) {
+        SwsUOp *op = &uops->ops[n];
+        if (!can_split_lanes(op)) {
+            ret = ff_sws_uop_list_append(out, op);
+            continue;
+        }
+
+        for (int i = 0; ret >= 0 && i < 4; i++) {
+            if (!SWS_COMP_TEST(op->mask, i))
+                continue;
+            SwsUOp lane = *op;
+            lane.mask = SWS_COMP(i);
+            if (op->uop == SWS_UOP_DITHER) {
+                memset(lane.par.dither.y_offset, 0, sizeof(lane.par.dither.y_offset));
+                lane.par.dither.y_offset[i] = op->par.dither.y_offset[i];
+                lane.data.ptr = av_refstruct_ref(op->data.ptr);
+            }
+            ret = ff_sws_uop_list_append(out, &lane);
+        }
+        uop_uninit(op);
+    }
+
+    if (ret >= 0) {
+        FFSWAP(SwsUOp *, uops->ops, out->ops);
+        FFSWAP(int, uops->num_ops, out->num_ops);
+    }
+    ff_sws_uop_list_free(&out);
+    return ret;
+}
+
 int ff_sws_ops_translate(SwsContext *ctx, const SwsOpList *ops,
                          SwsUOpFlags flags, SwsUOpList *uops)
 {
@@ -660,5 +713,8 @@ int ff_sws_ops_translate(SwsContext *ctx, const SwsOpList *ops,
         inputs = op->outputs;
     }
 
-    return ff_sws_uop_list_optimize(ctx, flags, uops);
+    int ret = ff_sws_uop_list_optimize(ctx, flags, uops);
+    if (ret < 0 || !(flags & SWS_UOP_FLAG_SPLIT_LANES))
+        return ret;
+    return split_lanes(uops);
 }

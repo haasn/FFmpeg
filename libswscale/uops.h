@@ -153,6 +153,7 @@ typedef enum SwsUOpFlagBits {
     SWS_UOP_FLAG_READ_PALETTE = (1 << 3), /* backend implements SWS_UOP_READ_PALETTE */
     SWS_UOP_FLAG_ADD          = (1 << 4), /* backend implements SWS_UOP_ADD */
     SWS_UOP_FLAG_PUNNING      = (1 << 5), /* allow type punning float data as int */
+    SWS_UOP_FLAG_SPLIT_LANES  = (1 << 6), /* split arithmetic uops per component */
 } SwsUOpFlagBits;
 
 typedef enum SwsUOpType {
